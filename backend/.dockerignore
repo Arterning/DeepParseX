@@ -3,3 +3,4 @@ venv/
 .venv/
 .pdm-python
 .env
+uploads
