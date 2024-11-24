@@ -222,7 +222,8 @@ async def read_excel(file: UploadFile = File(...)):
         row = strings + '\n'
         content += row
     content = content.replace("Unnamed", "").replace("None", "")
-    doc_param = CreateSysDocParam(title=title, name=name, type='excel', content=content, file=file_location)
+    doc_param = CreateSysDocParam(title=title, name=name, type='excel', 
+                                  c_token=content, content=content, file=file_location)
     doc = await sys_doc_service.create(obj=doc_param)
 
     for excel_data in data_json:

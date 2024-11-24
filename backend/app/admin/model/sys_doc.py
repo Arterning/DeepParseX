@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from sqlalchemy import String
+from sqlalchemy.schema import Index
 from sqlalchemy.dialects.postgresql import TEXT, TSVECTOR
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -13,6 +14,11 @@ class SysDoc(Base):
 
     __tablename__ = 'sys_doc'
 
+    __table_args__ = (
+        Index('ix_sys_document_created_time', 'created_time'),
+        Index('ix_sys_document_updated_time', 'updated_time'),
+    )
+
     id: Mapped[id_key] = mapped_column(init=False)
     title: Mapped[str] = mapped_column(TEXT, default='', comment='标题')
     name: Mapped[str] = mapped_column(TEXT, default='', comment='名称')
@@ -20,7 +26,8 @@ class SysDoc(Base):
     content: Mapped[str | None] = mapped_column(TEXT, default=None, comment='文件内容')
     desc: Mapped[str | None] = mapped_column(TEXT, default=None, comment='摘要')
     file: Mapped[str | None] = mapped_column(TEXT, default=None, comment='原文')
-    tokens: Mapped[TSVECTOR | None] = mapped_column(TSVECTOR, default=None, comment='tokens')
+    c_tokens: Mapped[str | None] = mapped_column(TEXT, default=None, comment='分词内容')
+    tokens: Mapped[TSVECTOR | None] = mapped_column(TSVECTOR, default=None, comment='分词向量')
 
     email_subject: Mapped[str | None] = mapped_column(TEXT, default=None, comment='邮件主题')
     email_from: Mapped[str | None] = mapped_column(String(500), default=None, comment='邮件发送人')
