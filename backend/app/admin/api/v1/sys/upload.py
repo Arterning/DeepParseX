@@ -195,11 +195,12 @@ async def read_pdf(file: UploadFile = File(...)):
     await sys_doc_service.create(obj=obj)
 
 
-
 async def read_excel(file: UploadFile = File(...)):
     # 读取 Excel 文件并解析为 DataFrame
+    file_content = await file.read()
+    file_bytes = BytesIO(file_content)
     try:
-        df = pd.read_excel(file.file)
+        df = pd.read_excel(file_bytes)
     except Exception as e:
         raise e
 

@@ -12,8 +12,8 @@ networks:
 volumes:
   fba_pg:
     name: fba_pg
-  fba_mysql:
-    name: fba_mysql
+  # fba_mysql:
+  #   name: fba_mysql
   fba_redis:
     name: fba_redis
   fba_static:

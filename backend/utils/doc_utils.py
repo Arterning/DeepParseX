@@ -14,11 +14,15 @@ def post_pdf_recog(input_path,
         "output_folder": output_folder,  # 替换为实际的输出文件路径
         "language" : language
     }
-    response = requests.post(url, json=data)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        print("Failed:", response.status_code, response.text)
+    try:
+        response = requests.post(url, json=data)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            print("post_pdf_recog failed:", response.status_code, response.text)
+    except Exception as e:
+        print(f"request error {e}")
+
 
 ## 2  text 请求
 def post_text_recog(input_path,
@@ -30,11 +34,14 @@ def post_text_recog(input_path,
         "output_folder": output_folder,  # 替换为实际的输出文件路径
         "language" : language
     }
-    response = requests.post(url, json=data)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        print("Failed:", response.status_code, response.text)
+    try:
+        response = requests.post(url, json=data)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            print("post_text_recog failed:", response.status_code, response.text)
+    except Exception as e:
+        print(f"request error {e}")
 
 
 ## 3 image 请求
@@ -47,11 +54,14 @@ def post_imagesocr_recog(input_path,
         "output_folder": output_folder,  # 替换为实际的输出文件路径
         "language" : language
     }
-    response = requests.post(url, json=data)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        print("Failed:", response.status_code, response.text)
+    try:
+        response = requests.post(url, json=data)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            print("post_imagesocr_recog failed:", response.status_code, response.text)
+    except Exception as e:
+        print(f"request error {e}")
 
 
 
@@ -65,11 +75,14 @@ def post_audios_recog(input_path,
         "output_folder": output_folder,  # 替换为实际的输出文件路径
         "language" : language
     }
-    response = requests.post(url, json=data)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        print("Failed:", response.status_code, response.text)
+    try:
+        response = requests.post(url, json=data)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            print("post_audios_recog failed:", response.status_code, response.text)
+    except Exception as e:
+        print(f"request error {e}")
 
 
 
@@ -88,12 +101,14 @@ def post_emails_recog(input_path, # 输入含有邮件的目录
         "language" : language,
         "language2" : language2
     }
-    response = requests.post(url, json=data)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        print("Failed:", response.status_code, response.text)
-
+    try:
+        response = requests.post(url, json=data)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            print("post_emails_recog failed:", response.status_code, response.text)
+    except Exception as e:
+        print(f"request error {e}")
 
 
 
