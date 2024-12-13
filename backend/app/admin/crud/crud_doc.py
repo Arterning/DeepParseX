@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from typing import Sequence
 
-from sqlalchemy import select, Select, text, desc, and_
+from sqlalchemy import bindparam, select, Select, text, desc, and_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy_crud_plus import CRUDPlus
@@ -108,6 +108,22 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
         :return:
         """
         return await self.select_models(db)
+    
+    from sqlalchemy.future import select
+
+
+    async def get_column_data(self, db: AsyncSession, column: str):
+        """
+        获取指定列的所有数据
+
+        :param db: AsyncSession
+        :param column: 列名
+        :return: 列的所有数据
+        """
+        stmt = select(getattr(SysDoc, column))  # 动态获取列名
+        result = await db.execute(stmt)
+        return result.scalars().all()  # 获取所有列数据并返回
+
 
     async def create(self, db: AsyncSession, obj_in: CreateSysDocParam) -> SysDoc:
         """
@@ -150,6 +166,27 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
         :return:
         """
         return await self.update_model(db, pk, obj_in)
+    
+
+    async def update_account_pwd(self,db:AsyncSession,pk:list[int],accounts:list[str]):
+        """
+        更新 SysDoc
+
+        :param db:
+        :param pk:
+        :return
+        """
+        updated_rows = 0
+        for id, account in zip(pk, accounts):
+            update_stmt = update(self.model).where(self.model.id == id).values({"account_pwd": account})  # 更新单条记录
+            result = await db.execute(update_stmt)  # 执行更新
+            updated_rows += result.rowcount  # 累加更新的行数
+
+        await db.commit()  # 提交事务
+        return updated_rows  # 返回更新的行数
+        
+       
+
 
     async def delete(self, db: AsyncSession, pk: list[int]) -> int:
         """
@@ -160,6 +197,8 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
         :return:
         """
         return  await self.delete_model_by_column(db, allow_multiple=True, id__in=pk)
+
+
 
 
 sys_doc_dao: CRUDSysDoc = CRUDSysDoc(SysDoc)

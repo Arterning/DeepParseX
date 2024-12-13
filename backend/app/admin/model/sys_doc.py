@@ -28,10 +28,13 @@ class SysDoc(Base):
     file: Mapped[str | None] = mapped_column(TEXT, default=None, comment='原文')
     c_tokens: Mapped[str | None] = mapped_column(TEXT, default=None, comment='分词内容')
     tokens: Mapped[TSVECTOR | None] = mapped_column(TSVECTOR, default=None, comment='分词向量')
-
     email_subject: Mapped[str | None] = mapped_column(TEXT, default=None, comment='邮件主题')
     email_from: Mapped[str | None] = mapped_column(String(500), default=None, comment='邮件发送人')
     email_to: Mapped[str | None] = mapped_column(String(500), default=None, comment='邮件接受人')
     email_time: Mapped[str | None] = mapped_column(String(500), default=None, comment='邮件时间')
-
+    belong: Mapped[int | None] = mapped_column(default=None, comment='文件属于')
+    text_embed: Mapped[str | None] = mapped_column(default=None, comment='文本向量')
+    account_pwd: Mapped[str|None] = mapped_column(TEXT,default=None,comment="用户名密码")
+    
     doc_data: Mapped[list['SysDocData']] = relationship(init=False, back_populates='doc')
+    

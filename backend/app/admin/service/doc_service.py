@@ -12,7 +12,6 @@ from backend.app.admin.schema.doc import CreateSysDocParam, UpdateSysDocParam
 from backend.common.exception import errors
 from backend.database.db_pg import async_db_session
 from backend.app.admin.schema.doc_data import CreateSysDocDataParam
-from backend.utils.doc_utils import get_qw_response
 import asyncio
 import jieba
 
@@ -58,17 +57,17 @@ class SysDocService:
         async with async_db_session() as db:
             sys_docs = await sys_doc_dao.get_all(db)
             return sys_docs
+        
+    @staticmethod
+    async def get_column_data(column:str)->list:
+        async with async_db_session() as db:
+            sys_docs = await sys_doc_dao.get_column_data(db,column)
+            return sys_docs
 
     @staticmethod
     async def create(*, obj: CreateSysDocParam) -> SysDoc:
         doc = None
         content = obj.content
-        loop = asyncio.get_running_loop()
-        question_prompt = "请分析下面的文本包含的简要信息，并直接返回结果:\n"
-        input_llm = question_prompt + content
-        qw_resp = await loop.run_in_executor(None, get_qw_response, input_llm)
-        print("qw_resp: ", qw_resp)
-        obj.desc = qw_resp
         async with async_db_session.begin() as db:
             # sys_doc = await sys_doc_dao.get_by_name(db, obj.name)
             # if sys_doc:
@@ -119,10 +118,15 @@ class SysDocService:
             return count
 
     @staticmethod
-    async def delete(*, pk: list[int]) -> int:
+    async def  delete(*, pk: list[int]) -> int:
         async with async_db_session.begin() as db:
             count = await sys_doc_dao.delete(db, pk)
             return count
 
-
+    @staticmethod
+    async def update_account_pwd(*, pk: list[int], accounts: list[str]):
+        async with async_db_session.begin() as db:
+            count = await sys_doc_dao.update_account_pwd(db, pk,accounts)
+            return count
+    
 sys_doc_service = SysDocService()

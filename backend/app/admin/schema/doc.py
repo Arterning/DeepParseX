@@ -18,6 +18,17 @@ class SysDocSchemaBase(SchemaBase):
     email_from: str | None = None
     email_to: str | None = None
     email_time: str | None = None
+    belong: int | None = None
+    text_embed: str | None = None
+
+class GetSysDocPage(SchemaBase):
+    id: int
+    model_config = ConfigDict(from_attributes=True)
+    title: str
+    name: str | None = None
+    type: str | None = None
+    desc: str | None = None
+    created_time: datetime
 
 
 class CreateSysDocParam(SysDocSchemaBase):

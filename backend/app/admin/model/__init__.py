@@ -14,3 +14,7 @@ from backend.app.admin.model.sys_doc import SysDoc
 from backend.app.admin.model.sys_doc_data import SysDocData
 from backend.app.admin.model.sys_user import User
 from backend.app.admin.model.sys_user_social import UserSocial
+from backend.app.admin.model.sys_org import SysOrg
+from backend.app.admin.model.sys_assets import SysAssets
+from backend.app.admin.model.sys_org_doc import SysOrgDoc
+from backend.app.admin.model.sys_assets_org import SysAssetsOrg

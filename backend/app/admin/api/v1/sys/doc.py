@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query
 
-from backend.app.admin.schema.doc import CreateSysDocParam, GetSysDocListDetails, UpdateSysDocParam, GetDocDetail
+from backend.app.admin.schema.doc import CreateSysDocParam, GetSysDocListDetails, GetSysDocPage, UpdateSysDocParam, GetDocDetail
 from backend.app.admin.service.doc_service import sys_doc_service
 from backend.common.pagination import DependsPagination, paging_data
 from backend.common.response.response_schema import ResponseModel, response_base
@@ -26,7 +26,6 @@ router = APIRouter()
 )
 async def search(tokens: Annotated[str | None, Query()] = None) -> ResponseModel:
     docs = await sys_doc_service.search(tokens=tokens)
-    print("docs", docs)
     return response_base.success(data=docs)
 
 
@@ -66,7 +65,7 @@ async def get_pagination_sys_doc(db: CurrentSession,
     sys_doc_select = await sys_doc_service.get_select(name=name, type=type, tokens=tokens, likeq=likeq,
                                                       email_from=email_from, email_subject=email_subject,
                                                       email_time=email_time, email_to=email_to)
-    page_data = await paging_data(db, sys_doc_select, GetSysDocListDetails)
+    page_data = await paging_data(db, sys_doc_select, GetSysDocPage)
     return response_base.success(data=page_data)
 
 
