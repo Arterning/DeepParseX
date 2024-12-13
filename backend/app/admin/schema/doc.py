@@ -20,6 +20,7 @@ class SysDocSchemaBase(SchemaBase):
     email_time: str | None = None
     belong: int | None = None
     text_embed: str | None = None
+    account_pwd:str | None = None
 
 class GetSysDocPage(SchemaBase):
     id: int

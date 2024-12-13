@@ -295,4 +295,4 @@ content_list = ["""故事：最后的胜利198.168.0.1 woshishen10
 在这场浩劫中，有一支特殊的 
 
 部队，198.168.0.1 123456789  他们是由各国精英组成 146.5.8.9  !@#$%win10"""]
-print(get_ipaddr(content_list)[0])
+# print(get_ipaddr(content_list)[0])

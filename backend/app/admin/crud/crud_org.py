@@ -62,7 +62,7 @@ class CRUDOrg(CRUDPlus[SysOrg]):
         return await self.update_model(db,pk,obj)
     
 
-    async def delete(self, db: AsyncSession, pk:int,) -> int:
+    async def delete(self, db: AsyncSession, pk:list[int]) -> int:
         """
         删除组织
 
@@ -70,6 +70,6 @@ class CRUDOrg(CRUDPlus[SysOrg]):
         :
         :return:
         """
-        return await self.delete_model(db,pk)
+        return await self.delete_model_by_column(db, allow_multiple=True, id__in=pk)
 
 org_dao: CRUDOrg = CRUDOrg(SysOrg)

@@ -44,7 +44,7 @@ class AssetsService:
             return await assets_dao.update(db,pk, obj)
         
     @staticmethod
-    async def delete(*, pk:int) -> None:
+    async def delete(*, pk:list[int]) -> None:
         async with async_db_session.begin() as db:
             return await assets_dao.delete(db,pk)
     

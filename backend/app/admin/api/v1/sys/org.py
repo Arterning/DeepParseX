@@ -43,9 +43,8 @@ async def update_org(pk: Annotated[int, Path(...)], obj: OrgParam) -> ResponseMo
     return response_base.fail()
     
 
-@router.delete(path='/{pk}',summary='删除组织',dependencies=[DependsJwtAuth]
-)
-async def delete_org(pk: Annotated[int, Path(...)]) -> ResponseModel:
+@router.delete(path='',summary='（批量）删除组织',dependencies=[DependsJwtAuth])
+async def delete_org(pk: Annotated[list[int], Query(...)]) -> ResponseModel:
     count = await org_service.delete(pk=pk)
     if count > 0:
         return response_base.success()

@@ -33,7 +33,6 @@ async def add_asset(obj:AssetsParam) -> ResponseModel:
     return response_base.success()
 
 
-
 @router.put('/{pk}',summary='更新资产',dependencies=[DependsJwtAuth])
 async def update_asset(pk: Annotated[int, Path(...)], obj: AssetsParam) -> ResponseModel:
     count = await assets_service.update(pk=pk, obj=obj)
@@ -42,9 +41,8 @@ async def update_asset(pk: Annotated[int, Path(...)], obj: AssetsParam) -> Respo
     return response_base.fail()
     
 
-@router.delete(path='/{pk}',summary='删除资产',dependencies=[DependsJwtAuth]
-)
-async def delete_asset(pk: Annotated[int, Path(...)]) -> ResponseModel:
+@router.delete('', summary='（批量）删除资产',dependencies=[DependsJwtAuth])
+async def delete_asset(pk: Annotated[list[int], Query(...)]) -> ResponseModel:
     count = await assets_service.delete(pk=pk)
     if count > 0:
         return response_base.success()
