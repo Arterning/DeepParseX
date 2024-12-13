@@ -145,6 +145,7 @@ async def read_text(file: UploadFile = File(...)):
     content_str = content.decode('utf-8')
     pdf_records = await loop.run_in_executor(None, request_process_allkinds_filepath, path)
     log.info(pdf_records)
+    desc = ''
     if pdf_records:
         desc = pdf_records['abstract']
     vector_data = await loop.run_in_executor(None,request_text_to_vector,content_str)
@@ -164,6 +165,7 @@ async def read_picture(file: UploadFile):
     # pdf_records = await loop.run_in_executor(None, post_imagesocr_recog, path, "~/uploads/result/", "zhen_light")
     pdf_records = await loop.run_in_executor(None, request_process_allkinds_filepath, path)
     content = ''
+    desc = ''
     if pdf_records:
         content = pdf_records['content']
         desc = pdf_records['abstract']
@@ -181,6 +183,7 @@ async def read_media(file: UploadFile):
     # pdf_records = await loop.run_in_executor(None, post_imagesocr_recog, path, "~/uploads/result/", "zhen_light")
     pdf_records = await loop.run_in_executor(None, request_process_allkinds_filepath, path)
     content = ''
+    desc = ''
     if pdf_records:
         content = pdf_records['content']
         desc = pdf_records['abstract']
@@ -199,6 +202,7 @@ async def read_email(file: UploadFile):
     # pdf_records = await loop.run_in_executor(None, post_emails_recog, path, "~/uploads/附录下载目录/", "~/uploads/附录二次识别输出目录", "zhen_light", "zhen")
     pdf_records = await loop.run_in_executor(None, request_process_allkinds_filepath, path)
     content = ''
+    desc = ''
     email_subject, email_from, email_to, email_time = '', '', '', ''
     if pdf_records:
         
@@ -243,6 +247,7 @@ async def read_pdf(file: UploadFile = File(...)):
     # pdf_records = await loop.run_in_executor(None, post_imagesocr_recog, path, "~/uploads/result/", "zhen_light")
     pdf_records = await loop.run_in_executor(None, request_process_allkinds_filepath, path)
     content = ''
+    desc = ''
     log.info(f"pdfrecord{pdf_records}")
     if pdf_records:
         content = pdf_records['content']
