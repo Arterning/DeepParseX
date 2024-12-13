@@ -49,11 +49,17 @@ INSERT INTO sys_user_role (id, user_id, role_id)
 VALUES (1, 1, 1);
 
 
-
+-- 文档管理
 INSERT INTO sys_menu (id, title, name, level, sort, icon, path, menu_type, component, perms, status, show, cache, remark, parent_id, created_time, updated_time) values (43, '数据', 'data', 0, 1, 'IconApps', 'data', 0, null, null, 1, 1, 1, null, null, '2024-10-05 08:20:22.158815 +00:00', '2024-10-05 08:23:38.257065 +00:00');
 INSERT INTO sys_menu (id, title, name, level, sort, icon, path, menu_type, component, perms, status, show, cache, remark, parent_id, created_time, updated_time) values (44, '文件管理', 'Doc', 0, 0, 'IconFile', 'doc', 1, '/data/doc/index.vue', null, 1, 1, 1, null, 43, '2024-10-05 08:22:03.277761 +00:00', null);
 INSERT INTO sys_menu (id, title, name, level, sort, icon, path, menu_type, component, perms, status, show, cache, remark, parent_id, created_time, updated_time) values (45, '文件上传', 'Upload', 0, 2, 'IconUpload', 'upload', 1, '/data/upload/index.vue', null, 1, 1, 1, null, 43, '2024-10-05 11:41:57.239227 +00:00', '2024-10-05 11:45:09.031372 +00:00');
 INSERT INTO sys_menu (id, title, name, level, sort, icon, path, menu_type, component, perms, status, show, cache, remark, parent_id, created_time, updated_time) VALUES (46, '文件内容', 'DocDetail', 0, 0, null, 'doc-detail', 1, '/data/doc-detail/index.vue', null, 1, 0, 1, null, 43, '2024-10-23 14:02:28.496258 +00:00', '2024-10-23 14:04:54.336278 +00:00');
+
+-- 资产和组织
+INSERT INTO sys_menu (id, title, name, level, sort, icon, path, menu_type, component, perms, status, show, cache, remark, parent_id, created_time, updated_time) VALUES (47, '资产管理', 'Assets', 0, 1, 'IconArchive', 'assets', 1, '/data/assets/index.vue', null, 1, 1, 1, null, 43, '2024-12-12 02:56:02.698057 +00:00', '2024-12-12 09:41:34.193662 +00:00');
+INSERT INTO sys_menu (id, title, name, level, sort, icon, path, menu_type, component, perms, status, show, cache, remark, parent_id, created_time, updated_time) VALUES (48, '组织管理', 'Org', 0, 2, 'IconUserGroup', 'org', 1, '/data/org/index.vue', null, 1, 1, 1, null, 43, '2024-12-12 09:42:13.817441 +00:00', null);
+INSERT INTO sys_menu (id, title, name, level, sort, icon, path, menu_type, component, perms, status, show, cache, remark, parent_id, created_time, updated_time) VALUES (49, '组织详情', 'OrgDetail', 0, 0, null, 'org-detail', 1, '/data/org-detail/index.vue', null, 1, 0, 1, null, 43, '2024-12-13 02:45:59.328497 +00:00', null);
+INSERT INTO sys_menu (id, title, name, level, sort, icon, path, menu_type, component, perms, status, show, cache, remark, parent_id, created_time, updated_time) VALUES (50, '资产详情', 'AssetsDetail', 0, 0, null, 'assets-detail', 1, '/data/assets-detail/index.vue', null, 1, 0, 1, null, 43, '2024-12-13 02:46:50.698312 +00:00', null);
 
 
 CREATE INDEX idx_sys_doc_fulltext ON sys_doc USING gin (to_tsvector('simple', tokens::text));
