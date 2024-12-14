@@ -21,11 +21,8 @@ from backend.common.log import log
 import traceback
 import zipfile
 import os
-import pickle
-import base64
 from email import policy
 from email.parser import BytesParser
-from bs4 import BeautifulSoup
 router = APIRouter()
 
 # 定义上传文件保存的目录
