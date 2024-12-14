@@ -223,7 +223,7 @@ async def read_email(file: UploadFile):
             #     email_to = co["to"]
             #     email_time = co["date"]
     vector_data = await loop.run_in_executor(None,request_text_to_vector,json.dumps(str(content),ensure_ascii=False,indent=4))
-    obj: CreateSysDocParam = CreateSysDocParam(title=title, name=name, type="email",content=str(content),
+    obj: CreateSysDocParam = CreateSysDocParam(title=title, name=name, type="email",content=email_body,
                                                email_subject=email_subject,email_from=email_from,
                                                email_to=email_to, email_time=email_time, file=file_location,desc=desc,text_embed=vector_data)
     doc = await sys_doc_service.create(obj=obj)
