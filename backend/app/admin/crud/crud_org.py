@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 from sqlalchemy import Select,select, desc, and_, update
 from sqlalchemy_crud_plus import CRUDPlus
-from backend.app.admin.model import SysOrg
+from backend.app.admin.model import SysOrg, SysAssets, SysDoc
 from sqlalchemy.ext.asyncio import AsyncSession
-from backend.app.admin.schema.org import OrgParam
+from backend.app.admin.schema.org import OrgParam, UpdateOrgParam
 from sqlalchemy.orm import selectinload
 
 class CRUDOrg(CRUDPlus[SysOrg]):
@@ -28,7 +28,16 @@ class CRUDOrg(CRUDPlus[SysOrg]):
         :return:
         """
         
-        return await self.select_model(db, pk)
+        where = []
+        where.append(self.model.id == pk)
+        res = await db.execute(
+             select(self.model)
+            .options(selectinload(self.model.docs))
+            .options(selectinload(self.model.assets))
+            .where(*where)
+        )
+        return res.scalars().first()
+
 
     async def get_all(self, db: AsyncSession) -> list[SysOrg] | None:
         """
@@ -59,7 +68,25 @@ class CRUDOrg(CRUDPlus[SysOrg]):
         :
         :return:
         """
-        return await self.update_model(db,pk,obj)
+        org = await self.get(db, pk)
+
+        for i in list(org.docs):
+            org.docs.remove(i)
+        doc_list = []
+        for doc_id in obj.docs:
+            doc_list.append(await db.get(SysDoc, doc_id))
+        org.docs.extend(doc_list)
+
+        for i in list(org.assets):
+            org.assets.remove(i)
+        a_list = []
+        for a_id in obj.assets:
+            a_list.append(await db.get(SysAssets, a_id))
+        org.assets.extend(a_list)
+
+        param = UpdateOrgParam(org_name=obj.org_name, org_desc=obj.org_desc,
+                               org_assets_nums=len(obj.assets), org_file_nums=len(obj.docs))
+        return await self.update_model(db,pk,param)
     
 
     async def delete(self, db: AsyncSession, pk:list[int]) -> int:

@@ -9,7 +9,7 @@ from backend.app.admin.service.org_service import org_service
 from fastapi import APIRouter, Path, Query
 from backend.common.log import log
 from backend.utils.doc_utils import request_rag_01
-from backend.app.admin.schema.org import OrgParam, GetOrgListDetails
+from backend.app.admin.schema.org import OrgParam, GetOrgListDetails, GetOrgDetail
 from backend.common.security.jwt import DependsJwtAuth
 from backend.database.db_pg import CurrentSession
 
@@ -18,7 +18,12 @@ router = APIRouter()
 @router.get('/{pk}', summary='获得组织详情', dependencies=[DependsJwtAuth])
 async def get_orgs(pk: Annotated[int, Path(...)]) -> ResponseModel:
     org = await org_service.get(pk=pk)
-    return response_base.success(data=org)
+    docs = [dict(id=doc.id, title=doc.title) for doc in org.docs]
+    assets = [dict(id=a.id, title=a.assets_name) for a in org.assets]
+    data = GetOrgDetail(id=org.id,org_name=org.org_name,org_assets_nums=org.org_assets_nums,
+                        org_file_nums=org.org_file_nums,org_desc=org.org_desc,
+                          docs=docs, assets=assets)
+    return response_base.success(data=data)
 
 @router.get('', summary='获得分页组织', dependencies=[DependsJwtAuth, DependsPagination])
 async def get_org(
