@@ -11,8 +11,8 @@ from backend.common.exception import errors
 class AssetsService:
 
     @staticmethod
-    async def get_select(*, assets_name: str = None) -> Select:
-        return await assets_dao.get_list(assets_name=assets_name)
+    async def get_select(*, ip_addr:str = None, assets_name: str = None) -> Select:
+        return await assets_dao.get_list(ip_addr=ip_addr, assets_name=assets_name)
     
     @staticmethod
     async def get(*, pk: int) -> SysAssets:

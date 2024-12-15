@@ -19,23 +19,30 @@ import re
 
 router = APIRouter()
 
+import re
+import ipaddress
+
 def extract_valid_ips(text):
     # 匹配潜在的 IPv4 地址
     ip_pattern = r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b'
     potential_ips = re.findall(ip_pattern, text)
     
-    # 使用 ipaddress 模块验证合法性
-    valid_ips = []
+    # 使用 ipaddress 模块验证合法性，并过滤掉包含 255 和 0 的 IP 地址
+    valid_ips = set()
     for ip in potential_ips:
         try:
             # 验证 IP 地址是否合法
-            ipaddress.ip_address(ip)
-            valid_ips.append(ip)
+            ip_obj = ipaddress.ip_address(ip)
+            
+            # 过滤掉包含 255 或 0 的 IP 地址
+            if '0' not in ip.split('.') and '255' not in ip.split('.'):
+                valid_ips.add(ip)
         except ValueError:
             # 非法 IP 地址会引发 ValueError，跳过
             continue
     
-    return valid_ips
+    return list(valid_ips)
+
 
 @router.post('',summary="获取文件中的ip地址",dependencies=[DependsJwtAuth])
 async def get_ip_addr(pk: Annotated[list[int],Body(...),]) -> ResponseModel:

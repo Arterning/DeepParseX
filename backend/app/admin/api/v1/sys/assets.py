@@ -22,8 +22,9 @@ async def get(pk: Annotated[int, Path(...)]) -> ResponseModel:
 async def get_assets(
     db: CurrentSession,
     assets_name: Annotated[str | None, Query()] = None,
+    ip_addr: Annotated[str | None, Query()] = None,
 ) -> ResponseModel:
-    res_select = await assets_service.get_select(assets_name=assets_name)
+    res_select = await assets_service.get_select(ip_addr=ip_addr, assets_name=assets_name)
     page_data = await paging_data(db, res_select, GetAssetListDetails)
     return response_base.success(data=page_data)
 

@@ -269,6 +269,7 @@ async def read_excel(file: UploadFile = File(...)):
     except Exception as e:
         raise e
 
+    head = 0
     for i, row in df.iterrows():
         if not row.isna().any():
             head = i

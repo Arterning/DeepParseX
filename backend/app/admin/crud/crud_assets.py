@@ -10,11 +10,13 @@ from sqlalchemy.orm import selectinload
 
 class CRUDOrg(CRUDPlus[SysAssets]):
 
-    async def get_list(self, assets_name: str = None) -> Select:
+    async def get_list(self, ip_addr:str = None, assets_name: str = None) -> Select:
         where_list = []
         stmt = select(self.model).order_by(desc(self.model.created_time))
         if assets_name is not None and assets_name != '':
             where_list.append(self.model.assets_name.like(f'%{assets_name}%'))
+        if ip_addr is not None and ip_addr != '':
+            where_list.append(self.model.ip_addr.like(f'%{ip_addr}%'))
         if where_list:
             stmt = stmt.where(and_(*where_list))
         return stmt
