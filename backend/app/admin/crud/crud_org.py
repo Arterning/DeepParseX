@@ -56,7 +56,20 @@ class CRUDOrg(CRUDPlus[SysOrg]):
         :
         :return:
         """
-        await self.create_model(db,obj)
+        org = self.model(org_name=obj.org_name, org_desc=obj.org_desc,
+                               org_assets_nums=len(obj.assets), org_file_nums=len(obj.docs))
+        db.add(org)
+        db.flush()
+
+        doc_list = []
+        for doc_id in obj.docs:
+            doc_list.append(await db.get(SysDoc, doc_id))
+        org.docs.extend(doc_list)
+
+        a_list = []
+        for a_id in obj.assets:
+            a_list.append(await db.get(SysAssets, a_id))
+        org.assets.extend(a_list)
 
 
     async def update(self, db: AsyncSession, pk:int,obj: OrgParam) -> int:
