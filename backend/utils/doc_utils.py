@@ -3,6 +3,8 @@ import time
 import numpy as np
 import json
 from pathlib import Path
+import faiss
+from typing import Annotated,List,Dict
 
 ## 1 PDF 请求
 def post_pdf_recog(input_path,
@@ -84,8 +86,6 @@ def post_audios_recog(input_path,
             print("post_audios_recog failed:", response.status_code, response.text)
     except Exception as e:
         print(f"request error {e}")
-
-
 
 
 ## 5 emails 处理 
@@ -197,7 +197,7 @@ def request_text_to_vector(text , max_length=512):
         raise Exception(f"Request failed with status code {response.status_code}")
     
 def request_rag_01(text, database,max_length=512,check_topk=5):
-    url = "http://172.17.0.1:8104/search_rag"
+    url = "http://127.0.0.1:8104/search_rag"
     max_length = str(max_length)
     check_topk = str(check_topk)
 
@@ -205,16 +205,19 @@ def request_rag_01(text, database,max_length=512,check_topk=5):
         'accept': 'application/json',
     }
 
- 
     data = {
         'text': text,
         "database_jsondata":database,
         "max_length":str(max_length),
         "check_topk":check_topk
     }
-
+    import time
+    st = time.time()
+    print(f"给大模型发请求    {st}")
     response = requests.post(url, headers=headers, data=data)
-
+    st1 = time.time()
+    print(f"接受到大模型响应     {st1}")
+    print(f"大模型总时间{st1-st}")
     if response.status_code != 200:
         print(f"Response Status Code: {response.status_code}")
         print(f"Response Text: {response.text}")  # 错误信息
@@ -225,6 +228,99 @@ def request_rag_01(text, database,max_length=512,check_topk=5):
         raise Exception(f"Request failed with status code {response.status_code}")
     
     return response.json()['response']
+
+def search_rag_inthedocker(text:str , 
+               database_jsondata: List[Dict],
+               max_length = 512,
+               check_topk = 5
+               ):
+    """
+    四个参数分别是：
+    text : 用户提问
+    database_jsondata : 所有文本向量。为list，包含dict
+    
+    
+    """
+
+    question_text = text
+    max_length = int(max_length)
+    check_topk = int(check_topk)
+    
+    # 将 解码
+    database =  json.loads(database_jsondata)
+
+    # 将反序列化的列表转换回 numpy 数组
+    for i in range(len(database)):
+        i_data = database[i]
+        database[i]["embs"] = np.array(i_data["embs"])
+    
+    # 假设database已经存储了N个文本片段的向量，为list【dict】
+    time1 = time.perf_counter()
+
+
+    # 一、提问向量化
+    question_text_emb = request_text_to_vector(text=question_text,max_length=max_length) # -> [1,1024]
+    question_text_emb = json.loads(question_text_emb)   
+    question_text_emb = np.array(question_text_emb[0]["embs"])
+    # 在开头增加一个维度
+    question_text_emb  = question_text_emb[np.newaxis, :]
+
+
+    
+
+    # 二、 数据库文本、向量整合，用于查询。
+
+    all_texts = np.array([ x["text"]  for x in database])
+
+    all_embs = [ np.array(x["embs"]) for x in database]
+
+    all_embs = np.stack(all_embs,axis=0)# [N,1024]
+    # logger.info(f"rag:数据库向量shape:{all_embs.shape}")
+    
+    ## 三、faiss 查询对象创建
+
+    index_object = faiss.IndexFlatL2(1024)  # 创建一个 L2 距离的索引对象
+    index_object.add(all_embs)
+
+    time2 = time.perf_counter()
+
+    # 四、执行查询，返回 K 个最近邻和其距离
+    distances, indices = index_object.search(question_text_emb , check_topk)
+
+    time3 = time.perf_counter()
+
+    context_indexes = indices[0]
+
+    context = all_texts[context_indexes]
+
+    # logger.info(f"{context}")
+
+    # 整理上下文:
+
+    context = "\n".join(context)
+
+    # logger.info(f"查询到的文本:\n{context }")
+
+    # 大模型问答：
+    template = (
+        "上下文信息如下。\n"
+        "---\n"
+        f"{context}\n"
+        "---\n"
+        "请根据上下文信息而不是先验知识来回答以下的查询。"
+        "作为一个人工智能助手，你的回答要尽可能严谨。"
+        f"提问:{question_text}"
+        "回答："
+    )
+
+    respn = get_llm_response(content=template ) 
+    time4 = time.perf_counter()
+
+    # logger.info(f"faiss查询对象创建用时:{time2-time1:.4f}s")
+    # logger.info(f"faiss查询向量,topk={check_topk},用时:{time3-time2:.4f}s")
+    # logger.info(f"rag大模型问答用时:{time4-time3:.4f}s")
+    return respn
+
 
 
 # 获取账号密码
