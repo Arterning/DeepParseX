@@ -23,6 +23,8 @@ import zipfile
 import os
 from email import policy
 from email.parser import BytesParser
+from zipfile import ZipFile
+
 router = APIRouter()
 
 # 定义上传文件保存的目录
@@ -333,9 +335,21 @@ async def save_file(file: UploadFile = File(...)):
 
 
 
+def support_gbk(zip_file: ZipFile):
+    name_to_info = zip_file.NameToInfo
+    # copy map first
+    for name, info in name_to_info.copy().items():
+        real_name = name.encode('cp437').decode('gbk')
+        if real_name != name:
+            info.filename = real_name
+            del name_to_info[name]
+            name_to_info[real_name] = info
+    return zip_file
+
+
 async def read_zip(file: UploadFile = File(...)):
     file_location, _ = await save_file(file)
-    with zipfile.ZipFile(file_location, "r") as zip_ref:
+    with support_gbk(ZipFile(file_location, "r")) as zip_ref:
         name_list = zip_ref.namelist()
         for file_name in name_list:
             with zip_ref.open(file_name) as single_file:
