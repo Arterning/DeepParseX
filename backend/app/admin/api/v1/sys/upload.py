@@ -148,8 +148,10 @@ async def read_text(file: UploadFile = File(...)):
     if pdf_records:
         desc = pdf_records['abstract']
     vector_data = await loop.run_in_executor(None,request_text_to_vector,content_str)
+    embedding = process_vector_data(vector_data)
+    
     obj: CreateSysDocParam = CreateSysDocParam(title=title, name=name, type="text",content=content_str,
-                                                file=file_location,desc=desc,text_embed=vector_data)
+                                                file=file_location,desc=desc,text_embed=vector_data, embedding=embedding)
     
     await sys_doc_service.create(obj=obj)
 
@@ -509,4 +511,20 @@ async def  emailfile_attachments_downloads( eml_file, download_folder,belong):
     email_data["body"] = body_content
     # 下载附件
     email_data['attachments'] = await save_attachments(msg, download_folder,belong) 
+
+
+def process_vector_data(vector_data: str) -> list[float]:
+    """处理向量数据,将JSON字符串转换为向量数组"""
+    try:
+        vector_list = json.loads(vector_data)
+        all_embeddings = []
+        for item in vector_list:
+            if "embs" in item:
+                # 直接使用embs数组,不需要extend
+                all_embeddings = item["embs"]
+                break  # 只取第一个文本块的向量
+        return all_embeddings
+    except Exception as e:
+        log.error(f"处理向量数据失败: {str(e)}")
+        return None
 

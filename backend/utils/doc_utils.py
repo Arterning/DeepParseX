@@ -229,97 +229,57 @@ def request_rag_01(text, database,max_length=512,check_topk=5):
     
     return response.json()['response']
 
-def search_rag_inthedocker(text:str , 
-               database_jsondata: List[Dict],
-               max_length = 512,
-               check_topk = 5
-               ):
-    """
-    四个参数分别是：
-    text : 用户提问
-    database_jsondata : 所有文本向量。为list，包含dict
+async def search_rag_inthedocker(text: str,
+                                database_jsondata: List[Dict],
+                                max_length = 512,
+                                check_topk = 5):
+    """使用postgres向量搜索相似文档"""
+    from backend.app.admin.service.doc_service import sys_doc_service
+    from backend.database.db_pg import async_db_session
     
+    # 1. 获取问题的向量表示
+    question_text_emb = request_text_to_vector(text=text, max_length=max_length)
+    question_text_emb = json.loads(question_text_emb)
+    query_vector = question_text_emb[0]["embs"]  # 取第一个文本块的向量
     
-    """
+    # 2. 使用postgres向量搜索
+    async with async_db_session() as db:
+        # 构建向量搜索SQL
+        sql = f"""
+        SELECT id, title, content, embedding <-> :query_vector AS distance 
+        FROM sys_doc
+        WHERE embedding IS NOT NULL
+        ORDER BY embedding <-> :query_vector 
+        LIMIT :limit
+        """
+        
+        result = await db.execute(
+            text(sql),
+            {
+                "query_vector": query_vector,
+                "limit": check_topk
+            }
+        )
+        
+        similar_docs = result.fetchall()
+        
+        # 3. 构建上下文
+        context = "\n".join([doc.content for doc in similar_docs if doc.content])
+        
+        # 4. 调用大模型生成回答
+        template = (
+            "上下文信息如下。\n"
+            "---\n"
+            f"{context}\n"
+            "---\n"
+            "请根据上下文信息而不是先验知识来回答以下的查询。"
+            "作为一个人工智能助手，你的回答要尽可能严谨。"
+            f"提问:{text}"
+            "回答："
+        )
 
-    question_text = text
-    max_length = int(max_length)
-    check_topk = int(check_topk)
-    
-    # 将 解码
-    database =  json.loads(database_jsondata)
-
-    # 将反序列化的列表转换回 numpy 数组
-    for i in range(len(database)):
-        i_data = database[i]
-        database[i]["embs"] = np.array(i_data["embs"])
-    
-    # 假设database已经存储了N个文本片段的向量，为list【dict】
-    time1 = time.perf_counter()
-
-
-    # 一、提问向量化
-    question_text_emb = request_text_to_vector(text=question_text,max_length=max_length) # -> [1,1024]
-    question_text_emb = json.loads(question_text_emb)   
-    question_text_emb = np.array(question_text_emb[0]["embs"])
-    # 在开头增加一个维度
-    question_text_emb  = question_text_emb[np.newaxis, :]
-
-
-    
-
-    # 二、 数据库文本、向量整合，用于查询。
-
-    all_texts = np.array([ x["text"]  for x in database])
-
-    all_embs = [ np.array(x["embs"]) for x in database]
-
-    all_embs = np.stack(all_embs,axis=0)# [N,1024]
-    # logger.info(f"rag:数据库向量shape:{all_embs.shape}")
-    
-    ## 三、faiss 查询对象创建
-
-    index_object = faiss.IndexFlatL2(1024)  # 创建一个 L2 距离的索引对象
-    index_object.add(all_embs)
-
-    time2 = time.perf_counter()
-
-    # 四、执行查询，返回 K 个最近邻和其距离
-    distances, indices = index_object.search(question_text_emb , check_topk)
-
-    time3 = time.perf_counter()
-
-    context_indexes = indices[0]
-
-    context = all_texts[context_indexes]
-
-    # logger.info(f"{context}")
-
-    # 整理上下文:
-
-    context = "\n".join(context)
-
-    # logger.info(f"查询到的文本:\n{context }")
-
-    # 大模型问答：
-    template = (
-        "上下文信息如下。\n"
-        "---\n"
-        f"{context}\n"
-        "---\n"
-        "请根据上下文信息而不是先验知识来回答以下的查询。"
-        "作为一个人工智能助手，你的回答要尽可能严谨。"
-        f"提问:{question_text}"
-        "回答："
-    )
-
-    respn = get_llm_response(content=template ) 
-    time4 = time.perf_counter()
-
-    # logger.info(f"faiss查询对象创建用时:{time2-time1:.4f}s")
-    # logger.info(f"faiss查询向量,topk={check_topk},用时:{time3-time2:.4f}s")
-    # logger.info(f"rag大模型问答用时:{time4-time3:.4f}s")
-    return respn
+        response = get_llm_response(content=template)
+        return response
 
 
 
