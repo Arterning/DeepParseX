@@ -231,7 +231,7 @@ def request_rag_01(text, database,max_length=512,check_topk=5):
 
 async def search_rag_inthedocker(text: str,
                                 max_length = 512,
-                                check_topk = 5):
+                                check_topk = 2):
     question_text_emb = request_text_to_vector(text=text, max_length=max_length)
     question_text_emb = json.loads(question_text_emb)
     query_vector = question_text_emb[0]["embs"]  # 取第一个文本块的向量
@@ -249,7 +249,7 @@ async def search_rag_inthedocker(text: str,
     )
     response = get_llm_response(content=template)
     source = f"\n ## 找到{len(similar_docs)}个文件，数据来源：\n"
-    doc_list ="\n".join([f"- <a href='/data/doc-detail/{doc.id}?type=doc'>{doc.name}</a>" for doc in similar_docs if doc.name])
+    doc_list ="\n".join([f"- <a href='/data/doc-detail/{doc.id}?type=doc'>{doc.name}</a> 相似度：{1 - doc.distance}" for doc in similar_docs if doc.name])
     source += doc_list
     if len(similar_docs) > 0:
         response += source
