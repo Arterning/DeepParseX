@@ -235,7 +235,8 @@ async def search_rag_inthedocker(text: str,
     question_text_emb = request_text_to_vector(text=text, max_length=max_length)
     question_text_emb = json.loads(question_text_emb)
     query_vector = question_text_emb[0]["embs"]  # 取第一个文本块的向量
-    context = await sys_doc_service.search_by_vector(query_vector=query_vector, limit=check_topk)
+    similar_docs = await sys_doc_service.search_by_vector(query_vector=query_vector, limit=check_topk)
+    context = "\n".join([doc.content for doc in similar_docs if doc.content])
     template = (
         "上下文信息如下。\n"
         "---\n"
@@ -247,6 +248,11 @@ async def search_rag_inthedocker(text: str,
         "回答："
     )
     response = get_llm_response(content=template)
+    source = f"\n ## 找到{len(similar_docs)}个文件，数据来源：\n"
+    doc_list ="\n".join([f"- <a href='/data/doc-detail/{doc.id}?type=doc'>{doc.name}</a>" for doc in similar_docs if doc.name])
+    source += doc_list
+    if len(similar_docs) > 0:
+        response += source
     return response
 
 
