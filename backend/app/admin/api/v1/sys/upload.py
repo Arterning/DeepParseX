@@ -68,6 +68,14 @@ def get_filename(file_path: str):
 def get_file_title(file_name: str):
     return os.path.splitext(file_name)[0]
 
+def get_abs_path(location: str):
+    is_in_container = os.path.isdir('/fba/backend')
+    if (is_in_container):
+        return f"~/{location}"
+    absolute_path = os.path.abspath(location)
+    return absolute_path
+
+
 file_type_handlers = {
     'excel': is_excel_file,
     'csv': is_csv_file,
@@ -140,10 +148,9 @@ async def read_text(file: UploadFile = File(...)):
     name = get_filename(file.filename)
     title = get_file_title(name)
     loop = asyncio.get_running_loop()
-    path = f"~/{file_location}"
+    path = get_abs_path(location=file_location)
     content_str = content.decode('utf-8')
     pdf_records = await loop.run_in_executor(None, request_process_allkinds_filepath, path)
-    log.info(pdf_records)
     desc = ''
     if pdf_records:
         desc = pdf_records['abstract']
@@ -162,8 +169,7 @@ async def read_picture(file: UploadFile):
     name = get_filename(file.filename)
     title = get_file_title(name)
     loop = asyncio.get_running_loop()
-    path = f"~/{file_location}"
-    # pdf_records = await loop.run_in_executor(None, post_imagesocr_recog, path, "~/uploads/result/", "zhen_light")
+    path = get_abs_path(location=file_location)
     pdf_records = await loop.run_in_executor(None, request_process_allkinds_filepath, path)
     content = ''
     desc = ''
@@ -180,8 +186,7 @@ async def read_media(file: UploadFile):
     name = get_filename(file.filename)
     title = get_file_title(name)
     loop = asyncio.get_running_loop()
-    path = f"~/{file_location}"
-    # pdf_records = await loop.run_in_executor(None, post_imagesocr_recog, path, "~/uploads/result/", "zhen_light")
+    path = get_abs_path(location=file_location)
     pdf_records = await loop.run_in_executor(None, request_process_allkinds_filepath, path)
     content = ''
     desc = ''
@@ -199,8 +204,7 @@ async def read_email(file: UploadFile):
     name = get_filename(file.filename)
     title = get_file_title(name)
     loop = asyncio.get_running_loop()
-    path = f"~/{file_location}"
-    # pdf_records = await loop.run_in_executor(None, post_emails_recog, path, "~/uploads/附录下载目录/", "~/uploads/附录二次识别输出目录", "zhen_light", "zhen")
+    path = get_abs_path(location=file_location)
     pdf_records = await loop.run_in_executor(None, request_process_allkinds_filepath, path)
     content = ''
     desc = ''
@@ -240,12 +244,10 @@ async def read_pdf(file: UploadFile = File(...)):
     file_location, _ = await save_file(file)
     name = get_filename(file.filename)
     title = get_file_title(name)
-    
-    path = f"~/{file_location}"
+    path = get_abs_path(location=file_location)
     loop = asyncio.get_running_loop()
     log.info("******************")
     log.info(path)
-    # pdf_records = await loop.run_in_executor(None, post_imagesocr_recog, path, "~/uploads/result/", "zhen_light")
     pdf_records = await loop.run_in_executor(None, request_process_allkinds_filepath, path)
     content = ''
     desc = ''
@@ -292,7 +294,6 @@ async def read_excel(file: UploadFile = File(...)):
     title = get_file_title(name)
     content = ''
 
-    path = f"~/{file_location}"
     loop = asyncio.get_running_loop()
     data_input = df.head(5).to_string(index=False, header=True)
     log.info(data_input)
@@ -432,7 +433,7 @@ async def save_attachments(msg, download_folder, belong):
                 f.write(part.get_payload(decode=True))
 
             title = get_file_title(filename)
-            path = f"~/{file_path}"
+            path = get_abs_path(location=file_path)
             loop = asyncio.get_running_loop()
             records = await loop.run_in_executor(
                 None, request_process_allkinds_filepath, path
