@@ -3,8 +3,8 @@ import time
 import numpy as np
 import json
 from pathlib import Path
-import faiss
 from typing import Annotated,List,Dict
+from backend.app.admin.service.doc_service import sys_doc_service
 
 ## 1 PDF 请求
 def post_pdf_recog(input_path,
@@ -230,57 +230,24 @@ def request_rag_01(text, database,max_length=512,check_topk=5):
     return response.json()['response']
 
 async def search_rag_inthedocker(text: str,
-                                database_jsondata: List[Dict],
                                 max_length = 512,
                                 check_topk = 5):
-    """使用postgres向量搜索相似文档"""
-    from backend.app.admin.service.doc_service import sys_doc_service
-    from backend.database.db_pg import async_db_session
-    
-    # 1. 获取问题的向量表示
     question_text_emb = request_text_to_vector(text=text, max_length=max_length)
     question_text_emb = json.loads(question_text_emb)
     query_vector = question_text_emb[0]["embs"]  # 取第一个文本块的向量
-    
-    # 2. 使用postgres向量搜索
-    async with async_db_session() as db:
-        # 构建向量搜索SQL
-        sql = f"""
-        SELECT id, title, content, embedding <-> :query_vector AS distance 
-        FROM sys_doc
-        WHERE embedding IS NOT NULL
-        ORDER BY embedding <-> :query_vector 
-        LIMIT :limit
-        """
-        
-        result = await db.execute(
-            text(sql),
-            {
-                "query_vector": query_vector,
-                "limit": check_topk
-            }
-        )
-        
-        similar_docs = result.fetchall()
-        
-        # 3. 构建上下文
-        context = "\n".join([doc.content for doc in similar_docs if doc.content])
-        
-        # 4. 调用大模型生成回答
-        template = (
-            "上下文信息如下。\n"
-            "---\n"
-            f"{context}\n"
-            "---\n"
-            "请根据上下文信息而不是先验知识来回答以下的查询。"
-            "作为一个人工智能助手，你的回答要尽可能严谨。"
-            f"提问:{text}"
-            "回答："
-        )
-
-        response = get_llm_response(content=template)
-        return response
-
+    context = await sys_doc_service.search_by_vector(query_vector=query_vector, limit=check_topk)
+    template = (
+        "上下文信息如下。\n"
+        "---\n"
+        f"{context}\n"
+        "---\n"
+        "请根据上下文信息而不是先验知识来回答以下的查询。"
+        "作为一个人工智能助手，你的回答要尽可能严谨。"
+        f"提问:{text}"
+        "回答："
+    )
+    response = get_llm_response(content=template)
+    return response
 
 
 # 获取账号密码

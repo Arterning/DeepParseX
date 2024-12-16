@@ -51,6 +51,11 @@ class SysDocService:
             res = await sys_doc_dao.search(db, tokens)
             return res
 
+    @staticmethod
+    async def search_by_vector(*, query_vector: list[float] = None, limit: int = 0):
+        async with async_db_session() as db:
+            res = await sys_doc_dao.search_by_vector(db, query_vector, limit)
+            return res
 
     @staticmethod
     async def get_all() -> Sequence[SysDoc]:

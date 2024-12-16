@@ -33,6 +33,7 @@ class GetSysDocPage(SchemaBase):
 
 
 class CreateSysDocParam(SysDocSchemaBase):
+    embedding: list[float] | None = None
     pass
 
 
@@ -42,6 +43,7 @@ class UpdateSysDocParam(SchemaBase):
     type: str | None = None
     content: str | None = None
     desc: str | None = None
+    embedding: list[float] | None = None
 
 
 class GetSysDocListDetails(SysDocSchemaBase):

@@ -66,6 +66,31 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
             return docs_list
         else:
             return []
+    
+    async def search_by_vector(self, db: AsyncSession, query_vector: list[float] = None, limit: int = 0):
+        # 构建向量搜索SQL
+        sql = f"""
+        SELECT id, title, content, embedding <-> :query_vector AS distance 
+        FROM sys_doc
+        WHERE embedding IS NOT NULL
+        ORDER BY embedding <-> :query_vector 
+        LIMIT :limit
+        """
+        
+        result = await db.execute(
+            text(sql),
+            {
+                "query_vector": query_vector,
+                "limit": limit
+            }
+        )
+        
+        similar_docs = result.fetchall()
+        
+        # 3. 构建上下文
+        context = "\n".join([doc.content for doc in similar_docs if doc.content])
+
+        return context
 
 
     async def get_list(self, name: str = None, type: str = None,

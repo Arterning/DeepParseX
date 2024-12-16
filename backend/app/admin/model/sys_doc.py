@@ -37,6 +37,6 @@ class SysDoc(Base):
     belong: Mapped[int | None] = mapped_column(default=None, comment='文件属于')
     text_embed: Mapped[str | None] = mapped_column(default=None, comment='文本向量')
     account_pwd: Mapped[str|None] = mapped_column(TEXT,default=None,comment="用户名密码")
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(512), default=None, comment='文档向量')
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), default=None, comment='文档向量')
     
     doc_data: Mapped[list['SysDocData']] = relationship(init=False, back_populates='doc')
