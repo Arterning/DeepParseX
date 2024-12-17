@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from backend.app.admin.schema.doc import CreateSysDocParam, UpdateSysDocParam
 from backend.app.admin.schema.doc_data import CreateSysDocDataParam
+from backend.app.admin.schema.doc_chunk import CreateSysDocChunkParam
 from backend.app.admin.service.doc_service import sys_doc_service
 from backend.common.response.response_schema import response_base
 from backend.common.security.jwt import DependsJwtAuth
@@ -24,7 +25,7 @@ import os
 from email import policy
 from email.parser import BytesParser
 from zipfile import ZipFile
-
+from bs4 import BeautifulSoup
 router = APIRouter()
 
 # 定义上传文件保存的目录
@@ -158,11 +159,20 @@ async def read_text(file: UploadFile = File(...)):
     embedding = process_vector_data(vector_data)
     
     obj: CreateSysDocParam = CreateSysDocParam(title=title, name=name, type="text",content=content_str,
-                                                file=file_location,desc=desc,text_embed=vector_data, embedding=embedding)
+                                                file=file_location,desc=desc, embedding=embedding)
     
-    await sys_doc_service.create(obj=obj)
+    doc = await sys_doc_service.create(obj=obj)
 
-
+    doc_id = doc.id
+    # text embs
+    #所有文本的向量
+    vector_data = await loop.run_in_executor(None,request_text_to_vector,content_str)
+    vector_data = json.loads(vector_data)
+    for vector in vector_data:
+        chunk_text = vector['text']
+        chunk_embedding = vector['embs'] 
+        obj:CreateSysDocChunkParam = CreateSysDocChunkParam(doc_id=doc_id, doc_name=name, chunk_text=chunk_text, chunk_embedding=chunk_embedding)
+        await sys_doc_service.create_doc_chunk(obj=obj)
 
 async def read_picture(file: UploadFile):
     file_location, _ = await save_file(file)
@@ -193,10 +203,20 @@ async def read_media(file: UploadFile):
     if pdf_records:
         content = pdf_records['content']
         desc = pdf_records['abstract']
-    vector_data = await loop.run_in_executor(None,request_text_to_vector,content)
+    desc_vector = await loop.run_in_executor(None,request_text_to_vector,desc)
+    embedding = process_vector_data(desc_vector)
     obj: CreateSysDocParam = CreateSysDocParam(title=title, name=name, type="media",content=content,
-                                                file=file_location,desc=desc,text_embed=vector_data)
-    await sys_doc_service.create(obj=obj)
+                                                file=file_location,desc=desc,embedding=embedding)
+    doc = await sys_doc_service.create(obj=obj)
+    doc_id = doc.id
+    vector_data = await loop.run_in_executor(None,request_text_to_vector,content)
+    #所有文本的向量
+    vector_data = json.loads(vector_data)
+    for vector in vector_data:
+        chunk_text = vector['text']
+        chunk_embedding = vector['embs']
+        obj:CreateSysDocChunkParam = CreateSysDocChunkParam(doc_id=doc_id, doc_name=name,chunk_text=chunk_text, chunk_embedding=chunk_embedding)
+        await sys_doc_service.create_doc_chunk(obj=obj)
 
 
 async def read_email(file: UploadFile):
@@ -227,10 +247,12 @@ async def read_email(file: UploadFile):
             #     email_from = co["from"]
             #     email_to = co["to"]
             #     email_time = co["date"]
-    vector_data = await loop.run_in_executor(None,request_text_to_vector,json.dumps(str(content),ensure_ascii=False,indent=4))
+    # vector_data = await loop.run_in_executor(None,request_text_to_vector,json.dumps(str(content),ensure_ascii=False,indent=4))
+    desc_vector = await loop.run_in_executor(None,request_text_to_vector,desc)
+    embedding = process_vector_data(desc_vector)
     obj: CreateSysDocParam = CreateSysDocParam(title=title, name=name, type="email",content=email_body,
                                                email_subject=email_subject,email_from=email_from,
-                                               email_to=email_to, email_time=email_time, file=file_location,desc=desc,text_embed=vector_data)
+                                               email_to=email_to, email_time=email_time, file=file_location,desc=desc,embedding=embedding)
     doc = await sys_doc_service.create(obj=obj)
     # 获取邮件的id
     doc_id = doc.id
@@ -246,22 +268,30 @@ async def read_pdf(file: UploadFile = File(...)):
     title = get_file_title(name)
     path = get_abs_path(location=file_location)
     loop = asyncio.get_running_loop()
-    log.info("******************")
-    log.info(path)
     pdf_records = await loop.run_in_executor(None, request_process_allkinds_filepath, path)
     content = ''
     desc = ''
-    log.info(f"pdfrecord{pdf_records}")
     if pdf_records:
         content = pdf_records['content']
         desc = pdf_records['abstract']
-    vector_data = await loop.run_in_executor(None,request_text_to_vector,content)
+    desc_vector = await loop.run_in_executor(None,request_text_to_vector,desc)
+    # 摘要的向量
+    embedding = process_vector_data(desc_vector)
     obj: CreateSysDocParam = CreateSysDocParam(title=title, name=name, type="pdf",content=content,
-                                                file=file_location,desc=desc,text_embed=vector_data)
+                                                file=file_location,desc=desc,embedding=embedding)
     # await sys_doc_service.create(obj=obj)
     doc = await sys_doc_service.create(obj=obj)
-
-    log.info(doc.id)
+    doc_id = doc.id
+        # text embs
+    vector_data = await loop.run_in_executor(None,request_text_to_vector,content)
+    # 所有文本的向量
+    vector_data = json.loads(vector_data)
+    # 分块向量加入数据库
+    for vector in vector_data:
+        chunk_text = vector['text']
+        chunk_embedding = vector['embs']
+        obj:CreateSysDocChunkParam = CreateSysDocChunkParam(doc_id=doc_id,doc_name=name,chunk_text=chunk_text,chunk_embedding=chunk_embedding)
+        await sys_doc_service.create_doc_chunk(obj=obj)
 
 
 async def read_excel(file: UploadFile = File(...)):
@@ -296,9 +326,7 @@ async def read_excel(file: UploadFile = File(...)):
 
     loop = asyncio.get_running_loop()
     data_input = df.head(5).to_string(index=False, header=True)
-    log.info(data_input)
     excel_records = await loop.run_in_executor(None, get_llm_abstract, data_input)
-    log.info(excel_records)
     if excel_records:
         desc = excel_records
         
@@ -308,16 +336,23 @@ async def read_excel(file: UploadFile = File(...)):
         row = strings + '\n'
         content += row
     content = content.replace("Unnamed", "").replace("None", "")
-    vector_data = await loop.run_in_executor(None,request_text_to_vector,json.dumps(content))
+    # vector_data = await loop.run_in_executor(None,request_text_to_vector,json.dumps(content))
+    desc_vector = await loop.run_in_executor(None,request_text_to_vector,desc)
+    embedding = process_vector_data(desc_vector)
     doc_param = CreateSysDocParam(title=title, name=name, type='excel', 
-                                  c_token=content, content=content, file=file_location,desc=desc,text_embed=vector_data)
+                                  c_token=content, content=content, file=file_location,desc=desc,embedding=embedding)
     doc = await sys_doc_service.create(obj=doc_param)
+    doc_id = doc.id
 
     for excel_data in data_json:
         param = CreateSysDocDataParam(doc_id=doc.id, excel_data=excel_data)
         await sys_doc_service.create_doc_data(obj=param)
-    return response_base.success(data=doc.id)
+  
 
+
+    obj:CreateSysDocChunkParam = CreateSysDocChunkParam(doc_id=doc_id, doc_name=name, chunk_text=desc,chunk_embedding=embedding)
+    await sys_doc_service.create_doc_chunk(obj=obj)
+    return response_base.success(data=doc.id)
 
 def dict_to_string(input_dict):
     return ' '.join(f"{key} {value}" for key, value in input_dict.items())
@@ -446,7 +481,8 @@ async def save_attachments(msg, download_folder, belong):
                     continue
                 content = records['content']
                 desc = records['abstract']
-            vector_data = await loop.run_in_executor(None,request_text_to_vector,content)
+            desc_vector = await loop.run_in_executor(None,request_text_to_vector,desc)
+            embedding = process_vector_data(desc_vector)
             file_type = get_file_type(filename)
             obj: CreateSysDocParam = CreateSysDocParam(
                 title=title,
@@ -456,10 +492,17 @@ async def save_attachments(msg, download_folder, belong):
                 file=file_path,
                 desc=desc,
                 belong=belong,
-                text_embed=vector_data
+                embedding=embedding
             )
-            await sys_doc_service.create(obj=obj)
-
+            doc = await sys_doc_service.create(obj=obj)
+            doc_id = doc.id
+            vector_data = await loop.run_in_executor(None,request_text_to_vector,content)
+            vector_data = json.loads(vector_data)
+            for vector in vector_data:
+                chunk_text = vector['text']
+                chunk_embedding = vector['embs']
+                obj:CreateSysDocChunkParam = CreateSysDocChunkParam(doc_id=doc_id, doc_name=filename,chunk_text=chunk_text, chunk_embedding=chunk_embedding)
+                await sys_doc_service.create_doc_chunk(obj=obj)
             attachments.append(file_path)
     return attachments
 

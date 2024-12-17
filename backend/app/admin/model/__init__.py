@@ -12,6 +12,7 @@ from backend.app.admin.model.sys_opera_log import OperaLog
 from backend.app.admin.model.sys_role import Role
 from backend.app.admin.model.sys_doc import SysDoc
 from backend.app.admin.model.sys_doc_data import SysDocData
+from backend.app.admin.model.sys_doc_chunk import SysDocChunk
 from backend.app.admin.model.sys_user import User
 from backend.app.admin.model.sys_user_social import UserSocial
 from backend.app.admin.model.sys_org import SysOrg

@@ -6,12 +6,14 @@ from sqlalchemy import Select
 
 from backend.app.admin.crud.crud_doc import sys_doc_dao
 from backend.app.admin.crud.crud_doc_data import sys_doc_data_dao
+from backend.app.admin.crud.crud_doc_chunk import sys_doc_chunk_dao
 from backend.app.admin.model import SysDoc
-from backend.app.admin.model import SysDocData
+from backend.app.admin.model import SysDocData,SysDocChunk
 from backend.app.admin.schema.doc import CreateSysDocParam, UpdateSysDocParam
 from backend.common.exception import errors
 from backend.database.db_pg import async_db_session
 from backend.app.admin.schema.doc_data import CreateSysDocDataParam
+from backend.app.admin.schema.doc_chunk import CreateSysDocChunkParam
 import asyncio
 import jieba
 
@@ -58,6 +60,12 @@ class SysDocService:
             return res
 
     @staticmethod
+    async def search_chunk_vector(*, query_vector: list[float] = None, limit: int = 0):
+        async with async_db_session() as db:
+            res = await sys_doc_chunk_dao.search_chunk_vector(db, query_vector, limit)
+            return res
+
+    @staticmethod
     async def get_all() -> Sequence[SysDoc]:
         async with async_db_session() as db:
             sys_docs = await sys_doc_dao.get_all(db)
@@ -98,6 +106,11 @@ class SysDocService:
     async def create_doc_data(*, obj: CreateSysDocDataParam) -> SysDocData:
         async with async_db_session.begin() as db:
             return await sys_doc_data_dao.create(db, obj)
+    
+    @staticmethod
+    async def create_doc_chunk(*, obj: CreateSysDocDataParam) -> SysDocChunk:
+        async with async_db_session.begin() as db:
+            return await sys_doc_chunk_dao.create(db, obj)
 
     @staticmethod
     async def update(*, pk: int, obj: UpdateSysDocParam) -> int:

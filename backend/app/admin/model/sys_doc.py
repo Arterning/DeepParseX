@@ -40,3 +40,4 @@ class SysDoc(Base):
     embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), default=None, comment='文档向量')
     
     doc_data: Mapped[list['SysDocData']] = relationship(init=False, back_populates='doc')
+    doc_chunk: Mapped[list['SysDocChunk']] = relationship(init=False, back_populates='doc')
