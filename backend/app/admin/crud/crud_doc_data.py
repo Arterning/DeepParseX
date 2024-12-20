@@ -38,6 +38,15 @@ class CRUDSysDocData(CRUDPlus[SysDocData]):
         :return:
         """
         return await self.create_model(db, obj_in)
+    
+    async def create_bulk(self, db: AsyncSession, obj_list: list[CreateSysDocDataParam]) -> list[SysDocData]:
+        """
+        批量创建 SysDocChunk
+        :param db: 数据库会话
+        :param obj_list: 要插入的对象列表
+        :return: 插入后的 SysDocChunk 列表
+        """
+        return await self.create_models(db,obj_list)
 
     async def update(self, db: AsyncSession, pk: int, obj_in: UpdateSysDocDataParam) -> int:
         """
@@ -50,7 +59,7 @@ class CRUDSysDocData(CRUDPlus[SysDocData]):
         """
         return await self.update_model(db, pk, obj_in)
 
-    async def delete(self, db: AsyncSession, pk: list[int]) -> int:
+    async def delete(self, db: AsyncSession, doc_id: list[int]) -> int:
         """
         删除 SysDocData
 
@@ -58,7 +67,7 @@ class CRUDSysDocData(CRUDPlus[SysDocData]):
         :param pk:
         :return:
         """
-        return  await self.delete_model_by_column(db, allow_multiple=True, id__in=pk)
+        return  await self.delete_model_by_column(db, allow_multiple=True, doc_id__in=doc_id)
 
 
 sys_doc_data_dao: CRUDSysDocData = CRUDSysDocData(SysDocData)

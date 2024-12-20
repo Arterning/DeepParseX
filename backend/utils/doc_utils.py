@@ -191,7 +191,7 @@ def request_text_to_vector(text , max_length=512):
     response = requests.post(url, json=payload)
     
     if response.status_code == 200:
-        return response.json()['json_data']
+        return response.json()
     else:
         raise Exception(f"Request failed with status code {response.status_code}")
     
@@ -232,7 +232,6 @@ async def search_rag_inthedocker(text: str,
                                 max_length = 512,
                                 check_topk = 2):
     question_text_emb = request_text_to_vector(text=text, max_length=max_length)
-    question_text_emb = json.loads(question_text_emb)
     query_vector = question_text_emb[0]["embs"]  # 取第一个文本块的向量
     similar_docs = await sys_doc_service.search_chunk_vector(query_vector=query_vector, limit=check_topk)
     context = "\n".join([doc.chunk_text for doc in similar_docs if doc.chunk_text])

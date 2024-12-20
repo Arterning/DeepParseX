@@ -108,5 +108,8 @@ async def update_sys_doc(pk: Annotated[int, Path(...)], obj: UpdateSysDocParam) 
 async def delete_sys_doc(pk: Annotated[list[int], Query(...)]) -> ResponseModel:
     count = await sys_doc_service.delete(pk=pk)
     if count > 0:
+        # 删除doc_data表和doc_chunk表
+        await sys_doc_service.delete_doc_data(doc_id=pk)
+        await sys_doc_service.delete_doc_chunk(doc_id=pk)
         return response_base.success()
     return response_base.fail()

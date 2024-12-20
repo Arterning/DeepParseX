@@ -19,7 +19,6 @@ class SysDocSchemaBase(SchemaBase):
     email_to: str | None = None
     email_time: str | None = None
     belong: int | None = None
-    text_embed: str | None = None
     account_pwd:str | None = None
 
 class GetSysDocPage(SchemaBase):
@@ -29,11 +28,12 @@ class GetSysDocPage(SchemaBase):
     name: str | None = None
     type: str | None = None
     desc: str | None = None
+    # uuid: str | None = None
     created_time: datetime
 
 
 class CreateSysDocParam(SysDocSchemaBase):
-    embedding: list[float] | None = None
+    uuid: str | None = None
     pass
 
 
@@ -43,7 +43,7 @@ class UpdateSysDocParam(SchemaBase):
     type: str | None = None
     content: str | None = None
     desc: str | None = None
-    embedding: list[float] | None = None
+
 
 
 class GetSysDocListDetails(SysDocSchemaBase):

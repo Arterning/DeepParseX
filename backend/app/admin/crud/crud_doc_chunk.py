@@ -64,6 +64,16 @@ class CRUDSysDocDChunk(CRUDPlus[SysDocChunk]):
         :return:
         """
         return await self.create_model(db, obj_in)
+    
+    async def create_bulk(self, db: AsyncSession, obj_list: list[CreateSysDocChunkParam]) -> list[SysDocChunk]:
+        """
+        批量创建 SysDocChunk
+        :param db: 数据库会话
+        :param obj_list: 要插入的对象列表
+        :return: 插入后的 SysDocChunk 列表
+        """
+        return await self.create_models(db,obj_list)
+   
 
     # async def update(self, db: AsyncSession, pk: int, obj_in: UpdateSysDocDataParam) -> int:
     #     """
@@ -76,15 +86,15 @@ class CRUDSysDocDChunk(CRUDPlus[SysDocChunk]):
     #     """
     #     return await self.update_model(db, pk, obj_in)
 
-    # async def delete(self, db: AsyncSession, pk: list[int]) -> int:
-    #     """
-    #     删除 SysDocData
+    async def delete(self, db: AsyncSession, doc_id: list[int]) -> int:
+        """3
+        删除 SysDocChunk
 
-    #     :param db:
-    #     :param pk:
-    #     :return:
-    #     """
-    #     return  await self.delete_model_by_column(db, allow_multiple=True, id__in=pk)
+        :param db:
+        :param pk:
+        :return:
+        """
+        return  await self.delete_model_by_column(db, allow_multiple=True, doc_id__in=doc_id)
 
 
 sys_doc_chunk_dao: CRUDSysDocDChunk = CRUDSysDocDChunk(SysDocChunk)

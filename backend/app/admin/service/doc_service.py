@@ -7,6 +7,7 @@ from sqlalchemy import Select
 from backend.app.admin.crud.crud_doc import sys_doc_dao
 from backend.app.admin.crud.crud_doc_data import sys_doc_data_dao
 from backend.app.admin.crud.crud_doc_chunk import sys_doc_chunk_dao
+from backend.app.admin.crud.crud_doc_embedding import sys_doc_embedding_dao
 from backend.app.admin.model import SysDoc
 from backend.app.admin.model import SysDocData,SysDocChunk
 from backend.app.admin.schema.doc import CreateSysDocParam, UpdateSysDocParam
@@ -14,6 +15,7 @@ from backend.common.exception import errors
 from backend.database.db_pg import async_db_session
 from backend.app.admin.schema.doc_data import CreateSysDocDataParam
 from backend.app.admin.schema.doc_chunk import CreateSysDocChunkParam
+from backend.app.admin.schema.doc_embdding import CreateSysDocEmbeddingParam
 import asyncio
 import jieba
 
@@ -97,21 +99,34 @@ class SysDocService:
             b_seg_list = jieba.cut_for_search(content)
             b_tokens = " ".join(b_seg_list)
         c_tokens = a_tokens + " " + b_tokens
-        print("c_tokens", c_tokens)
+        # print("c_tokens", c_tokens)
         await sys_doc_service.update_tokens(doc, a_tokens, b_tokens, c_tokens)
         return doc
 
 
     @staticmethod
-    async def create_doc_data(*, obj: CreateSysDocDataParam) -> SysDocData:
+    async def create_doc_data(*, obj_list: CreateSysDocDataParam) -> SysDocData:
         async with async_db_session.begin() as db:
-            return await sys_doc_data_dao.create(db, obj)
+            return await sys_doc_data_dao.create_bulk(db, obj_list)
     
     @staticmethod
-    async def create_doc_chunk(*, obj: CreateSysDocDataParam) -> SysDocChunk:
+    # 批量插入
+    async def create_doc_bulk_chunks(*, obj_list: list[CreateSysDocChunkParam]) -> list[SysDocChunk]:
+        async with async_db_session.begin() as db:
+            return await sys_doc_chunk_dao.create_bulk(db, obj_list)
+
+    @staticmethod
+    # 插入一个chunk
+    async def create_doc_chunk(*, obj: CreateSysDocDataParam):
         async with async_db_session.begin() as db:
             return await sys_doc_chunk_dao.create(db, obj)
-
+    
+    @staticmethod
+    # 批量插入
+    async def create_doc_bulk_embedding(*, obj_list: list[CreateSysDocEmbeddingParam]) -> list[CreateSysDocEmbeddingParam]:
+        async with async_db_session.begin() as db:
+            return await sys_doc_embedding_dao.create_bulk(db, obj_list)
+        
     @staticmethod
     async def update(*, pk: int, obj: UpdateSysDocParam) -> int:
         async with async_db_session.begin() as db:
@@ -141,6 +156,18 @@ class SysDocService:
             count = await sys_doc_dao.delete(db, pk)
             return count
 
+    @staticmethod
+    async def  delete_doc_data(*, doc_id: list[int]) -> int:
+        async with async_db_session.begin() as db:
+            count = await sys_doc_data_dao.delete(db, doc_id)
+            return count
+        
+    @staticmethod
+    async def  delete_doc_chunk(*, doc_id: list[int]) -> int:
+        async with async_db_session.begin() as db:
+            count = await sys_doc_chunk_dao.delete(db, doc_id)
+            return count
+        
     @staticmethod
     async def update_account_pwd(*, pk: list[int], accounts: list[str]):
         async with async_db_session.begin() as db:
