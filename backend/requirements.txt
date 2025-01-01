@@ -13,7 +13,7 @@ asyncpg==0.30.0
 attrs==24.2.0
 bcrypt==4.0.1
 billiard==4.2.0
-bs4=0.0.2
+bs4==0.0.2
 casbin==1.34.0
 casbin-async-sqlalchemy-adapter==1.4.0
 celery==5.3.6
