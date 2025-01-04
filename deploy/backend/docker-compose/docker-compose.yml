@@ -88,15 +88,16 @@ services:
   #     --lower_case_table_names=1
 
   fba_redis:
-    image: redis:6.2.7
+    image: redis/redis-stack
     ports:
       - "${DOCKER_REDIS_MAP_PORT:-6379}:6379"
+      - "8379:8001"
     container_name: fba_redis
     restart: always
     environment:
       - TZ=Asia/Shanghai
     volumes:
-      - fba_redis:/var/lib/redis
+      - fba_redis:/data
     networks:
       - fba_network
 
