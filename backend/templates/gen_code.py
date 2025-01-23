@@ -41,10 +41,11 @@ schema_template = env.get_template('schema.jinja')
 # 定义要替换的变量
 context = {
     'app_name': 'admin',
-    'table_name_en': 'event',
-    'table_name_zh': '事件',
-    'table_name_class': 'Event',
-    'schema_name': 'Event',
+    'table_name_en': 'sys_tag',
+    'table_name_zh': '标签',
+    'table_name_class': 'Tag',
+    'file_prefix': 'tag',
+    'schema_name': 'Tag',
     'have_datetime_column': True,
     'models': [
         {
@@ -52,25 +53,19 @@ context = {
             'is_nullable': False,
             'pd_type': 'str',
             'type': 'String',
-            'comment': '事件标题',
-        },
-        {
-            'name': 'event_time',
-            'is_nullable': True,
-            'pd_type': 'datetime',
-            'type': 'datetime',
-            'comment': '事件发生时间',
+            'comment': '标签名称',
         },
     ]
 }
 
 base = "app/admin/"
 table_name_en = context["table_name_en"]
+file_prefix = context["file_prefix"]
 model_file = base + f"model/{table_name_en}.py"
-schema_file = base + f"schema/{table_name_en}.py"
-crud_file = base + f"crud/crud_{table_name_en}.py"
-service_file = base + f"service/{table_name_en}_service.py"
-api_file = base + f"api/v1/sys/{table_name_en}.py"
+schema_file = base + f"schema/{file_prefix}.py"
+crud_file = base + f"crud/crud_{file_prefix}.py"
+service_file = base + f"service/{file_prefix}_service.py"
+api_file = base + f"api/v1/sys/{file_prefix}.py"
 
 
 save_file(model_template, context, model_file)

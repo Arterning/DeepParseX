@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
 
 from backend.app.{{ app_name }}.model.{{ table_name_en }} import {{ table_name_class }}
-from backend.app.{{ app_name }}.schema.{{ table_name_en }} import Create{{ schema_name }}Param, Update{{ schema_name }}Param
+from backend.app.{{ app_name }}.schema.{{ file_prefix }} import Create{{ schema_name }}Param, Update{{ schema_name }}Param
 
 
 class CRUD{{ table_name_class }}(CRUDPlus[{{ schema_name }}]):
@@ -70,4 +70,4 @@ class CRUD{{ table_name_class }}(CRUDPlus[{{ schema_name }}]):
         return  await self.delete_model_by_column(db, allow_multiple=True, id__in=pk)
 
 
-{{ table_name_en }}_dao: CRUD{{ table_name_class }} = CRUD{{ table_name_class }}({{ table_name_class }})
+{{ file_prefix }}_dao: CRUD{{ table_name_class }} = CRUD{{ table_name_class }}({{ table_name_class }})

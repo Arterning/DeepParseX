@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 from typing import Sequence
 
-from backend.app.{{ app_name }}.crud.crud_{{ table_name_en }} import {{ table_name_en }}_dao
+from backend.app.{{ app_name }}.crud.crud_{{ file_prefix }} import {{ file_prefix }}_dao
 from backend.app.{{ app_name }}.model.{{ table_name_en }} import {{ table_name_class }}
-from backend.app.{{ app_name }}.schema.{{ table_name_en }} import Create{{ schema_name }}Param, Update{{ schema_name }}Param
+from backend.app.{{ app_name }}.schema.{{ file_prefix }} import Create{{ schema_name }}Param, Update{{ schema_name }}Param
 from backend.common.exception import errors
 from backend.database.db_pg import async_db_session
 from sqlalchemy import Select
@@ -14,37 +14,37 @@ class {{ table_name_class }}Service:
     @staticmethod
     async def get(*, pk: int) -> {{ table_name_class }}:
         async with async_db_session() as db:
-            {{ table_name_en }} = await {{ table_name_en }}_dao.get(db, pk)
-            if not {{ table_name_en }}:
+            {{ file_prefix }} = await {{ file_prefix }}_dao.get(db, pk)
+            if not {{ file_prefix }}:
                 raise errors.NotFoundError(msg='{{ table_simple_name_zh }}不存在')
-            return {{ table_name_en }}
+            return {{ file_prefix }}
     
     @staticmethod
     async def get_select() -> Select:
-        return await {{ table_name_en }}_dao.get_list()
+        return await {{ file_prefix }}_dao.get_list()
 
     @staticmethod
     async def get_all() -> Sequence[{{ table_name_class }}]:
         async with async_db_session() as db:
-            {{ table_name_en }}s = await {{ table_name_en }}_dao.get_all(db)
-            return {{ table_name_en }}s
+            {{ file_prefix }}s = await {{ file_prefix }}_dao.get_all(db)
+            return {{ file_prefix }}s
 
     @staticmethod
     async def create(*, obj: Create{{ schema_name }}Param) -> None:
         async with async_db_session.begin() as db:
-            await {{ table_name_en }}_dao.create(db, obj)
+            await {{ file_prefix }}_dao.create(db, obj)
 
     @staticmethod
     async def update(*, pk: int, obj: Update{{ schema_name }}Param) -> int:
         async with async_db_session.begin() as db:
-            count = await {{ table_name_en }}_dao.update(db, pk, obj)
+            count = await {{ file_prefix }}_dao.update(db, pk, obj)
             return count
 
     @staticmethod
     async def delete(*, pk: list[int]) -> int:
         async with async_db_session.begin() as db:
-            count = await {{ table_name_en }}_dao.delete(db, pk)
+            count = await {{ file_prefix }}_dao.delete(db, pk)
             return count
 
 
-{{ table_name_en }}_service = {{ table_name_class }}Service()
+{{ file_prefix }}_service = {{ table_name_class }}Service()
