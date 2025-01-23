@@ -14,7 +14,7 @@ from backend.common.model import Base, id_key
 class Event(Base):
     """事件"""
 
-    __tablename__ = 'event'
+    __tablename__ = 'sys_event'
 
     id: Mapped[id_key] = mapped_column(init=False)
     

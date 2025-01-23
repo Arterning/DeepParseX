@@ -8,25 +8,22 @@ from pydantic import ConfigDict
 from backend.common.schema import SchemaBase
 
 
-class EventSchemaBase(SchemaBase):
+class TagSchemaBase(SchemaBase):
     
     name: str
 
     
-    event_time: datetime | None = None
-
-    
 
 
-class CreateEventParam(EventSchemaBase):
+class CreateTagParam(TagSchemaBase):
     pass
 
 
-class UpdateEventParam(EventSchemaBase):
+class UpdateTagParam(TagSchemaBase):
     pass
 
 
-class GetEventListDetails(EventSchemaBase):
+class GetTagListDetails(TagSchemaBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
