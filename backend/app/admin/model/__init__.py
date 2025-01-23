@@ -18,3 +18,4 @@ from backend.app.admin.model.sys_user import User
 from backend.app.admin.model.sys_user_social import UserSocial
 from backend.app.admin.model.sys_org import SysOrg
 from backend.app.admin.model.sys_assets import SysAssets
+from backend.app.admin.model.event import Event

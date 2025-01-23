@@ -18,6 +18,7 @@ from backend.app.admin.api.v1.sys.org import router as org_router
 from backend.app.admin.api.v1.sys.assets import router as assets_router
 from backend.app.admin.api.v1.sys.account_pwd import router as account_pwd_router
 from backend.app.admin.api.v1.sys.ip_addr import router as ip_addr_router
+from backend.app.admin.api.v1.sys.event import router as event_router
 
 router = APIRouter(prefix='/sys')
 
@@ -37,3 +38,4 @@ router.include_router(org_router,prefix='/org',tags=['系统组织'])
 router.include_router(assets_router,prefix='/asset',tags=['系统资产'])
 router.include_router(account_pwd_router,prefix='/account_pwd',tags=['文件用户名密码'])
 router.include_router(ip_addr_router,prefix='/ip_addr',tags=['文件ip地址'])
+router.include_router(event_router,prefix='/events',tags=['事件'])
