@@ -3,7 +3,7 @@
 from typing import Sequence
 
 from backend.app.admin.crud.crud_event import event_dao
-from backend.app.admin.model.event import Event
+from backend.app.admin.model.sys_event import Event
 from backend.app.admin.schema.event import CreateEventParam, UpdateEventParam
 from backend.common.exception import errors
 from backend.database.db_pg import async_db_session

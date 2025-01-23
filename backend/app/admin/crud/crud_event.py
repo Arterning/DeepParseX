@@ -6,7 +6,7 @@ from sqlalchemy import delete, Select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
 
-from backend.app.admin.model.event import Event
+from backend.app.admin.model.sys_event import Event
 from backend.app.admin.schema.event import CreateEventParam, UpdateEventParam
 
 
