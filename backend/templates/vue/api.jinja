@@ -1,0 +1,59 @@
+import axios from 'axios';
+import qs from 'query-string';
+
+export interface {{ Entity }}Req {
+  name: string;
+}
+
+export interface {{ Entity }}Res extends {{ Entity }}Req {
+  id: number;
+}
+
+export interface {{ Entity }}Params {
+  name?: string;
+  page?: number;
+  size?: number;
+}
+
+export interface {{ Entity }}ListRes {
+  items: {{ Entity }}Res[];
+  total: number;
+}
+
+export interface {{ Entity }}DeleteParams {
+  pk: number[];
+}
+
+export function query{{ Entity }}List(params: {{ Entity }}Params): Promise<{{ Entity }}ListRes> {
+  return axios.get('/api/v1/sys/{{ entity }}', {
+    params,
+    paramsSerializer: (obj) => {
+      return qs.stringify(obj);
+    },
+  });
+}
+
+export function query{{ Entity }}All(): Promise<{{ Entity }}Res[]> {
+  return axios.get('/api/v1/sys/{{ entity }}/all');
+}
+
+export function query{{ Entity }}Detail(pk: number): Promise<{{ Entity }}Res> {
+  return axios.get(`/api/v1/sys/{{ entity }}/${pk}`);
+}
+
+export function create{{ Entity }}(data: {{ Entity }}Req) {
+  return axios.post('/api/v1/sys/{{ entity }}', data);
+}
+
+export function update{{ Entity }}(pk: number, data: {{ Entity }}Req) {
+  return axios.put(`/api/v1/sys/{{ entity }}/${pk}`, data);
+}
+
+export function delete{{ Entity }}(params: {{ Entity }}DeleteParams) {
+  return axios.delete(`/api/v1/sys/{{ entity }}`, {
+    params,
+    paramsSerializer: (obj) => {
+      return qs.stringify(obj);
+    },
+  });
+}
