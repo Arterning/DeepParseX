@@ -3,7 +3,6 @@
 from sqlalchemy import UUID, String
 from sqlalchemy.schema import Index
 from sqlalchemy.dialects.postgresql import TEXT, TSVECTOR
-from pgvector.sqlalchemy import Vector  # 使用pgvector提供的Vector类型
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 

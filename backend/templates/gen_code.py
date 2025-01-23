@@ -41,7 +41,7 @@ schema_template = env.get_template('schema.jinja')
 # 定义要替换的变量
 context = {
     'app_name': 'admin',
-    'table_name_en': 'sys_event',
+    'table_name_en': 'event',
     'table_name_zh': '事件',
     'table_name_class': 'Event',
     'schema_name': 'Event',
