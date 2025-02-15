@@ -11,12 +11,12 @@ from sqlalchemy.orm import Mapped, mapped_column
 from backend.common.model import Base, id_key
 
 
-class Org(Base):
-    """组织"""
+class Person(Base):
+    """人物"""
 
-    __tablename__ = 'sys_org'
+    __tablename__ = 'sys_person'
 
     id: Mapped[id_key] = mapped_column(init=False)
     
-    name: Mapped[str] = mapped_column(sa.String(), default='', comment='组织名称')
+    name: Mapped[str] = mapped_column(sa.String(), default='', comment='人物名称')
     
