@@ -4,13 +4,13 @@
 import logging
 import sys
 
-from anyio import run
 from pathlib import Path
 
 sys.path.append('../')
 
 
 from jinja2 import Environment, FileSystemLoader
+from backend.templates.context import person_context
 
 
 def save_file(template, context, path):
@@ -38,26 +38,7 @@ api_template = env.get_template('api.jinja')
 schema_template = env.get_template('schema.jinja')
 
 
-# 定义要替换的变量
-context = {
-    'app_name': 'admin',
-    'table_name_en': 'sys_tag',
-    'table_name_zh': '标签',
-    'table_name_class': 'Tag',
-    'file_prefix': 'tag',
-    'schema_name': 'Tag',
-    'have_datetime_column': True,
-    'models': [
-        {
-            'name': 'name',
-            'is_nullable': False,
-            'pd_type': 'str',
-            'type': 'String',
-            'comment': '标签名称',
-        },
-    ]
-}
-
+context = person_context
 base = "app/admin/"
 table_name_en = context["table_name_en"]
 file_prefix = context["file_prefix"]

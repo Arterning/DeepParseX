@@ -4,7 +4,6 @@
 import logging
 import sys
 
-from anyio import run
 from pathlib import Path
 
 sys.path.append('../')
