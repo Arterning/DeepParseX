@@ -63,6 +63,7 @@ async def execute_sql_file(session: AsyncSession, file_path: str):
 async def create_table():
     """创建数据库表"""
     async with async_engine.begin() as coon:
+        # await coon.execute(text("CREATE EXTENSION vector"))
         await coon.run_sync(MappedBase.metadata.create_all)
         result = await coon.execute(text("SELECT COUNT(*) FROM sys_user"))
         count = result.scalar()
