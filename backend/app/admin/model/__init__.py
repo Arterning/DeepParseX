@@ -20,3 +20,10 @@ from backend.app.admin.model.sys_org import SysOrg
 from backend.app.admin.model.sys_assets import SysAssets
 from backend.app.admin.model.sys_event import Event
 from backend.app.admin.model.sys_tag import Tag
+from backend.app.admin.model.mail_attachment import MailAttachment
+from backend.app.admin.model.mail_msg import MailMsg
+from backend.app.admin.model.mail_box import MailBox
+from backend.app.admin.model.social_account_post import SocialAccountPost
+from backend.app.admin.model.social_account import SocialAccount
+from backend.app.admin.model.sys_person import Person
+from backend.app.admin.model.sys_news import News
