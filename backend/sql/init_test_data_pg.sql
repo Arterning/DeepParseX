@@ -65,3 +65,11 @@ INSERT INTO sys_menu (id, title, name, level, sort, icon, path, menu_type, compo
 
 
 CREATE INDEX idx_sys_doc_fulltext ON sys_doc USING gin (to_tsvector('simple', tokens::text));
+
+
+SELECT setval('sys_menu_id_seq', (SELECT MAX(id) FROM sys_menu));
+SELECT setval('sys_dept_id_seq', (SELECT MAX(id) FROM sys_dept));
+SELECT setval('sys_user_id_seq', (SELECT MAX(id) FROM sys_user));
+SELECT setval('sys_user_role_id_seq', (SELECT MAX(id) FROM sys_user_role));
+SELECT setval('sys_role_menu_id_seq', (SELECT MAX(id) FROM sys_role_menu));
+SELECT setval('sys_role_id_seq', (SELECT MAX(id) FROM sys_role));
