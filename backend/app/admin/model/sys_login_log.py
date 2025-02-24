@@ -5,7 +5,7 @@ from datetime import datetime
 from sqlalchemy import String
 from sqlalchemy.dialects.postgresql import TEXT
 from sqlalchemy.orm import Mapped, mapped_column
-
+from sqlalchemy.dialects.postgresql import TIMESTAMP
 from backend.common.model import DataClassBase, id_key
 from backend.utils.timezone import timezone
 
@@ -28,5 +28,5 @@ class LoginLog(DataClassBase):
     browser: Mapped[str | None] = mapped_column(String(50), comment='浏览器')
     device: Mapped[str | None] = mapped_column(String(50), comment='设备')
     msg: Mapped[str] = mapped_column(TEXT, comment='提示消息')
-    login_time: Mapped[datetime] = mapped_column(comment='登录时间')
-    created_time: Mapped[datetime] = mapped_column(init=False, default_factory=timezone.now, comment='创建时间')
+    login_time: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), comment='登录时间')
+    created_time: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), init=False, default_factory=timezone.now, comment='创建时间')
