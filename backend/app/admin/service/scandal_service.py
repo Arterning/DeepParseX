@@ -8,7 +8,7 @@ from backend.app.admin.crud.crud_scandal import scandal_crud
 from backend.app.admin.model.sys_scandal import Scandal
 from backend.app.admin.schema.scandal import CreateScandal, UpdateScandal
 from backend.common.exception import errors
-from backend.database.db_mysql import async_db_session
+from backend.database.db_pg import async_db_session
 
 
 class ScandalService:

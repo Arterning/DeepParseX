@@ -18,10 +18,10 @@ class Settings(BaseSettings):
     ENVIRONMENT: Literal['dev', 'pro']
 
     # Env MySQL
-    MYSQL_HOST: str
-    MYSQL_PORT: int
-    MYSQL_USER: str
-    MYSQL_PASSWORD: str
+    MYSQL_HOST: str | None =  None
+    MYSQL_PORT: int | None =  None
+    MYSQL_USER: str | None =  None
+    MYSQL_PASSWORD: str | None =  None
 
     # Env Postgres
     PG_HOST: str

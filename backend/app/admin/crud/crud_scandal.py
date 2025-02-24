@@ -24,7 +24,6 @@ class CRUDScandal(CRUDPlus[Scandal]):
         # where.append(self.model.id == pk)
         res = await db.execute(
             select(self.model)
-            .options(selectinload(self.model.person))
             .where(self.model.id == pk)
         )
         return res.scalars().first()

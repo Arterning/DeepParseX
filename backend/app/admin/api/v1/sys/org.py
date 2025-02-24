@@ -8,7 +8,6 @@ from backend.common.pagination import DependsPagination, paging_data
 from backend.app.admin.service.org_service import org_service
 from fastapi import APIRouter, Path, Query
 from backend.common.log import log
-from backend.utils.doc_utils import request_rag_01
 from backend.app.admin.schema.org import OrgParam, GetOrgListDetails, GetOrgDetail
 from backend.common.security.jwt import DependsJwtAuth
 from backend.database.db_pg import CurrentSession
