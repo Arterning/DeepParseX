@@ -9,6 +9,7 @@ from backend.common.model import Base, id_key
 
 from backend.app.admin.model.sys_org_doc import sys_org_doc
 from backend.app.admin.model.sys_org_assets import sys_org_assets
+from backend.app.admin.model.sys_person_org import sys_person_org
 
 
 # 组织名称：分析出的组织名称。
@@ -40,6 +41,10 @@ class SysOrg(Base):
 
     docs: Mapped[list['SysDoc']] = relationship(
         init=False, secondary=sys_org_doc
+    )
+
+    persons: Mapped[list['Person']] = relationship(
+        init=False, secondary=sys_person_org
     )
 
     assets: Mapped[list['SysAssets']] = relationship(

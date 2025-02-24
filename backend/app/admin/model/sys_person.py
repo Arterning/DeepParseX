@@ -7,7 +7,8 @@ from sqlalchemy import String
 from sqlalchemy.dialects.postgresql import TEXT
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
+from backend.app.admin.model.sys_person_doc import sys_person_doc
+from backend.app.admin.model.sys_person_org import sys_person_org
 from backend.common.model import Base, id_key
 
 # 其他名：人物原名、其他名称。
@@ -47,6 +48,14 @@ class Person(Base):
     resume: Mapped[str] = mapped_column(TEXT, default='', comment='人物简历')
 
     mail_boxes: Mapped[list['MailBox']] = relationship(init=False, back_populates='person')
+
+    docs: Mapped[list['SysDoc']] = relationship(
+        init=False, secondary=sys_person_doc
+    )
+
+    orgs: Mapped[list['SysOrg']] = relationship(
+        init=False, secondary=sys_person_org
+    )
     
     # tags: Mapped[str] = mapped_column(String(), default='', comment='人物标签')
     

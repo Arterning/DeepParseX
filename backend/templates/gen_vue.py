@@ -36,13 +36,13 @@ ts_vue_template = env.get_template('vue.jinja')
 
 # 定义要替换的变量
 context = {
-    'Entity': 'Tag',
-    'path': 'tags',
-    'entity': 'tag',
-    'MenuName': '标签管理',
+    'Entity': 'Person',
+    'path': 'person',
+    'entity': 'person',
+    'MenuName': '人物管理',
 }
 
+entity = context["entity"]
 
-
-save_file(ts_api_template, context, f"templates/{context["entity"]}.ts")
+save_file(ts_api_template, context, f"templates/{entity}.ts")
 save_file(ts_vue_template, context, "templates/index.vue")
