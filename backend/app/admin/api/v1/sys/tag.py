@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Depends, Path, Query, Request
 
 from backend.app.admin.schema.tag import CreateTagParam, GetTagListDetails, UpdateTagParam
 from backend.app.admin.service.tag_service import tag_service
@@ -44,7 +44,8 @@ async def get_pagination_tag(db: CurrentSession) -> ResponseModel:
         DependsRBAC,
     ],
 )
-async def create_tag(obj: CreateTagParam) -> ResponseModel:
+async def create_tag(request: Request, obj: CreateTagParam) -> ResponseModel:
+    obj.create_user = request.user.id
     await tag_service.create(obj=obj)
     return response_base.success()
 

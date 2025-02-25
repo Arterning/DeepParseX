@@ -9,8 +9,8 @@ from backend.common.schema import SchemaBase
 
 
 class TagSchemaBase(SchemaBase):
-    
     name: str
+    create_user: int | None = None
 
     
 
@@ -20,6 +20,7 @@ class CreateTagParam(TagSchemaBase):
 
 
 class UpdateTagParam(TagSchemaBase):
+    update_user: int | None = None
     pass
 
 
