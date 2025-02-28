@@ -31,7 +31,7 @@ class MailBox(Base):
 
     labels: Mapped[str] = mapped_column(String(500), default='', comment='标签')
 
-    email_num: Mapped[int] = mapped_column(Integer(), default=0, comment='邮箱数量')
+    email_num: Mapped[int] = mapped_column(Integer(), default=0, comment='邮件数量')
 
     other_info: Mapped[str] = mapped_column(TEXT, default='', comment='其它信息')
 

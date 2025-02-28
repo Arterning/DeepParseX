@@ -14,6 +14,7 @@
                   <a-form-item field="name" label="名称">
                     <a-input
                       v-model="formModel.name"
+                      :placeholder="$t('搜索名称')"
                     />
                   </a-form-item>
                 </a-col>
