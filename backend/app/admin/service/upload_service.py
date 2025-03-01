@@ -10,7 +10,6 @@ from backend.app.admin.schema.doc_data import CreateSysDocDataParam
 from backend.app.admin.schema.doc_chunk import CreateSysDocChunkParam
 from backend.app.admin.schema.doc_embdding import CreateSysDocEmbeddingParam
 from backend.app.admin.service.doc_service import sys_doc_service
-from backend.common.response.response_schema import response_base
 from backend.utils.doc_utils import request_process_allkinds_filepath,get_llm_abstract, request_text_to_vector
 
 import os
@@ -29,7 +28,7 @@ from email import policy
 from email.parser import BytesParser
 from zipfile import ZipFile
 from bs4 import BeautifulSoup
-from backend.app.admin.model import Document
+from backend.app.admin.model import SysDoc
 
 
 # 定义上传文件保存的目录
@@ -69,7 +68,6 @@ class UploadService:
         desc = ''
         if pdf_records:
             desc = pdf_records['abstract']
-        vector_data = await loop.run_in_executor(None,request_text_to_vector,content_str) 
         obj: CreateSysDocParam = CreateSysDocParam(title=title, name=name, type="text",content=content_str,
                                                     file=file_location,desc=desc,uuid=unique_id)
         
@@ -78,10 +76,10 @@ class UploadService:
         await upload_service.insert_text_embs(doc)
 
     @staticmethod
-    async def insert_text_embs(doc: Document):
+    async def insert_text_embs(doc: SysDoc):
         doc_id = doc.id
         doc_name = doc.name
-        # 摘要的向量插入
+        loop = asyncio.get_running_loop()
         desc_vector = await loop.run_in_executor(None,request_text_to_vector,doc.desc)
         obj_list=[]
         for vector in desc_vector:
@@ -95,7 +93,8 @@ class UploadService:
             )
             obj_list.append(obj)
         await sys_doc_service.create_doc_bulk_embedding(obj_list=obj_list)
-        # text embs
+        
+
         #所有文本的向量
         vector_data = await loop.run_in_executor(None,request_text_to_vector,doc.content)
         obj_list=[]
@@ -248,30 +247,25 @@ class UploadService:
             
         
         for excel_data in data_json:
+            print("excel_data",excel_data)
             strings = upload_service.dict_to_string(excel_data)
             row = strings + '\n'
             content += row
         content = content.replace("Unnamed", "").replace("None", "")
-        desc_vector = await loop.run_in_executor(None,request_text_to_vector,desc)
         doc_param = CreateSysDocParam(title=title, name=name, type='excel', 
                                     c_token=content, content=content, file=file_location,desc=desc,uuid=unique_id)
         doc = await sys_doc_service.create(obj=doc_param)
         doc_id = doc.id
-
         obj_list = []
         for excel_data in data_json:
-            param = CreateSysDocDataParam(doc_id=doc.id, excel_data=excel_data)
+            param = CreateSysDocDataParam(doc_id=doc_id, excel_data=excel_data)
             obj_list.append(param)
         await sys_doc_service.create_doc_data(obj_list=obj_list)
-    
-
-        obj:CreateSysDocChunkParam = CreateSysDocChunkParam(doc_id=doc_id, doc_name=name, chunk_text=desc,chunk_embedding=embedding)
-        await sys_doc_service.create_doc_chunk(obj=obj)
         
         await upload_service.insert_text_embs(doc)
 
-
-    def dict_to_string(input_dict):
+    @staticmethod
+    def dict_to_string(input_dict: dict) -> str:
         return ' '.join(f"{key} {value}" for key, value in input_dict.items())
 
     @staticmethod
@@ -407,7 +401,6 @@ class UploadService:
                         continue
                     content = records['content']
                     desc = records['abstract']
-                desc_vector = await loop.run_in_executor(None,request_text_to_vector,desc)
                 file_type = upload_service.get_file_type(filename)
                 obj: CreateSysDocParam = CreateSysDocParam(
                     title=title,
@@ -420,7 +413,6 @@ class UploadService:
                     uuid=unique_id
                 )
                 doc = await sys_doc_service.create(obj=obj)
-                doc_id = doc.id
                 await upload_service.insert_text_embs(doc)
                 attachments.append(file_path)
         return attachments
@@ -506,7 +498,6 @@ class UploadService:
             content_str = content.decode(encoding, errors='ignore')
         
         return content_str
-
 
 
 upload_service = UploadService()

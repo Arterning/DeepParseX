@@ -38,8 +38,6 @@ async def get_sys_doc(pk: Annotated[int, Path(...)]) -> ResponseModel:
     data = GetDocDetail(id=doc.id, title=doc.title, name=doc.name, file=doc.file,
                         content=doc.content, created_time=doc.created_time,
                         updated_time=doc.updated_time, desc=doc.desc,
-                        email_subject=doc.email_subject, email_from=doc.email_from,
-                        email_to=doc.email_to, email_time=doc.email_time,
                         type=doc.type, doc_data=doc_data,account_pwd=doc.account_pwd)
     return response_base.success(data=data)
 

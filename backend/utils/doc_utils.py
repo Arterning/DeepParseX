@@ -1,10 +1,8 @@
 import requests
 import time
-import numpy as np
-import json
-from pathlib import Path
-from typing import Annotated,List,Dict
-from backend.app.admin.service.doc_service import sys_doc_service
+from backend.common.log import log
+
+
 ## 1 PDF 请求
 def post_pdf_recog(input_path,
                    output_folder,
@@ -193,7 +191,8 @@ def request_text_to_vector(text , max_length=512):
     if response.status_code == 200:
         return response.json()
     else:
-        raise Exception(f"Request failed with status code {response.status_code}")
+        log.error(f"Request failed with status code {response.status_code}")
+        return []
     
 def request_rag_01(text, database,max_length=512,check_topk=5):
     url = "http://127.0.0.1:8104/search_rag"
