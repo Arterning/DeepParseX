@@ -29,6 +29,7 @@ from email import policy
 from email.parser import BytesParser
 from zipfile import ZipFile
 from bs4 import BeautifulSoup
+from backend.app.admin.model import Document
 
 
 # 定义上传文件保存的目录
@@ -74,17 +75,21 @@ class UploadService:
         
         doc = await sys_doc_service.create(obj=obj)
 
-        doc_id = doc.id
+        await upload_service.insert_text_embs(doc)
 
+    @staticmethod
+    async def insert_text_embs(doc: Document):
+        doc_id = doc.id
+        doc_name = doc.name
         # 摘要的向量插入
-        desc_vector = await loop.run_in_executor(None,request_text_to_vector,desc)
+        desc_vector = await loop.run_in_executor(None,request_text_to_vector,doc.desc)
         obj_list=[]
         for vector in desc_vector:
             desc_text = vector['text']
             desc_embedding = vector['embs']
             obj = CreateSysDocEmbeddingParam(
                 doc_id=doc_id,
-                doc_name=name,
+                doc_name=doc_name,
                 desc=desc_text,
                 embedding=desc_embedding
             )
@@ -92,14 +97,14 @@ class UploadService:
         await sys_doc_service.create_doc_bulk_embedding(obj_list=obj_list)
         # text embs
         #所有文本的向量
-        vector_data = await loop.run_in_executor(None,request_text_to_vector,content_str)
+        vector_data = await loop.run_in_executor(None,request_text_to_vector,doc.content)
         obj_list=[]
         for vector in vector_data:
             chunk_text = vector['text']
             chunk_embedding = vector['embs']
             obj = CreateSysDocChunkParam(
                 doc_id=doc_id,
-                doc_name=name,
+                doc_name=doc_name,
                 chunk_text=chunk_text,
                 chunk_embedding=chunk_embedding
             )
@@ -127,41 +132,8 @@ class UploadService:
                                                     file=file_location, desc=desc,uuid=unique_id)
         doc = await sys_doc_service.create(obj=obj)
 
+        await upload_service.insert_text_embs(doc)
 
-        doc_id = doc.id
-
-        # 摘要的向量插入
-        desc_vector = await loop.run_in_executor(None,request_text_to_vector,desc)
-        obj_list=[]
-        for vector in desc_vector:
-            desc_text = vector['text']
-            desc_embedding = vector['embs']
-            obj = CreateSysDocEmbeddingParam(
-                doc_id=doc_id,
-                doc_name=name,
-                desc=desc_text,
-                embedding=desc_embedding
-            )
-            obj_list.append(obj)
-        await sys_doc_service.create_doc_bulk_embedding(obj_list=obj_list)
-
-
-        vector_data = await loop.run_in_executor(None,request_text_to_vector,content)
-
-
-        # 分块向量加入数据库
-        obj_list=[]
-        for vector in vector_data:
-            chunk_text = vector['text']
-            chunk_embedding = vector['embs']
-            obj = CreateSysDocChunkParam(
-                doc_id=doc_id,
-                doc_name=name,
-                chunk_text=chunk_text,
-                chunk_embedding=chunk_embedding
-            )
-            obj_list.append(obj)
-        await sys_doc_service.create_doc_bulk_chunks(obj_list=obj_list)
 
     @staticmethod
     async def read_media(file: UploadFile):
@@ -181,35 +153,7 @@ class UploadService:
         obj: CreateSysDocParam = CreateSysDocParam(title=title, name=name, type="media",content=content,
                                                     file=file_location,desc=desc,uuid=unique_id)
         doc = await sys_doc_service.create(obj=obj)
-        doc_id = doc.id
-        # 摘要的向量插入
-        desc_vector = await loop.run_in_executor(None,request_text_to_vector,desc)
-        obj_list=[]
-        for vector in desc_vector:
-            desc_text = vector['text']
-            desc_embedding = vector['embs']
-            obj = CreateSysDocEmbeddingParam(
-                doc_id=doc_id,
-                doc_name=name,
-                desc=desc_text,
-                embedding=desc_embedding
-            )
-            obj_list.append(obj)
-        await sys_doc_service.create_doc_bulk_embedding(obj_list=obj_list)
-        vector_data = await loop.run_in_executor(None,request_text_to_vector,content)
-        #所有文本的向量
-        obj_list=[]
-        for vector in vector_data:
-            chunk_text = vector['text']
-            chunk_embedding = vector['embs']
-            obj = CreateSysDocChunkParam(
-                doc_id=doc_id,
-                doc_name=name,
-                chunk_text=chunk_text,
-                chunk_embedding=chunk_embedding
-            )
-            obj_list.append(obj)
-        await sys_doc_service.create_doc_bulk_chunks(obj_list=obj_list)
+        await upload_service.insert_text_embs(doc)
 
 
     @staticmethod
@@ -261,39 +205,7 @@ class UploadService:
         obj: CreateSysDocParam = CreateSysDocParam(title=title, name=name, type="pdf",content=content,
                                                     file=file_location,desc=desc,uuid=unique_id)
         doc = await sys_doc_service.create(obj=obj)
-        doc_id = doc.id
-
-
-
-        # 摘要的向量插入
-        desc_vector = await loop.run_in_executor(None,request_text_to_vector,desc)
-        obj_list=[]
-        for vector in desc_vector:
-            desc_text = vector['text']
-            desc_embedding = vector['embs']
-            obj = CreateSysDocEmbeddingParam(
-                doc_id=doc_id,
-                doc_name=name,
-                desc=desc_text,
-                embedding=desc_embedding
-            )
-            obj_list.append(obj)
-        await sys_doc_service.create_doc_bulk_embedding(obj_list=obj_list)
-
-        # 分块向量加入数据库
-        vector_data = await loop.run_in_executor(None,request_text_to_vector,content)
-        obj_list=[]
-        for vector in vector_data:
-            chunk_text = vector['text']
-            chunk_embedding = vector['embs']
-            obj = CreateSysDocChunkParam(
-                doc_id=doc_id,
-                doc_name=name,
-                chunk_text=chunk_text,
-                chunk_embedding=chunk_embedding
-            )
-            obj_list.append(obj)
-        await sys_doc_service.create_doc_bulk_chunks(obj_list=obj_list)
+        await upload_service.insert_text_embs(doc)
 
 
     @staticmethod
@@ -356,22 +268,8 @@ class UploadService:
         obj:CreateSysDocChunkParam = CreateSysDocChunkParam(doc_id=doc_id, doc_name=name, chunk_text=desc,chunk_embedding=embedding)
         await sys_doc_service.create_doc_chunk(obj=obj)
         
-        # 摘要的向量插入
-        desc_vector = await loop.run_in_executor(None,request_text_to_vector,desc)
-        # desc_vector = json.loads(desc_vector)
-        obj_list=[]
-        for vector in desc_vector:
-            desc_text = vector['text']
-            desc_embedding = vector['embs']
-            obj = CreateSysDocEmbeddingParam(
-                doc_id=doc_id,
-                doc_name=name,
-                desc=desc_text,
-                embedding=desc_embedding
-            )
-            obj_list.append(obj)
-        await sys_doc_service.create_doc_bulk_embedding(obj_list=obj_list)
-        return response_base.success(data=doc.id)
+        await upload_service.insert_text_embs(doc)
+
 
     def dict_to_string(input_dict):
         return ' '.join(f"{key} {value}" for key, value in input_dict.items())
@@ -523,37 +421,9 @@ class UploadService:
                 )
                 doc = await sys_doc_service.create(obj=obj)
                 doc_id = doc.id
-                # 摘要的向量插入
-                desc_vector = await loop.run_in_executor(None,request_text_to_vector,desc)
-                obj_list=[]
-                for vector in desc_vector:
-                    desc_text = vector['text']
-                    desc_embedding = vector['embs']
-                    obj = CreateSysDocEmbeddingParam(
-                        doc_id=doc_id,
-                        doc_name=filename,
-                        desc=desc_text,
-                        embedding=desc_embedding
-                    )
-                    obj_list.append(obj)
-                await sys_doc_service.create_doc_bulk_embedding(obj_list=obj_list)
-                vector_data = await loop.run_in_executor(None,request_text_to_vector,content)
-                obj_list=[]
-                for vector in vector_data:
-                    chunk_text = vector['text']
-                    chunk_embedding = vector['embs']
-                    obj = CreateSysDocChunkParam(
-                        doc_id=doc_id,
-                        doc_name=filename,
-                        chunk_text=chunk_text,
-                        chunk_embedding=chunk_embedding
-                    )
-                    obj_list.append(obj)
-                await sys_doc_service.create_doc_bulk_chunks(obj_list=obj_list)
+                await upload_service.insert_text_embs(doc)
                 attachments.append(file_path)
         return attachments
-
-
 
 
 
