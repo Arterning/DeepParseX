@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Path, Query
+
+from backend.app.{{ app_name }}.schema.{{ file_prefix }} import Create{{ schema_name }}Param, Get{{ schema_name }}ListDetails, Update{{ schema_name }}Param
+from backend.app.{{ app_name }}.service.{{ file_prefix }}_service import {{ file_prefix }}_service
+from backend.common.pagination import DependsPagination, paging_data
+from backend.common.response.response_schema import ResponseModel, response_base
+from backend.common.security.jwt import DependsJwtAuth
+from backend.common.security.permission import RequestPermission
+from backend.common.security.rbac import DependsRBAC
+from backend.database.db_pg import CurrentSession
+
+router = APIRouter()
+
+
+@router.get('/{pk}', summary='获取{{ table_simple_name_zh }}详情', dependencies=[DependsJwtAuth])
+async def get_{{ file_prefix }}(pk: Annotated[int, Path(...)]) -> ResponseModel:
+    {{ file_prefix }} = await {{ file_prefix }}_service.get(pk=pk)
+    return response_base.success(data={{ file_prefix }})
+
+
+@router.get(
+    '',
+    summary='（模糊条件）分页获取所有{{ table_simple_name_zh }}',
+    dependencies=[
+        DependsJwtAuth,
+        DependsPagination,
+    ],
+)
+async def get_pagination_{{ file_prefix }}(db: CurrentSession) -> ResponseModel:
+    {{ file_prefix }}_select = await {{ file_prefix }}_service.get_select()
+    page_data = await paging_data(db, {{ file_prefix }}_select, Get{{ schema_name }}ListDetails)
+    return response_base.success(data=page_data)
+
+
+@router.post(
+    '',
+    summary='创建{{ table_simple_name_zh }}',
+    dependencies=[
+        Depends(RequestPermission('{{ permission_sign }}:add')),
+        DependsRBAC,
+    ],
+)
+async def create_{{ file_prefix }}(obj: Create{{ schema_name }}Param) -> ResponseModel:
+    await {{ file_prefix }}_service.create(obj=obj)
+    return response_base.success()
+
+
+@router.put(
+    '/{pk}',
+    summary='更新{{ table_simple_name_zh }}',
+    dependencies=[
+        Depends(RequestPermission('{{ permission_sign }}:edit')),
+        DependsRBAC,
+    ],
+)
+async def update_{{ file_prefix }}(pk: Annotated[int, Path(...)], obj: Update{{ schema_name }}Param) -> ResponseModel:
+    count = await {{ file_prefix }}_service.update(pk=pk, obj=obj)
+    if count > 0:
+        return response_base.success()
+    return response_base.fail()
+
+
+@router.delete(
+    '',
+    summary='（批量）删除{{ table_simple_name_zh }}',
+    dependencies=[
+        Depends(RequestPermission('{{ permission_sign }}:del')),
+        DependsRBAC,
+    ],
+)
+async def delete_{{ file_prefix }}(pk: Annotated[list[int], Query(...)]) -> ResponseModel:
+    count = await {{ file_prefix }}_service.delete(pk=pk)
+    if count > 0:
+        return response_base.success()
+    return response_base.fail()

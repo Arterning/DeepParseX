@@ -1,0 +1,1 @@
+nohup pdm run fastapi dev main.py --host 0.0.0.0 --port 8002 >> fba.log 2>&1 & 
