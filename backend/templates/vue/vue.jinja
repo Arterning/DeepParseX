@@ -39,7 +39,7 @@
             </a-space>
           </a-col>
         </a-row>
-        <a-divider />
+        <a-divider style="margin-top: 0" />
         <a-space :size="'medium'">
           <a-button type="primary" @click="New{{ Entity }}()">
             <template #icon>
@@ -57,12 +57,18 @@
             </template>
             删除
           </a-button>
+
+          <SettingTable
+            :columns="columns"
+            storageKey="{{ entity }}-columns"
+            @update-columns="updateVisibleColumns"
+          />
         </a-space>
         <div class="content">
           <a-table
             v-model:selected-keys="rowSelectKeys"
             :bordered="false"
-            :columns="columns"
+            :columns="(visibleColumns as TableColumnData[])"
             :data="renderData"
             :loading="loading"
             :pagination="pagination"
@@ -135,8 +141,9 @@
       TableColumnData,
     } from '@arco-design/web-vue';
     import { useI18n } from 'vue-i18n';
-    import { computed, reactive, ref } from 'vue';
+    import { computed, onMounted, reactive, ref } from 'vue';
     import useLoading from '@/hooks/loading';
+    import SettingTable from '@/components/setting-table/index.vue';
     import Footer from '@/components/footer/index.vue';
     import {
       create{{ Entity }},
@@ -304,7 +311,21 @@
         setLoading(false);
       }
     };
-    fetch{{ Entity }}List();
+
+    const initColumns = () => {
+      const savedColumns = localStorage.getItem("{{ entity }}-columns");
+      if (savedColumns) {
+        updateVisibleColumns(JSON.parse(savedColumns));
+      } else {
+        visibleColumns.value = columns.value; // 默认全部显示
+      }
+    }
+
+    onMounted(() => {
+      initColumns()
+      fetch{{ Entity }}List();
+    })
+    
   
     // 请求部门详情
     const fetch{{ Entity }}Detail = async (pk: number) => {
@@ -352,6 +373,14 @@
       Object.keys(data).forEach((key) => {
         // @ts-ignore
         form[key] = data[key];
+      });
+    };
+
+    const visibleColumns = ref<TableColumnData[]>([]);
+
+    const updateVisibleColumns = (selectedColumns: string[]) => {
+      visibleColumns.value = columns.value.filter((column) => {
+        return column.dataIndex && selectedColumns.includes(column.dataIndex);
       });
     };
   </script>
