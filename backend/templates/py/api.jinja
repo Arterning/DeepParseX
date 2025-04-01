@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query
 
-from backend.app.{{ app_name }}.schema.{{ file_prefix }} import Create{{ schema_name }}Param, Get{{ schema_name }}ListDetails, Update{{ schema_name }}Param
+from backend.app.{{ app_name }}.schema.{{ file_prefix }} import Create{{ schema_name }}Param, Get{{ schema_name }}Details, Get{{ schema_name }}ListDetails, Update{{ schema_name }}Param
 from backend.app.{{ app_name }}.service.{{ file_prefix }}_service import {{ file_prefix }}_service
 from backend.common.pagination import DependsPagination, paging_data
 from backend.common.response.response_schema import ResponseModel, response_base
@@ -12,6 +12,7 @@ from backend.common.security.jwt import DependsJwtAuth
 from backend.common.security.permission import RequestPermission
 from backend.common.security.rbac import DependsRBAC
 from backend.database.db_pg import CurrentSession
+from backend.utils.serializers import select_as_dict
 
 router = APIRouter()
 
@@ -19,7 +20,8 @@ router = APIRouter()
 @router.get('/{pk}', summary='获取{{ table_simple_name_zh }}详情', dependencies=[DependsJwtAuth])
 async def get_{{ file_prefix }}(pk: Annotated[int, Path(...)]) -> ResponseModel:
     {{ file_prefix }} = await {{ file_prefix }}_service.get(pk=pk)
-    return response_base.success(data={{ file_prefix }})
+    data = Get{{ schema_name }}ListDetails(**select_as_dict({{ file_prefix }}))
+    return response_base.success(data=data)
 
 
 @router.get(
