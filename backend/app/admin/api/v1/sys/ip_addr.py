@@ -9,9 +9,7 @@ from backend.app.admin.service.assets_service import assets_service
 from backend.app.admin.service.doc_service import sys_doc_service
 from fastapi import APIRouter, Body, Path
 from backend.common.log import log
-from backend.utils.doc_utils import request_rag_01
 from backend.common.security.jwt import DependsJwtAuth
-from backend.utils.doc_utils import get_ipaddr
 from backend.database.db_pg import async_db_session
 from backend.app.admin.schema.assets import AssetsParam
 import ipaddress

@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import asyncio
-import json
 from typing import Annotated
-from backend.app.admin.schema.chat import ChatParam
 from backend.common.response.response_schema import ResponseModel, response_base
 from backend.app.admin.service.doc_service import sys_doc_service
 from fastapi import APIRouter, Body, Path
 from backend.common.log import log
-from backend.utils.doc_utils import request_rag_01
 from backend.common.security.jwt import DependsJwtAuth
-from backend.utils.doc_utils import get_accountPassw
 from backend.database.db_pg import async_db_session
 router = APIRouter()
 
@@ -26,7 +22,7 @@ async def get_account_and_pwd(pk: Annotated[list[int],Body(...),]) -> ResponseMo
     content_list = [doc.content for doc in doc_list]
    
     loop = asyncio.get_running_loop()
-    accounts = await loop.run_in_executor(None,get_accountPassw,content_list)
+    accounts = ""
     count = await sys_doc_service.update_account_pwd(pk=pk,accounts=accounts)
     if count > 0:
         return response_base.success()

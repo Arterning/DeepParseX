@@ -10,7 +10,7 @@ from backend.app.admin.schema.doc_data import CreateSysDocDataParam
 from backend.app.admin.schema.doc_chunk import CreateSysDocChunkParam
 from backend.app.admin.schema.doc_embdding import CreateSysDocEmbeddingParam
 from backend.app.admin.service.doc_service import sys_doc_service
-from backend.utils.doc_utils import request_process_allkinds_filepath,get_llm_abstract, request_text_to_vector
+from backend.utils.doc_utils import process_file,get_llm_abstract, request_text_to_vector
 
 import os
 import json
@@ -64,7 +64,7 @@ class UploadService:
         loop = asyncio.get_running_loop()
         path = upload_service.get_abs_path(location=file_location)
         content_str = upload_service.decode_content_with_chardet(content)
-        pdf_records = await loop.run_in_executor(None, request_process_allkinds_filepath, path)
+        pdf_records = await loop.run_in_executor(None, process_file, path)
         desc = ''
         if pdf_records:
             desc = pdf_records['abstract']
@@ -120,7 +120,7 @@ class UploadService:
         title = upload_service.get_file_title(name)
         loop = asyncio.get_running_loop()
         path = upload_service.get_abs_path(location=file_location)
-        pdf_records = await loop.run_in_executor(None, request_process_allkinds_filepath, path)
+        pdf_records = await loop.run_in_executor(None, process_file, path)
         content = ''
         desc = ''
         if pdf_records:
@@ -141,7 +141,7 @@ class UploadService:
         title = upload_service.get_file_title(name)
         loop = asyncio.get_running_loop()
         path = upload_service.get_abs_path(location=file_location)
-        pdf_records = await loop.run_in_executor(None, request_process_allkinds_filepath, path)
+        pdf_records = await loop.run_in_executor(None, process_file, path)
         content = ''
         desc = ''
         if pdf_records:
@@ -162,7 +162,7 @@ class UploadService:
         title = upload_service.get_file_title(name)
         loop = asyncio.get_running_loop()
         path = upload_service.get_abs_path(location=file_location)
-        pdf_records = await loop.run_in_executor(None, request_process_allkinds_filepath, path)
+        pdf_records = await loop.run_in_executor(None, process_file, path)
         content = ''
         desc = ''
         email_subject, email_from, email_to, email_time = '', '', '', ''
@@ -194,7 +194,7 @@ class UploadService:
         title = upload_service.get_file_title(name)
         path = upload_service.get_abs_path(location=file_location)
         loop = asyncio.get_running_loop()
-        pdf_records = await loop.run_in_executor(None, request_process_allkinds_filepath, path)
+        pdf_records = await loop.run_in_executor(None, process_file, path)
         content = ''
         desc = ''
         if pdf_records:
@@ -391,7 +391,7 @@ class UploadService:
                 path = upload_service.get_abs_path(location=file_path)
                 loop = asyncio.get_running_loop()
                 records = await loop.run_in_executor(
-                    None, request_process_allkinds_filepath, path
+                    None, process_file, path
                 )
                 content = ''
                 desc = ''
