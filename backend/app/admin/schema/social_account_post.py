@@ -11,6 +11,7 @@ from backend.common.schema import SchemaBase
 class SocialAccountPostSchemaBase(SchemaBase):
     
     name: str
+    time: datetime | None = None
 
     
 
@@ -31,3 +32,10 @@ class GetSocialAccountPostListDetails(SocialAccountPostSchemaBase):
     created_time: datetime
     updated_time: datetime | None = None
     
+class GetSocialAccountPostDetails(SocialAccountPostSchemaBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    
+    created_time: datetime
+    updated_time: datetime | None = None

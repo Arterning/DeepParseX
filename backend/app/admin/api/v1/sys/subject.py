@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query
 
-from backend.app.admin.schema.subject import CreateSubjectParam, GetSubjectListDetails, UpdateSubjectParam
+from backend.app.admin.schema.subject import CreateSubjectParam, GetSubjectDetails, GetSubjectListDetails, UpdateSubjectParam
 from backend.app.admin.service.subject_service import subject_service
 from backend.common.pagination import DependsPagination, paging_data
 from backend.common.response.response_schema import ResponseModel, response_base
@@ -12,6 +12,7 @@ from backend.common.security.jwt import DependsJwtAuth
 from backend.common.security.permission import RequestPermission
 from backend.common.security.rbac import DependsRBAC
 from backend.database.db_pg import CurrentSession
+from backend.utils.serializers import select_as_dict
 
 router = APIRouter()
 
@@ -19,7 +20,8 @@ router = APIRouter()
 @router.get('/{pk}', summary='获取详情', dependencies=[DependsJwtAuth])
 async def get_subject(pk: Annotated[int, Path(...)]) -> ResponseModel:
     subject = await subject_service.get(pk=pk)
-    return response_base.success(data=subject)
+    data = GetSubjectDetails(**select_as_dict(subject))
+    return response_base.success(data=data)
 
 
 @router.get(

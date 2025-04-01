@@ -15,10 +15,12 @@ class CRUDPerson(CRUDPlus[Person]):
         """
         获取 Person
 
+       
         :param db:
         :param pk:
         :return:
         """
+
         return await self.select_model(db, pk)
 
     async def get_list(self) -> Select:

@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query
 
-from backend.app.admin.schema.mail_msg import CreateMailMsgParam, GetMailMsgListDetails, UpdateMailMsgParam
+from backend.app.admin.schema.mail_msg import CreateMailMsgParam, GetMailMsgDetails, GetMailMsgListDetails, UpdateMailMsgParam
 from backend.app.admin.service.mail_msg_service import mail_msg_service
 from backend.common.pagination import DependsPagination, paging_data
 from backend.common.response.response_schema import ResponseModel, response_base
@@ -12,6 +12,7 @@ from backend.common.security.jwt import DependsJwtAuth
 from backend.common.security.permission import RequestPermission
 from backend.common.security.rbac import DependsRBAC
 from backend.database.db_pg import CurrentSession
+from backend.utils.serializers import select_as_dict
 
 router = APIRouter()
 
@@ -19,7 +20,8 @@ router = APIRouter()
 @router.get('/{pk}', summary='获取详情', dependencies=[DependsJwtAuth])
 async def get_mail_msg(pk: Annotated[int, Path(...)]) -> ResponseModel:
     mail_msg = await mail_msg_service.get(pk=pk)
-    return response_base.success(data=mail_msg)
+    data = GetMailMsgDetails(**select_as_dict(mail_msg))
+    return response_base.success(data=data)
 
 
 @router.get(

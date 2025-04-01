@@ -10,7 +10,14 @@ from backend.common.schema import SchemaBase
 
 class MailMsgSchemaBase(SchemaBase):
     
-    name: str
+  name: str 
+  original: str | None = None
+  content: str | None = None
+  time: datetime | None = None
+  category: str | None = None
+  sender: str | None = None
+  receiver:str | None = None
+  cc: str | None = None
 
     
 
@@ -31,3 +38,10 @@ class GetMailMsgListDetails(MailMsgSchemaBase):
     created_time: datetime
     updated_time: datetime | None = None
     
+class GetMailMsgDetails(MailMsgSchemaBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    
+    created_time: datetime
+    updated_time: datetime | None = None

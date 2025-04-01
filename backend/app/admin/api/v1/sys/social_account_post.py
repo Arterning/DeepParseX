@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query
 
-from backend.app.admin.schema.social_account_post import CreateSocialAccountPostParam, GetSocialAccountPostListDetails, UpdateSocialAccountPostParam
+from backend.app.admin.schema.social_account_post import CreateSocialAccountPostParam, GetSocialAccountPostDetails, GetSocialAccountPostListDetails, UpdateSocialAccountPostParam
 from backend.app.admin.service.social_account_post_service import social_account_post_service
 from backend.common.pagination import DependsPagination, paging_data
 from backend.common.response.response_schema import ResponseModel, response_base
@@ -12,6 +12,7 @@ from backend.common.security.jwt import DependsJwtAuth
 from backend.common.security.permission import RequestPermission
 from backend.common.security.rbac import DependsRBAC
 from backend.database.db_pg import CurrentSession
+from backend.utils.serializers import select_as_dict
 
 router = APIRouter()
 
@@ -19,7 +20,8 @@ router = APIRouter()
 @router.get('/{pk}', summary='获取详情', dependencies=[DependsJwtAuth])
 async def get_social_account_post(pk: Annotated[int, Path(...)]) -> ResponseModel:
     social_account_post = await social_account_post_service.get(pk=pk)
-    return response_base.success(data=social_account_post)
+    data = GetSocialAccountPostDetails(**select_as_dict(social_account_post))
+    return response_base.success(data=data)
 
 
 @router.get(

@@ -11,6 +11,16 @@ from backend.common.schema import SchemaBase
 class NewsSchemaBase(SchemaBase):
     
     name: str
+    summary: str  | None = None
+    news_type: str  | None = None
+    source: str  | None = None
+    organization: str  | None = None
+    author: str  | None = None
+    time: str  | None = None
+    location: str  | None = None
+    tag: str  | None = None
+    person: str  | None = None
+    detail:str | None = None
 
     
 

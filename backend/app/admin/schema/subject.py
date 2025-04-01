@@ -31,3 +31,11 @@ class GetSubjectListDetails(SubjectSchemaBase):
     created_time: datetime
     updated_time: datetime | None = None
     
+
+class GetSubjectDetails(SubjectSchemaBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    
+    created_time: datetime
+    updated_time: datetime | None = None

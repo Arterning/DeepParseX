@@ -11,6 +11,8 @@ from backend.common.schema import SchemaBase
 class MailBoxSchemaBase(SchemaBase):
     
     name: str
+    country: str | None = None
+    other_info: str | None = None
 
     
 
@@ -31,3 +33,10 @@ class GetMailBoxListDetails(MailBoxSchemaBase):
     created_time: datetime
     updated_time: datetime | None = None
     
+class GetMailBoxDetails(MailBoxSchemaBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    
+    created_time: datetime
+    updated_time: datetime | None = None
