@@ -31,3 +31,13 @@ class Get{{ schema_name }}ListDetails({{ schema_name }}SchemaBase):
     created_time: datetime
     updated_time: datetime | None = None
     {% endif %}
+
+
+class Get{{ schema_name }}Details({{ schema_name }}SchemaBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    {% if have_datetime_column %}
+    created_time: datetime
+    updated_time: datetime | None = None
+    {% endif %}
