@@ -28,7 +28,7 @@ def process_file(file_path: str):
             print(f"错误信息：{response.text}")
             return None
     except Exception as e:
-        print(f"请求过程中出现错误：{e}")
+        log.error(f"[process_file]中出现错误：{str(e)}")
         return None
 
 

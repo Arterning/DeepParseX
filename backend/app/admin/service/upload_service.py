@@ -64,10 +64,10 @@ class UploadService:
         loop = asyncio.get_running_loop()
         path = upload_service.get_abs_path(location=file_location)
         content_str = upload_service.decode_content_with_chardet(content)
-        pdf_records = await loop.run_in_executor(None, process_file, path)
+        api_res = await loop.run_in_executor(None, process_file, path)
         desc = ''
-        if pdf_records:
-            desc = pdf_records['abstract']
+        if api_res:
+            desc = api_res['abstract']
         obj: CreateSysDocParam = CreateSysDocParam(title=title, name=name, type="text",content=content_str,
                                                     file=file_location,desc=desc,uuid=unique_id)
         
@@ -120,12 +120,12 @@ class UploadService:
         title = upload_service.get_file_title(name)
         loop = asyncio.get_running_loop()
         path = upload_service.get_abs_path(location=file_location)
-        pdf_records = await loop.run_in_executor(None, process_file, path)
+        api_res = await loop.run_in_executor(None, process_file, path)
         content = ''
         desc = ''
-        if pdf_records:
-            content = pdf_records['content']
-            desc = pdf_records['abstract']
+        if api_res:
+            content = api_res['content']
+            desc = api_res['abstract']
         
         obj: CreateSysDocParam = CreateSysDocParam(title=title, name=name, type="picture",content=content,
                                                     file=file_location, desc=desc,uuid=unique_id)
@@ -141,12 +141,12 @@ class UploadService:
         title = upload_service.get_file_title(name)
         loop = asyncio.get_running_loop()
         path = upload_service.get_abs_path(location=file_location)
-        pdf_records = await loop.run_in_executor(None, process_file, path)
+        api_res = await loop.run_in_executor(None, process_file, path)
         content = ''
         desc = ''
-        if pdf_records:
-            content = pdf_records['content']
-            desc = pdf_records['abstract']
+        if api_res:
+            content = api_res['content']
+            desc = api_res['abstract']
         desc_vector = await loop.run_in_executor(None,request_text_to_vector,desc)
 
         obj: CreateSysDocParam = CreateSysDocParam(title=title, name=name, type="media",content=content,
@@ -162,19 +162,18 @@ class UploadService:
         title = upload_service.get_file_title(name)
         loop = asyncio.get_running_loop()
         path = upload_service.get_abs_path(location=file_location)
-        pdf_records = await loop.run_in_executor(None, process_file, path)
+        api_res = await loop.run_in_executor(None, process_file, path)
         content = ''
         desc = ''
         email_subject, email_from, email_to, email_time = '', '', '', ''
-        if pdf_records:
-            
-            content = pdf_records['content']
+        if api_res:
+            content = api_res['content']
             email_subject = content['subject']
             email_from = content['from']
             email_to = content['to']
             email_time = content['date']
             email_body = content['body']
-            desc = pdf_records['abstract']
+            desc = api_res['abstract']
         desc_vector = await loop.run_in_executor(None,request_text_to_vector,desc)
         obj: CreateSysDocParam = CreateSysDocParam(title=title, name=name, type="email",content=email_body,
                                                 email_subject=email_subject,email_from=email_from,
@@ -194,12 +193,12 @@ class UploadService:
         title = upload_service.get_file_title(name)
         path = upload_service.get_abs_path(location=file_location)
         loop = asyncio.get_running_loop()
-        pdf_records = await loop.run_in_executor(None, process_file, path)
+        api_res = await loop.run_in_executor(None, process_file, path)
         content = ''
         desc = ''
-        if pdf_records:
-            content = pdf_records['content']
-            desc = pdf_records['abstract']
+        if api_res:
+            content = api_res['content']
+            desc = api_res['abstract']
     
         obj: CreateSysDocParam = CreateSysDocParam(title=title, name=name, type="pdf",content=content,
                                                     file=file_location,desc=desc,uuid=unique_id)
@@ -421,7 +420,7 @@ class UploadService:
 
 
     # 3.3 单个邮件附件下载到指定目录，并处理其中所有附件。连同邮件正文一起组合
-    async def  emailfile_attachments_downloads( eml_file, download_folder,belong):
+    async def emailfile_attachments_downloads( eml_file, download_folder,belong):
         """
         解析 .eml 文件，提取邮件头、正文、附件，并将结果存储为字典。
         附件会保存到指定的文件夹。
@@ -464,23 +463,6 @@ class UploadService:
         email_data["body"] = body_content
         # 下载附件
         email_data['attachments'] = await upload_service.save_attachments(msg, download_folder,belong) 
-
-
-    @staticmethod
-    def process_vector_data(vector_data: str) -> list[float]:
-        """处理向量数据,将JSON字符串转换为向量数组"""
-        try:
-            vector_list = json.loads(vector_data)
-            all_embeddings = []
-            for item in vector_list:
-                if "embs" in item:
-                    # 直接使用embs数组,不需要extend
-                    all_embeddings = item["embs"]
-                    break  # 只取第一个文本块的向量
-            return all_embeddings
-        except Exception as e:
-            log.error(f"处理向量数据失败: {str(e)}")
-            return None
 
 
     
