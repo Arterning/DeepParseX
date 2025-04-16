@@ -224,6 +224,14 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
         return  await self.delete_model_by_column(db, allow_multiple=True, id__in=pk)
 
 
+    async def get_hot_docs(self, db: AsyncSession, user_id: int = None) -> Sequence[SysDoc]:
+        docs = await db.execute(
+             select(self.model)
+            # .where(self.model.user_id==user_id)
+            .order_by(self.model.created_time.desc())
+            .limit(10)
+        )
+        return docs.scalars()
 
 
 sys_doc_dao: CRUDSysDoc = CRUDSysDoc(SysDoc)

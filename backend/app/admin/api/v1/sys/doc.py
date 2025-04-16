@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Depends, Path, Query, Request
 
 from backend.app.admin.schema.doc import CreateSysDocParam, GetSysDocListDetails, GetSysDocPage, UpdateSysDocParam, GetDocDetail
 from backend.app.admin.service.doc_service import sys_doc_service
@@ -15,6 +15,18 @@ from backend.database.db_pg import CurrentSession
 from backend.utils.serializers import select_as_dict
 
 router = APIRouter()
+
+
+
+@router.get('/recent_docs', summary='获取最新上传文件',
+    dependencies=[DependsJwtAuth]
+ )
+async def get_recent_docs(request: Request) -> ResponseModel:
+    user_id = request.user.id
+    docs = await sys_doc_service.get_hot_docs(user_id)
+    hot_docs = [GetSysDocListDetails(id=doc.id, title=doc.title, created_time=doc.created_time, updated_time=doc.updated_time) for doc in docs]
+    return response_base.success(data=hot_docs)
+
 
 @router.get(
     '/search',

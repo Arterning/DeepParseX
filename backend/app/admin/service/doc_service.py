@@ -173,5 +173,12 @@ class SysDocService:
         async with async_db_session.begin() as db:
             count = await sys_doc_dao.update_account_pwd(db, pk,accounts)
             return count
-    
+
+
+    @staticmethod
+    async def get_hot_docs(user_id: int = None) -> Sequence[SysDoc]:
+        async with async_db_session() as db:
+            docs = await sys_doc_dao.get_hot_docs(db, user_id=user_id)
+            return docs
+
 sys_doc_service = SysDocService()
