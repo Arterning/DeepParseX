@@ -36,12 +36,14 @@ class TaskSettings(BaseSettings):
     CELERY_TASKS_PACKAGES: list[str] = [
         'app.task.celery_task',
         'app.task.celery_task.db_log',
+        'app.task.celery_task.upload'
     ]
     CELERY_TASK_MAX_RETRIES: int = 5
     CELERY_SCHEDULE: dict = {
         'exec-every-10-seconds': {
             'task': 'task_demo_async',
-            'schedule': 10,
+            # 'schedule': 10,
+            'schedule': crontab(0, 0, day_of_week='6'),
         },
         'exec-every-sunday': {
             'task': 'auto_delete_db_opera_log',

@@ -4,6 +4,8 @@ WORKDIR /fba
 
 COPY . .
 
+RUN mv backend/.env.docker /fba/backend/.env
+
 RUN sed -i 's/deb.debian.org/mirrors.ustc.edu.cn/g' /etc/apt/sources.list.d/debian.sources \
     && sed -i 's|security.debian.org/debian-security|mirrors.ustc.edu.cn/debian-security|g' /etc/apt/sources.list.d/debian.sources
 
