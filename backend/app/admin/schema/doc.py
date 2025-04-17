@@ -10,6 +10,7 @@ class SysDocSchemaBase(SchemaBase):
     title: str
     name: str | None = None
     type: str | None = None
+    file_suffix: str | None = None
     content: str | None = None
     c_tokens: str | None = None
     desc: str | None = None

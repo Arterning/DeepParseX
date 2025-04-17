@@ -1,0 +1,1 @@
+docker exec -it fba_server tail -f /var/log/fastapi_server/gunicorn_error.log

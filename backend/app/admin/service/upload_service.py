@@ -29,7 +29,7 @@ from email.parser import BytesParser
 from zipfile import ZipFile
 from bs4 import BeautifulSoup
 from backend.app.admin.model import SysDoc
-
+from backend.utils.upload_utils import is_excel_file, is_csv_file, is_picture_file, is_media_file, is_text_file, is_email_file, is_pdf_file, is_zip_file
 
 # 定义上传文件保存的目录
 UPLOAD_DIRECTORY = "uploads"
@@ -57,23 +57,83 @@ class UploadService:
         return absolute_path
 
     @staticmethod
-    async def read_text(file: UploadFile = File(...)):
-        file_location, content ,unique_id= await upload_service.save_file(file)
-        name = upload_service.get_filename(file.filename)
-        title = upload_service.get_file_title(name)
+    async def save_file(file: UploadFile = File(...)):
+        unique_id = str(uuid.uuid4())
+        # 文件后缀
+        file_extension = os.path.splitext(file.filename)[1]
+        new_filename = f"{unique_id}{file_extension}"
+        # 构建文件保存路径
+        file_location = os.path.join(UPLOAD_DIRECTORY, new_filename)
+        # 提取目录部分并创建目录（如果不存在）
+        directory = os.path.dirname(file_location)
+        os.makedirs(directory, exist_ok=True)
+
+        # 将上传的文件保存到指定目录
+        with open(file_location, "wb") as f:
+            content = await file.read()
+            f.write(content)
+        
+        obj: CreateSysDocParam = CreateSysDocParam(title=file.filename, name=file.filename, type="text",content='',
+                                                    file=file_location, uuid=unique_id, file_suffix=file_extension)
+        
+        await sys_doc_service.create(obj=obj)
+
+        return new_filename
+
+
+    @staticmethod
+    async def handle_file(id: int):
+        doc = await sys_doc_service.get(pk=id)
+        file_suffix = doc.file_suffix
+        file_location = doc.file
+
+        if is_text_file(file_suffix):
+            log.info("read text")
+            await upload_service.read_text(doc)
+
+        if is_email_file(file_suffix):
+            log.info("read email")
+            await upload_service.read_email(doc)
+
+        if is_pdf_file(file_suffix):
+            log.info("read pdf")
+            await upload_service.read_pdf(doc)
+        
+        if is_zip_file(file_suffix):
+            log.info("read zip")
+            await upload_service.read_zip(doc)
+
+        if is_excel_file(file_suffix):
+            log.info("read excel")
+            await upload_service.read_excel(doc)
+        
+        if is_csv_file(file_suffix):
+            log.info("read csv")
+            await upload_service.read_text(doc)
+        
+        if is_picture_file(file_suffix):
+            log.info("read picture")
+            await upload_service.read_picture(doc)
+
+        if is_media_file(file_suffix):
+            log.info("read media")
+            await upload_service.read_media(doc)
+
+        log.info("no match, read text")
+        await upload_service.read_text(doc)
+
+
+    @staticmethod
+    async def read_text(doc: SysDoc):
         loop = asyncio.get_running_loop()
-        path = upload_service.get_abs_path(location=file_location)
-        content_str = upload_service.decode_content_with_chardet(content)
+        path = upload_service.get_abs_path(location=doc.file)
         api_res = await loop.run_in_executor(None, process_file, path)
         desc = ''
         if api_res:
             desc = api_res['abstract']
-        obj: CreateSysDocParam = CreateSysDocParam(title=title, name=name, type="text",content=content_str,
-                                                    file=file_location,desc=desc,uuid=unique_id)
-        
-        doc = await sys_doc_service.create(obj=obj)
-
+            print(desc)
         await upload_service.insert_text_embs(doc)
+
 
     @staticmethod
     async def insert_text_embs(doc: SysDoc):
@@ -267,25 +327,7 @@ class UploadService:
     def dict_to_string(input_dict: dict) -> str:
         return ' '.join(f"{key} {value}" for key, value in input_dict.items())
 
-    @staticmethod
-    async def save_file(file: UploadFile = File(...)):
-        unique_id = str(uuid.uuid4())
-        # 文件后缀
-        file_extension = os.path.splitext(file.filename)[1]
-        new_filename = f"{unique_id}{file_extension}"
-        print(new_filename)
-        # 构建文件保存路径
-        file_location = os.path.join(UPLOAD_DIRECTORY, new_filename)
-        # 提取目录部分并创建目录（如果不存在）
-        directory = os.path.dirname(file_location)
-        os.makedirs(directory, exist_ok=True)
-
-        # 将上传的文件保存到指定目录
-        with open(file_location, "wb") as f:
-            content = await file.read()
-            f.write(content)
-        
-        return file_location, content,unique_id
+    
 
 
 

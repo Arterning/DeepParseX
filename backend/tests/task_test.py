@@ -17,7 +17,10 @@ async def init() -> None:
 
     res = task_service.run(
         name='upload_handle_file',
-        args=[]
+        args=[],
+        kwargs={
+            'id': 13,
+        }
     )
     print(res)
 

@@ -13,11 +13,15 @@ from backend.app.task.conf import task_settings
     retry_backoff=True,
     max_retries=task_settings.CELERY_TASK_MAX_RETRIES,
 )
-async def upload_handle_file(self) -> int:
+async def upload_handle_file(self, **kwargs) -> int:
     """处理上传文件"""
-    result = "ok"
+    id = kwargs.get("id")
+    if not id:
+        raise ValueError("id is required")
     try:
         print("upload_handle_file")
+        await upload_service.handle_file(id=id)
+        print("upload_handle_file ok")
     except SQLAlchemyError as exc:
         raise self.retry(exc=exc)
-    return result
+    return id
