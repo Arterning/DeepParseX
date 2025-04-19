@@ -7,28 +7,28 @@ import os
 
 
 def is_zip_file(file_suffix: str) -> bool:
-    return file_suffix in ['.zip']
+    return file_suffix in ['zip']
 
 def is_excel_file(file_suffix: str) -> bool:
-    return file_suffix in ['.xls', '.xlsx']
+    return file_suffix in ['xls', 'xlsx']
 
 def is_csv_file(file_suffix: str) -> bool:
-    return file_suffix in ['.csv']
+    return file_suffix in ['csv']
 
 def is_pdf_file(file_suffix: str) -> bool:
-    return file_suffix in ['.pdf']
+    return file_suffix in ['pdf']
 
 def is_picture_file(file_suffix: str) -> bool:
-    return file_suffix in ['.jpeg', '.jpg', '.png']
+    return file_suffix in ['jpeg', 'jpg', 'png']
 
 def is_media_file(file_suffix: str) -> bool:
-    return file_suffix in ['.mp4', '.mp3', '.flv', '.wav']
+    return file_suffix in ['mp4', 'mp3', 'flv', 'wav']
 
 def is_text_file(file_suffix: str) -> bool:
-    return file_suffix in ['.txt', '.host', '.config',
-                                             '.c', '.cpp', '.java', '.py', 'js', '.ts', '.rb', '.go']
+    return file_suffix in ['txt', 'host', 'config',
+                                             'c', 'cpp', 'java', 'py', 'js', 'ts', 'rb', 'go']
 def is_email_file(file_suffix: str) -> bool:
-    return file_suffix in ['.eml']
+    return file_suffix in ['eml']
 
 
 def get_file_suffix(filename: str):

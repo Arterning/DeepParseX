@@ -9,6 +9,7 @@ from backend.common.response.response_schema import ResponseModel, response_base
 from backend.common.security.jwt import DependsJwtAuth
 from backend.common.security.permission import RequestPermission
 from backend.common.security.rbac import DependsRBAC
+from backend.common.log import log
 
 router = APIRouter()
 
@@ -37,6 +38,26 @@ async def get_task_result(uid: Annotated[str, Path(description='任务ID')]) -> 
     return response_base.success(data=task)
 
 
+import time
+import json
+from fastapi.responses import StreamingResponse
+from backend.common.log import log
+# sse get task result
+@router.get('/{uid}/sse', summary='获取任务结果')
+async def get_task_result_sse(uid: Annotated[str, Path(description='任务ID')]) -> StreamingResponse:
+    def generate():
+        while True:
+            task = task_service.get_result(uid)
+            if task.successful() or task.failed():
+                yield f'data: {task.info}\n\n'
+                break
+            else:
+                log.info(f'任务 {uid} 执行中, 当前进度: {task.info}')
+                yield f'data: {json.dumps(task.info)}\n\n'
+                time.sleep(1)
+    return StreamingResponse(generate(), media_type='text/event-stream')
+
+
 @router.post(
     '/{name}',
     summary='执行任务',
@@ -51,4 +72,5 @@ async def run_task(
     kwargs: Annotated[dict | None, Body(description='任务函数关键字参数')] = None,
 ) -> ResponseModel:
     task = task_service.run(name=name, args=args, kwargs=kwargs)
-    return response_base.success(data=task)
+    # log.info(f'任务 {name} 执行成功, 任务ID: {task}')
+    return response_base.success(data=str(task))
