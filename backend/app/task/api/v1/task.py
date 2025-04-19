@@ -49,7 +49,7 @@ async def get_task_result_sse(uid: Annotated[str, Path(description='任务ID')])
         while True:
             task = task_service.get_result(uid)
             if task.successful() or task.failed():
-                yield f'data: {task.info}\n\n'
+                yield f'data: {json.dumps(task.info)}\n\n'
                 break
             else:
                 log.info(f'任务 {uid} 执行中, 当前进度: {task.info}')
