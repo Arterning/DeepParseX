@@ -29,7 +29,7 @@ from email.parser import BytesParser
 from zipfile import ZipFile
 from bs4 import BeautifulSoup
 from backend.app.admin.model import SysDoc
-from backend.utils.upload_utils import is_excel_file, is_csv_file, is_picture_file, is_media_file, is_text_file, is_email_file, is_pdf_file, is_zip_file
+from backend.utils.upload_utils import get_file_suffix, is_excel_file, is_csv_file, is_picture_file, is_media_file, is_text_file, is_email_file, is_pdf_file, is_zip_file
 
 # 定义上传文件保存的目录
 UPLOAD_DIRECTORY = "uploads"
@@ -60,8 +60,8 @@ class UploadService:
     async def save_file(file: UploadFile = File(...)):
         unique_id = str(uuid.uuid4())
         # 文件后缀
-        file_extension = os.path.splitext(file.filename)[1]
-        new_filename = f"{unique_id}{file_extension}"
+        file_suffix = get_file_suffix(file.filename)
+        new_filename = f"{unique_id}{file_suffix}"
         # 构建文件保存路径
         file_location = os.path.join(UPLOAD_DIRECTORY, new_filename)
         # 提取目录部分并创建目录（如果不存在）
@@ -72,13 +72,18 @@ class UploadService:
         with open(file_location, "wb") as f:
             content = await file.read()
             f.write(content)
-        
-        obj: CreateSysDocParam = CreateSysDocParam(title=file.filename, name=file.filename, type="text",content='',
-                                                    file=file_location, uuid=unique_id, file_suffix=file_extension)
-        
-        await sys_doc_service.create(obj=obj)
 
-        return new_filename
+
+        obj = CreateSysDocParam(title=file.filename, name=file.filename, type="text",
+                                                    file=file_location, uuid=unique_id, 
+                                                    file_suffix=file_suffix)
+        if is_text_file(file_suffix):
+            obj.type = "text"
+            obj.content = upload_service.decode_content_with_chardet(content)
+        
+        doc = await sys_doc_service.create(obj=obj)
+
+        return doc
 
 
     @staticmethod
@@ -119,8 +124,6 @@ class UploadService:
             log.info("read media")
             await upload_service.read_media(doc)
 
-        log.info("no match, read text")
-        await upload_service.read_text(doc)
 
 
     @staticmethod

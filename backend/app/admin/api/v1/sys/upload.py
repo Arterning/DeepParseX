@@ -16,6 +16,8 @@ router = APIRouter()
 
 @router.post("/", summary='上传文件')
 async def upload_file(file: UploadFile = File(...)):
-    new_filename = await upload_service.save_file(file)
-    resp = {"filename": new_filename}
+    doc = await upload_service.save_file(file)
+    resp = {
+        "id": doc.id
+    }
     return response_base.success(data=resp)
