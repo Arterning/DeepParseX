@@ -5,12 +5,12 @@
 import chardet
 import uuid
 
-from backend.app.admin.schema.doc import CreateSysDocParam
+from backend.app.admin.schema.doc import CreateSysDocParam, UpdateSysDocParam
 from backend.app.admin.schema.doc_data import CreateSysDocDataParam
 from backend.app.admin.schema.doc_chunk import CreateSysDocChunkParam
 from backend.app.admin.schema.doc_embdding import CreateSysDocEmbeddingParam
 from backend.app.admin.service.doc_service import sys_doc_service
-from backend.utils.doc_utils import process_file,get_llm_abstract, request_text_to_vector
+from backend.utils.doc_utils import process_file, request_text_to_vector
 
 import os
 import json
@@ -29,7 +29,7 @@ from email.parser import BytesParser
 from zipfile import ZipFile
 from bs4 import BeautifulSoup
 from backend.app.admin.model import SysDoc
-from backend.utils.upload_utils import get_file_suffix, is_excel_file, is_csv_file, is_picture_file, is_media_file, is_text_file, is_email_file, is_pdf_file, is_zip_file
+from backend.utils.upload_utils import get_file_suffix, get_file_type, is_text_file, is_excel_file, is_pdf_file, is_zip_file
 
 # 定义上传文件保存的目录
 UPLOAD_DIRECTORY = "uploads"
@@ -39,6 +39,20 @@ Path(UPLOAD_DIRECTORY).mkdir(parents=True, exist_ok=True)
 
 
 class UploadService:
+
+    @staticmethod
+    def decode_content_with_chardet(content):
+        # 使用 chardet 检测编码
+        result = chardet.detect(content)
+        encoding = result['encoding']
+        
+        try:
+            content_str = content.decode(encoding)
+        except (UnicodeDecodeError, TypeError) as e:
+            print(f"解码失败，尝试使用检测到的编码: {encoding}")
+            content_str = content.decode(encoding, errors='ignore')
+        
+        return content_str
 
     @staticmethod
     def get_filename(file_path: str):
@@ -74,7 +88,8 @@ class UploadService:
             f.write(content)
 
 
-        obj = CreateSysDocParam(title=file.filename, name=file.filename, type="text",
+        file_type = get_file_type(file_suffix)
+        obj = CreateSysDocParam(title=file.filename, name=file.filename, type=file_type,
                                                     file=file_location, uuid=unique_id, 
                                                     file_suffix=file_suffix)
         if is_text_file(file_suffix):
@@ -87,55 +102,23 @@ class UploadService:
 
 
     @staticmethod
-    async def handle_file(id: int):
-        doc = await sys_doc_service.get(pk=id)
-        file_suffix = doc.file_suffix
-        file_location = doc.file
-
-        if is_text_file(file_suffix):
-            log.info("read text")
-            await upload_service.read_text(doc)
-
-        if is_email_file(file_suffix):
-            log.info("read email")
-            await upload_service.read_email(doc)
-
-        if is_pdf_file(file_suffix):
-            log.info("read pdf")
-            await upload_service.read_pdf(doc)
+    async def read_file_content(doc: SysDoc):
+        if doc.content:
+            return
         
-        if is_zip_file(file_suffix):
-            log.info("read zip")
-            await upload_service.read_zip(doc)
-
-        if is_excel_file(file_suffix):
-            log.info("read excel")
-            await upload_service.read_excel(doc)
-        
-        if is_csv_file(file_suffix):
-            log.info("read csv")
-            await upload_service.read_text(doc)
-        
-        if is_picture_file(file_suffix):
-            log.info("read picture")
-            await upload_service.read_picture(doc)
-
-        if is_media_file(file_suffix):
-            log.info("read media")
-            await upload_service.read_media(doc)
-
-
-
-    @staticmethod
-    async def read_text(doc: SysDoc):
-        loop = asyncio.get_running_loop()
-        path = upload_service.get_abs_path(location=doc.file)
-        api_res = await loop.run_in_executor(None, process_file, path)
-        desc = ''
-        if api_res:
+        content = ''
+        if is_excel_file(doc.file_suffix):
+            content = upload_service.read_excel_data(doc=doc)
+        else:
+            loop = asyncio.get_running_loop()
+            path = upload_service.get_abs_path(location=doc.file)
+            api_res = await loop.run_in_executor(None, process_file, path)
+            desc = ''
+            content = api_res['content']
             desc = api_res['abstract']
-            print(desc)
-        await upload_service.insert_text_embs(doc)
+        obj = UpdateSysDocParam(content=content, desc=desc)
+        await sys_doc_service.update(pk=doc.id, obj=obj)
+
 
 
     @staticmethod
@@ -177,107 +160,27 @@ class UploadService:
 
 
     @staticmethod
-    async def read_picture(file: UploadFile):
-        file_location, _ ,unique_id= await upload_service.save_file(file)
-        name = upload_service.get_filename(file.filename)
-        title = upload_service.get_file_title(name)
-        loop = asyncio.get_running_loop()
-        path = upload_service.get_abs_path(location=file_location)
-        api_res = await loop.run_in_executor(None, process_file, path)
-        content = ''
-        desc = ''
-        if api_res:
-            content = api_res['content']
-            desc = api_res['abstract']
+    async def read_excel_data(doc: SysDoc):
+
+        if (doc.type != 'excel'): 
+            return
         
-        obj: CreateSysDocParam = CreateSysDocParam(title=title, name=name, type="picture",content=content,
-                                                    file=file_location, desc=desc,uuid=unique_id)
-        doc = await sys_doc_service.create(obj=obj)
+        file_location = doc.file
 
-        await upload_service.insert_text_embs(doc)
-
-
-    @staticmethod
-    async def read_media(file: UploadFile):
-        file_location, _ ,unique_id= await upload_service.save_file(file)
-        name = upload_service.get_filename(file.filename)
-        title = upload_service.get_file_title(name)
-        loop = asyncio.get_running_loop()
-        path = upload_service.get_abs_path(location=file_location)
-        api_res = await loop.run_in_executor(None, process_file, path)
-        content = ''
-        desc = ''
-        if api_res:
-            content = api_res['content']
-            desc = api_res['abstract']
-        desc_vector = await loop.run_in_executor(None,request_text_to_vector,desc)
-
-        obj: CreateSysDocParam = CreateSysDocParam(title=title, name=name, type="media",content=content,
-                                                    file=file_location,desc=desc,uuid=unique_id)
-        doc = await sys_doc_service.create(obj=obj)
-        await upload_service.insert_text_embs(doc)
-
-
-    @staticmethod
-    async def read_email(file: UploadFile):
-        file_location, _ ,unique_id= await upload_service.save_file(file)
-        name = upload_service.get_filename(file.filename)
-        title = upload_service.get_file_title(name)
-        loop = asyncio.get_running_loop()
-        path = upload_service.get_abs_path(location=file_location)
-        api_res = await loop.run_in_executor(None, process_file, path)
-        content = ''
-        desc = ''
-        email_subject, email_from, email_to, email_time = '', '', '', ''
-        if api_res:
-            content = api_res['content']
-            email_subject = content['subject']
-            email_from = content['from']
-            email_to = content['to']
-            email_time = content['date']
-            email_body = content['body']
-            desc = api_res['abstract']
-        desc_vector = await loop.run_in_executor(None,request_text_to_vector,desc)
-        obj: CreateSysDocParam = CreateSysDocParam(title=title, name=name, type="email",content=email_body,
-                                                email_subject=email_subject,email_from=email_from,
-                                                email_to=email_to, email_time=email_time, file=file_location,desc=desc,uuid=unique_id)
-        doc = await sys_doc_service.create(obj=obj)
-        # 获取邮件的id
-        doc_id = doc.id
-        # 获取附件，下载附件
-        await upload_service.emailfile_attachments_downloads(eml_file=file_location , download_folder="uploads",belong=doc_id)
-
-
-
-    @staticmethod
-    async def read_pdf(file: UploadFile = File(...)):
-        file_location, _ ,unique_id= await upload_service.save_file(file)
-        name = upload_service.get_filename(file.filename)
-        title = upload_service.get_file_title(name)
-        path = upload_service.get_abs_path(location=file_location)
-        loop = asyncio.get_running_loop()
-        api_res = await loop.run_in_executor(None, process_file, path)
-        content = ''
-        desc = ''
-        if api_res:
-            content = api_res['content']
-            desc = api_res['abstract']
-    
-        obj: CreateSysDocParam = CreateSysDocParam(title=title, name=name, type="pdf",content=content,
-                                                    file=file_location,desc=desc,uuid=unique_id)
-        doc = await sys_doc_service.create(obj=obj)
-        await upload_service.insert_text_embs(doc)
-
-
-    @staticmethod
-    async def read_excel(file: UploadFile = File(...)):
-        # 读取 Excel 文件并解析为 DataFrame
-        file_content = await file.read()
-        file_bytes = BytesIO(file_content)
+        # 读取文件内容
+        df = pd.DataFrame()
         try:
-            df = pd.read_excel(file_bytes, nrows=10, header=None)
+            with open(file_location, 'rb') as file:
+                file_bytes = file.read()
+                df = pd.read_excel(file_bytes, nrows=10, header=None)
         except Exception as e:
-            raise e
+            print(f"读取文件时发生错误：{e}")
+            raise e 
+        
+
+        # 读取 Excel 文件并解析为 DataFrame
+        # file_content = file.read()
+        # file_bytes = BytesIO(file_content)
 
         head = 0
         for i, row in df.iterrows():
@@ -292,21 +195,8 @@ class UploadService:
 
         # 将 DataFrame 转换为 JSON 格式
         data_json = df.to_dict(orient="records")
-        # 构建文件保存路径
-        file_location, _ ,unique_id= await upload_service.save_file(file)
 
-        # 将数据存入数据库
-        name = upload_service.get_filename(file.filename)
-        title = upload_service.get_file_title(name)
-        desc = ''
         content = ''
-
-        loop = asyncio.get_running_loop()
-        data_input = df.head(5).to_string(index=False, header=True)
-        excel_records = await loop.run_in_executor(None, get_llm_abstract, data_input)
-        if excel_records:
-            desc = excel_records
-            
         
         for excel_data in data_json:
             print("excel_data",excel_data)
@@ -314,23 +204,19 @@ class UploadService:
             row = strings + '\n'
             content += row
         content = content.replace("Unnamed", "").replace("None", "")
-        doc_param = CreateSysDocParam(title=title, name=name, type='excel', 
-                                    c_token=content, content=content, file=file_location,desc=desc,uuid=unique_id)
-        doc = await sys_doc_service.create(obj=doc_param)
         doc_id = doc.id
         obj_list = []
         for excel_data in data_json:
             param = CreateSysDocDataParam(doc_id=doc_id, excel_data=excel_data)
             obj_list.append(param)
         await sys_doc_service.create_doc_data(obj_list=obj_list)
+        return content
         
-        await upload_service.insert_text_embs(doc)
+
 
     @staticmethod
     def dict_to_string(input_dict: dict) -> str:
         return ' '.join(f"{key} {value}" for key, value in input_dict.items())
-
-    
 
 
 
@@ -348,42 +234,27 @@ class UploadService:
 
     @staticmethod
     async def read_zip(file: UploadFile = File(...)):
-        file_location, _ ,unique_id= await upload_service.save_file(file)
+        doc = await upload_service.save_file(file)
+        file_location = upload_service.get_abs_path(location=doc.file)
         with upload_service.support_gbk(ZipFile(file_location, "r")) as zip_ref:
             name_list = zip_ref.namelist()
             for file_name in name_list:
                 with zip_ref.open(file_name) as single_file:
                     try:
-                        name = os.path.basename(file_name)
-                        title = upload_service.get_file_title(name)
-                        log.info(f"Start read {title}")
-                        file_content = single_file.read()
+                        log.info(f"Start read {file_name}")
                         # 创建BytesIO对象，模拟上传文件
-                        file_bytes = BytesIO(file_content)
-                        file_upload_file = UploadFile(
-                                file_bytes,
-                                filename=file_name,
-                        )
-                        if upload_service.is_pdf_file(name):
-                            await upload_service.read_pdf(file_upload_file)
-                        if upload_service.is_excel_file(name):
-                            await upload_service.read_excel(file_upload_file)
-                        if upload_service.is_csv_file(name):
-                            await upload_service.read_text(file)
-                        if upload_service.is_picture_file(name):
-                            await upload_service.read_picture(file_upload_file)
-                        if upload_service.is_media_file(name):
-                            await upload_service.read_media(file_upload_file)
-                        if upload_service.is_text_file(name):
-                            await upload_service.read_text(file_upload_file)
-                        if upload_service.is_email_file(name):
-                            await upload_service.read_email(file_upload_file)
-                        log.info(f"Success read {title}")
+                        # file_bytes = BytesIO(file_content)
+                        # file_upload_file = UploadFile(
+                        #         file_bytes,
+                        #         filename=file_name,
+                        # )
+                        await upload_service.handle_file(doc=doc)
+                        await sys_doc_service.update_doc_tokens(doc=doc)
+                        await upload_service.insert_text_embs(doc=doc)
+                        log.info(f"Success read {file_name}")
                     except Exception as e:
                         traceback.print_exc()
             os.remove(file_location)
-
-
 
 
 
@@ -508,23 +379,38 @@ class UploadService:
         email_data["body"] = body_content
         # 下载附件
         email_data['attachments'] = await upload_service.save_attachments(msg, download_folder,belong) 
-
-
     
 
+
     @staticmethod
-    def decode_content_with_chardet(content):
-        # 使用 chardet 检测编码
-        result = chardet.detect(content)
-        encoding = result['encoding']
-        
-        try:
-            content_str = content.decode(encoding)
-        except (UnicodeDecodeError, TypeError) as e:
-            print(f"解码失败，尝试使用检测到的编码: {encoding}")
-            content_str = content.decode(encoding, errors='ignore')
-        
-        return content_str
+    async def read_email(file: UploadFile):
+        file_location, _ ,unique_id= await upload_service.save_file(file)
+        name = upload_service.get_filename(file.filename)
+        title = upload_service.get_file_title(name)
+        loop = asyncio.get_running_loop()
+        path = upload_service.get_abs_path(location=file_location)
+        api_res = await loop.run_in_executor(None, process_file, path)
+        content = ''
+        desc = ''
+        email_subject, email_from, email_to, email_time = '', '', '', ''
+        if api_res:
+            content = api_res['content']
+            email_subject = content['subject']
+            email_from = content['from']
+            email_to = content['to']
+            email_time = content['date']
+            email_body = content['body']
+            desc = api_res['abstract']
+        desc_vector = await loop.run_in_executor(None,request_text_to_vector,desc)
+        obj: CreateSysDocParam = CreateSysDocParam(title=title, name=name, type="email",content=email_body,
+                                                email_subject=email_subject,email_from=email_from,
+                                                email_to=email_to, email_time=email_time, file=file_location,desc=desc,uuid=unique_id)
+        doc = await sys_doc_service.create(obj=obj)
+        # 获取邮件的id
+        doc_id = doc.id
+        # 获取附件，下载附件
+        await upload_service.emailfile_attachments_downloads(eml_file=file_location , download_folder="uploads",belong=doc_id)
+
 
 
 upload_service = UploadService()

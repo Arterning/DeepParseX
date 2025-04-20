@@ -3,6 +3,7 @@
 from sqlalchemy.exc import SQLAlchemyError
 
 from backend.app.admin.service.upload_service import upload_service
+from backend.app.admin.service.doc_service import sys_doc_service
 from backend.app.task.celery import celery_app
 from backend.app.task.conf import task_settings
 import time
@@ -20,20 +21,33 @@ async def upload_handle_file(self, **kwargs) -> int:
         raise ValueError("id is required")
     try:
         print("upload_handle_file")
-        # await upload_service.handle_file(id=id)
-        n = 30
-        for i in range(0, n):
-            self.update_state(state='PROGRESS', meta={'done': i, 'total': n})
-            time.sleep(1)
+
+        self.update_state(state='PROGRESS', meta={'stage': '准备文件内容', 'progress': 0})
+
+        doc = await sys_doc_service.get(pk=id)
+
+        self.update_state(state='PROGRESS', meta={'stage': '读取文件内容', 'progress': 1/4})
+
+        await upload_service.read_file_content(doc=doc)
+
+        self.update_state(state='PROGRESS', meta={'stage': '创建分词索引', 'progress': 2/4})
+
+        await sys_doc_service.update_doc_tokens(doc=doc)
+
+        self.update_state(state='PROGRESS', meta={'stage': '创建文本向量', 'progress': 3/4})
+
+        await upload_service.insert_text_embs(doc)
+        
+        # n = 30
+        # for i in range(0, n):
+        #     self.update_state(state='PROGRESS', meta={'done': i, 'total': n})
+        #     time.sleep(1)
 
         print("upload_handle_file ok")
     except SQLAlchemyError as exc:
         raise self.retry(exc=exc)
     result = {
-        'status': 'success',
-        'result': {
-            'id': id,
-            'message': '文件处理成功'
-        }
+        'stage': '处理完成',
+        'progress': 1,
     }
     return result
