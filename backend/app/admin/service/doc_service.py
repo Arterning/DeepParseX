@@ -86,6 +86,7 @@ class SysDocService:
             # if sys_doc:
             #     raise errors.ForbiddenError(msg='文件已存在')
             doc = await sys_doc_dao.create(db, obj)
+            return doc
 
 
     @staticmethod

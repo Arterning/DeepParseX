@@ -81,12 +81,16 @@ def request_text_to_vector(text , max_length=512):
                "max_length":max_length}
 
     # 发送 POST 请求
-    response = requests.post(url, json=payload)
-    
-    if response.status_code == 200:
-        return response.json()
-    else:
-        log.error(f"Request failed with status code {response.status_code}")
+    try:
+        response = requests.post(url, json=payload)
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            log.error(f"Request failed with status code {response.status_code}")
+            return []
+    except Exception as e:
+        log.error(f"Error occurred: {str(e)}")
         return []
 
 
