@@ -38,7 +38,6 @@ services:
       # - fba_celery
     volumes:
       - fba_static:/fba/backend/app/static
-      - ~/uploads:/fba/backend/uploads
     networks:
       - fba_network
     command:

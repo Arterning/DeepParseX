@@ -36,7 +36,7 @@ from zipfile import ZipFile
 from bs4 import BeautifulSoup
 from backend.app.admin.model import SysDoc
 from backend.utils.oss_client import minio_client
-from backend.utils.upload_utils import get_file_suffix, get_file_type, is_text_file, is_excel_file, is_email_file, is_zip_file
+from backend.utils.upload_utils import get_file_suffix, get_file_type, is_text_file, is_excel_file, is_email_file, is_pdf_file, is_zip_file
 
 bucket_name = settings.BUCKET_NAME
 
@@ -64,13 +64,6 @@ class UploadService:
     def get_file_title(file_name: str):
         return os.path.splitext(file_name)[0]
 
-    @staticmethod
-    def get_abs_path(location: str):
-        is_in_container = os.path.isdir('/fba/backend')
-        if (is_in_container):
-            return f"~/{location}"
-        absolute_path = os.path.abspath(location)
-        return absolute_path
 
     @staticmethod
     async def save_file(file: UploadFile = File(...)):
@@ -111,17 +104,17 @@ class UploadService:
             content = upload_service.decode_content_with_chardet(file_bytes)
 
         if is_excel_file(doc.file_suffix):
-            content = upload_service.read_excel_data(doc=doc, file_bytes=file_bytes)
+            content = await upload_service.read_excel_data(doc=doc, file_bytes=file_bytes)
         
         if is_email_file(doc.file_suffix):
             content = await upload_service.read_email_data(doc=doc, file_bytes=file_bytes)
         
-        # else:
-        #     loop = asyncio.get_running_loop()
-        #     path = upload_service.get_abs_path(location=doc.file)
-        #     api_res = await loop.run_in_executor(None, process_file, path)
-        #     content = api_res['content']
-        #     desc = api_res['abstract']
+        
+        if is_pdf_file(doc.file_suffix):
+            loop = asyncio.get_running_loop()
+            api_res = await loop.run_in_executor(None, process_file, file_bytes)
+            content = api_res['content']
+            desc = api_res['abstract']
         
         obj = UpdateSysDocParam(content=content, desc=desc)
         await sys_doc_service.update(pk=doc.id, obj=obj)
@@ -370,25 +363,25 @@ class UploadService:
     @staticmethod
     async def read_zip(file: UploadFile = File(...)):
         doc = await upload_service.save_file(file)
-        file_location = upload_service.get_abs_path(location=doc.file)
-        with upload_service.support_gbk(ZipFile(file_location, "r")) as zip_ref:
-            name_list = zip_ref.namelist()
-            for file_name in name_list:
-                with zip_ref.open(file_name) as single_file:
-                    try:
-                        log.info(f"Start read {file_name}")
-                        # 创建BytesIO对象，模拟上传文件
-                        # file_bytes = BytesIO(file_content)
-                        # file_upload_file = UploadFile(
-                        #         file_bytes,
-                        #         filename=file_name,
-                        # )
-                        await sys_doc_service.update_doc_tokens(doc=doc)
-                        await upload_service.insert_text_embs(doc=doc)
-                        log.info(f"Success read {file_name}")
-                    except Exception as e:
-                        traceback.print_exc()
-            os.remove(file_location)
+        # file_location = upload_service.get_abs_path(location=doc.file)
+        # with upload_service.support_gbk(ZipFile(file_location, "r")) as zip_ref:
+        #     name_list = zip_ref.namelist()
+        #     for file_name in name_list:
+        #         with zip_ref.open(file_name) as single_file:
+        #             try:
+        #                 log.info(f"Start read {file_name}")
+        #                 # 创建BytesIO对象，模拟上传文件
+        #                 # file_bytes = BytesIO(file_content)
+        #                 # file_upload_file = UploadFile(
+        #                 #         file_bytes,
+        #                 #         filename=file_name,
+        #                 # )
+        #                 await sys_doc_service.update_doc_tokens(doc=doc)
+        #                 await upload_service.insert_text_embs(doc=doc)
+        #                 log.info(f"Success read {file_name}")
+        #             except Exception as e:
+        #                 traceback.print_exc()
+        #     os.remove(file_location)
 
 
 
