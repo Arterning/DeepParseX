@@ -314,19 +314,15 @@ class UploadService:
         
 
         # 读取文件内容
-        df = pd.read_excel(file_bytes, nrows=10, header=None)
+        df = pd.read_excel(BytesIO(file_bytes), nrows=10, header=None, engine='xlrd')
         
-
-        # 读取 Excel 文件并解析为 DataFrame
-        # file_content = file.read()
-        # file_bytes = BytesIO(file_content)
 
         head = 0
         for i, row in df.iterrows():
             if not row.isna().any():
                 head = i
                 break
-        df = pd.read_excel(file_bytes, header=head)
+        df = pd.read_excel(BytesIO(file_bytes), header=head, engine='xlrd')
 
         # 替换 NaN 为 None（可以避免 PostgreSQL 插入错误）
         df = df.where(pd.notnull(df), None)
