@@ -5,7 +5,7 @@
 groups = ["default", "deploy", "lint"]
 strategy = ["inherit_metadata"]
 lock_version = "4.4.1"
-content_hash = "sha256:4b4dfc0d321b1686e1d5fa9730b258201a85a8958e47342f370f35ab12be603b"
+content_hash = "sha256:97288491f73f1d04d491336a7143cd187bdcedeb8fba81c1a0be70323f033119"
 
 [[package]]
 name = "aiofiles"
@@ -72,6 +72,34 @@ dependencies = [
 files = [
     {file = "anyio-4.4.0-py3-none-any.whl", hash = "sha256:c1b2d8f46a8a812513012e1107cb0e68c17159a7a594208005a57dc776e1bdc7"},
     {file = "anyio-4.4.0.tar.gz", hash = "sha256:5aadc6a1bbb7cdb0bede386cac5e2940f5e2ff3aa20277e991cf028e0585ce94"},
+]
+
+[[package]]
+name = "argon2-cffi"
+version = "23.1.0"
+requires_python = ">=3.7"
+summary = "Argon2 for Python"
+groups = ["default"]
+dependencies = [
+    "argon2-cffi-bindings",
+]
+files = [
+    {file = "argon2_cffi-23.1.0-py3-none-any.whl", hash = "sha256:c670642b78ba29641818ab2e68bd4e6a78ba53b7eff7b4c3815ae16abf91c7ea"},
+    {file = "argon2_cffi-23.1.0.tar.gz", hash = "sha256:879c3e79a2729ce768ebb7d36d4609e3a78a4ca2ec3a9f12286ca057e3d0db08"},
+]
+
+[[package]]
+name = "argon2-cffi-bindings"
+version = "21.2.0"
+requires_python = ">=3.6"
+summary = "Low-level CFFI bindings for Argon2"
+groups = ["default"]
+dependencies = [
+    "cffi>=1.0.1",
+]
+files = [
+    {file = "argon2-cffi-bindings-21.2.0.tar.gz", hash = "sha256:bb89ceffa6c791807d1305ceb77dbfacc5aa499891d2c55661c6459651fc39e3"},
+    {file = "argon2_cffi_bindings-21.2.0-cp36-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b746dba803a79238e925d9046a63aa26bf86ab2a2fe74ce6b009a1c3f5c8f2ae"},
 ]
 
 [[package]]
@@ -1044,6 +1072,24 @@ files = [
 ]
 
 [[package]]
+name = "minio"
+version = "7.2.15"
+requires_python = ">=3.9"
+summary = "MinIO Python SDK for Amazon S3 Compatible Cloud Storage"
+groups = ["default"]
+dependencies = [
+    "argon2-cffi",
+    "certifi",
+    "pycryptodome",
+    "typing-extensions",
+    "urllib3",
+]
+files = [
+    {file = "minio-7.2.15-py3-none-any.whl", hash = "sha256:c06ef7a43e5d67107067f77b6c07ebdd68733e5aa7eed03076472410ca19d876"},
+    {file = "minio-7.2.15.tar.gz", hash = "sha256:5247df5d4dca7bfa4c9b20093acd5ad43e82d8710ceb059d79c6eea970f49f79"},
+]
+
+[[package]]
 name = "msgspec"
 version = "0.18.5"
 requires_python = ">=3.8"
@@ -1374,6 +1420,17 @@ groups = ["default"]
 files = [
     {file = "pycparser-2.22-py3-none-any.whl", hash = "sha256:c3702b6d3dd8c7abc1afa565d7e63d53a1d0bd86cdc24edd75470f4de499cfcc"},
     {file = "pycparser-2.22.tar.gz", hash = "sha256:491c8be9c040f5390f5bf44a5b07752bd07f56edf992381b05c701439eec10f6"},
+]
+
+[[package]]
+name = "pycryptodome"
+version = "3.22.0"
+requires_python = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*,>=2.7"
+summary = "Cryptographic library for Python"
+groups = ["default"]
+files = [
+    {file = "pycryptodome-3.22.0-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:a0092fd476701eeeb04df5cc509d8b739fa381583cda6a46ff0a60639b7cd70d"},
+    {file = "pycryptodome-3.22.0.tar.gz", hash = "sha256:fd7ab568b3ad7b77c908d7c3f7e167ec5a8f035c64ff74f10d47a4edd043d723"},
 ]
 
 [[package]]

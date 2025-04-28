@@ -60,6 +60,7 @@ dependencies = [
     "pgvector>=0.3.6",
     "bs4>=0.0.2",
     "duckdb>=1.2.2",
+    "minio>=7.2.15",
 ]
 requires-python = ">=3.10,<3.13"
 readme = "README.md"

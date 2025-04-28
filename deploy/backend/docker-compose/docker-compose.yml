@@ -16,6 +16,8 @@ volumes:
     name: fba_redis
   fba_static:
     name: fba_static
+  fba-minio:
+    name: fba-minio
   fba_rabbitmq:
     name: fba_rabbitmq
 
@@ -32,6 +34,7 @@ services:
     depends_on:
       - fba_pg
       - fba_redis
+      - fba-minio
       # - fba_celery
     volumes:
       - fba_static:/fba/backend/app/static
@@ -183,3 +186,24 @@ services:
         supervisorctl restart celery_worker
         supervisorctl restart celery_beat
         supervisorctl restart celery_flower
+
+
+  # quay.io/minio/minio:RELEASE.2023-11-01T01-57-10Z-cpuv1
+  fba-minio:
+    image: minio/minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    container_name: fba-minio
+    restart: always
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - fba-minio:/data
+    networks:
+      - fba_network
+    command:
+      - server
+      - /data
+      - --console-address=0.0.0.0:9001

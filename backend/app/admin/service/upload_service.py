@@ -111,16 +111,17 @@ class UploadService:
             return
         
         content = ''
+        desc = ''
+
         if is_excel_file(doc.file_suffix):
             content = upload_service.read_excel_data(doc=doc)
         
         if is_email_file(doc.file_suffix):
-            upload_service.read_email_data(doc=doc)
+            content = await upload_service.read_email_data(doc=doc)
         else:
             loop = asyncio.get_running_loop()
             path = upload_service.get_abs_path(location=doc.file)
             api_res = await loop.run_in_executor(None, process_file, path)
-            desc = ''
             content = api_res['content']
             desc = api_res['abstract']
         obj = UpdateSysDocParam(content=content, desc=desc)
@@ -174,7 +175,8 @@ class UploadService:
             with open(file_location, 'rb') as file:
                 file_bytes = file.read()
                 result_dict = upload_service.do_read_email(file_bytes)
-                await upload_service.save_email(result_dict=result_dict)
+                email_body = await upload_service.save_email(result_dict=result_dict)
+                return email_body
                 
         except Exception as e:
             print(f"读取文件时发生错误：{e}")
@@ -207,6 +209,7 @@ class UploadService:
             name=to_email,
         )
         await mail_box_service.create(obj=to_mail_obj)
+        return body
 
 
     @staticmethod

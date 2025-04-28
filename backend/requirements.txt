@@ -63,6 +63,7 @@ mako==1.3.5
 markdown-it-py==3.0.0
 markupsafe==2.1.5
 mdurl==0.1.2
+minio==7.2.15
 msgspec==0.18.5
 nodeenv==1.9.1
 numpy==2.1.2
