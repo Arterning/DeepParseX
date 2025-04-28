@@ -116,12 +116,12 @@ class UploadService:
         if is_email_file(doc.file_suffix):
             content = await upload_service.read_email_data(doc=doc, file_bytes=file_bytes)
         
-        else:
-            loop = asyncio.get_running_loop()
-            path = upload_service.get_abs_path(location=doc.file)
-            api_res = await loop.run_in_executor(None, process_file, path)
-            content = api_res['content']
-            desc = api_res['abstract']
+        # else:
+        #     loop = asyncio.get_running_loop()
+        #     path = upload_service.get_abs_path(location=doc.file)
+        #     api_res = await loop.run_in_executor(None, process_file, path)
+        #     content = api_res['content']
+        #     desc = api_res['abstract']
         
         obj = UpdateSysDocParam(content=content, desc=desc)
         await sys_doc_service.update(pk=doc.id, obj=obj)
@@ -387,7 +387,6 @@ class UploadService:
                         #         file_bytes,
                         #         filename=file_name,
                         # )
-                        await upload_service.handle_file(doc=doc)
                         await sys_doc_service.update_doc_tokens(doc=doc)
                         await upload_service.insert_text_embs(doc=doc)
                         log.info(f"Success read {file_name}")
