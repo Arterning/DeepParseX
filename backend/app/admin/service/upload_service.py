@@ -5,6 +5,7 @@
 import chardet
 import uuid
 
+from backend.core.conf import settings
 from backend.app.admin.schema.doc import CreateSysDocParam, UpdateSysDocParam
 from backend.app.admin.schema.doc_data import CreateSysDocDataParam
 from backend.app.admin.schema.doc_chunk import CreateSysDocChunkParam
@@ -27,20 +28,17 @@ from io import BytesIO
 from backend.common.log import log
 import traceback
 import zipfile
+import io
 import os
 from email import policy
 from email.parser import BytesParser
 from zipfile import ZipFile
 from bs4 import BeautifulSoup
 from backend.app.admin.model import SysDoc
+from backend.utils.oss_client import minio_client
 from backend.utils.upload_utils import get_file_suffix, get_file_type, is_text_file, is_excel_file, is_email_file, is_zip_file
 
-# 定义上传文件保存的目录
-UPLOAD_DIRECTORY = "uploads"
-
-# 创建上传文件的目录，如果不存在则创建
-Path(UPLOAD_DIRECTORY).mkdir(parents=True, exist_ok=True)
-
+bucket_name = settings.BUCKET_NAME
 
 class UploadService:
 
@@ -80,25 +78,18 @@ class UploadService:
         # 文件后缀
         file_suffix = get_file_suffix(file.filename)
         new_filename = f"{unique_id}{file_suffix}"
-        # 构建文件保存路径
-        file_location = os.path.join(UPLOAD_DIRECTORY, new_filename)
-        # 提取目录部分并创建目录（如果不存在）
-        directory = os.path.dirname(file_location)
-        os.makedirs(directory, exist_ok=True)
 
-        # 将上传的文件保存到指定目录
-        with open(file_location, "wb") as f:
-            content = await file.read()
-            f.write(content)
+        file_content = await file.read()
+        file_stream = io.BytesIO(file_content)
+        object_size = len(file_stream.getbuffer())
+        minio_client.put_object(bucket_name, new_filename, file_stream, object_size, file.content_type)
 
 
         file_type = get_file_type(file_suffix)
+
         obj = CreateSysDocParam(title=file.filename, name=file.filename, type=file_type,
-                                                    file=file_location, uuid=unique_id, 
+                                                    file=new_filename, uuid=unique_id, 
                                                     file_suffix=file_suffix)
-        if is_text_file(file_suffix):
-            obj.type = "text"
-            obj.content = upload_service.decode_content_with_chardet(content)
         
         doc = await sys_doc_service.create(obj=obj)
 
@@ -113,17 +104,25 @@ class UploadService:
         content = ''
         desc = ''
 
+        response = minio_client.get_object(bucket_name, doc.file)
+        file_bytes = response.read()
+
+        if is_text_file(doc.file_suffix):
+            content = upload_service.decode_content_with_chardet(file_bytes)
+
         if is_excel_file(doc.file_suffix):
-            content = upload_service.read_excel_data(doc=doc)
+            content = upload_service.read_excel_data(doc=doc, file_bytes=file_bytes)
         
         if is_email_file(doc.file_suffix):
-            content = await upload_service.read_email_data(doc=doc)
+            content = await upload_service.read_email_data(doc=doc, file_bytes=file_bytes)
+        
         else:
             loop = asyncio.get_running_loop()
             path = upload_service.get_abs_path(location=doc.file)
             api_res = await loop.run_in_executor(None, process_file, path)
             content = api_res['content']
             desc = api_res['abstract']
+        
         obj = UpdateSysDocParam(content=content, desc=desc)
         await sys_doc_service.update(pk=doc.id, obj=obj)
 
@@ -165,19 +164,14 @@ class UploadService:
         await sys_doc_service.create_doc_bulk_chunks(obj_list=obj_list)
 
     @staticmethod
-    async def read_email_data(doc: SysDoc):
+    async def read_email_data(doc: SysDoc, file_bytes: bytes):
         if doc.type != 'email':
             return None
         
-        file_location = doc.file
-        file_bytes = None
         try:
-            with open(file_location, 'rb') as file:
-                file_bytes = file.read()
-                result_dict = upload_service.do_read_email(file_bytes)
-                email_body = await upload_service.save_email(result_dict=result_dict)
-                return email_body
-                
+            result_dict = upload_service.do_read_email(file_bytes)
+            email_body = await upload_service.save_email(result_dict=result_dict)
+            return email_body
         except Exception as e:
             print(f"读取文件时发生错误：{e}")
             raise e
@@ -313,22 +307,14 @@ class UploadService:
 
 
     @staticmethod
-    async def read_excel_data(doc: SysDoc):
+    async def read_excel_data(doc: SysDoc, file_bytes: bytes):
 
         if (doc.type != 'excel'): 
             return
         
-        file_location = doc.file
 
         # 读取文件内容
-        df = pd.DataFrame()
-        try:
-            with open(file_location, 'rb') as file:
-                file_bytes = file.read()
-                df = pd.read_excel(file_bytes, nrows=10, header=None)
-        except Exception as e:
-            print(f"读取文件时发生错误：{e}")
-            raise e 
+        df = pd.read_excel(file_bytes, nrows=10, header=None)
         
 
         # 读取 Excel 文件并解析为 DataFrame

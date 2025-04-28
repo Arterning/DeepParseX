@@ -172,6 +172,12 @@ class Settings(BaseSettings):
         'confirm_password',
     ]
 
+    # Minio 
+    MINIO_URL: str = 'http://localhost:9000'
+    ACCESS_KEY: str = ''
+    SECRET_KEY: str = ''
+    BUCKET_NAME: str = ''
+
 
 @lru_cache
 def get_settings() -> Settings:
