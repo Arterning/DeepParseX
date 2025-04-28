@@ -14,7 +14,7 @@ async def init() -> None:
         with open(file_location, 'rb') as file:
             file_bytes = file.read()
             result_dict = upload_service.do_read_email(file_bytes)
-            print(result_dict)
+            # print(result_dict)
             await upload_service.save_email(result_dict=result_dict)
             return result_dict
     except Exception as e:

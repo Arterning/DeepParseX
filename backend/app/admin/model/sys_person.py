@@ -54,7 +54,7 @@ class Person(Base):
     )
 
     orgs: Mapped[list['SysOrg']] = relationship(
-        init=False, secondary=sys_person_org
+        init=False, secondary=sys_person_org, back_populates='persons'
     )
     
     # tags: Mapped[str] = mapped_column(String(), default='', comment='人物标签')

@@ -11,6 +11,18 @@ from backend.app.admin.schema.mail_box import CreateMailBoxParam, UpdateMailBoxP
 
 
 class CRUDMailBox(CRUDPlus[MailBox]):
+
+    async def get_by_name(self, db: AsyncSession, name: str) -> MailBox | None:
+        """
+        通过 name 获取
+
+        :param db:
+        :param name:
+        :return:
+        """
+        return await self.select_model_by_column(db, name=name)
+    
+    
     async def get(self, db: AsyncSession, pk: int) -> MailBox | None:
         """
         获取 MailBox

@@ -44,7 +44,7 @@ class SysOrg(Base):
     )
 
     persons: Mapped[list['Person']] = relationship(
-        init=False, secondary=sys_person_org
+        init=False, secondary=sys_person_org, back_populates='orgs'
     )
 
     assets: Mapped[list['SysAssets']] = relationship(

@@ -10,6 +10,7 @@ from backend.app.admin.schema.doc_data import CreateSysDocDataParam
 from backend.app.admin.schema.doc_chunk import CreateSysDocChunkParam
 from backend.app.admin.schema.doc_embdding import CreateSysDocEmbeddingParam
 from backend.app.admin.schema.mail_msg import CreateMailMsgParam
+from backend.app.admin.schema.mail_box import CreateMailBoxParam
 from backend.app.admin.service.doc_service import sys_doc_service
 from backend.app.admin.service.mail_msg_service import mail_msg_service
 from backend.app.admin.service.mail_box_service import mail_box_service
@@ -195,7 +196,17 @@ class UploadService:
             cc=cc,
             time=time,
         )
-        await mail_msg_service.create(obj=msg_obj)   
+        await mail_msg_service.create(obj=msg_obj)
+
+        from_mail_obj = CreateMailBoxParam(
+            name=from_email,
+        )
+        await mail_box_service.create(obj=from_mail_obj)
+
+        to_mail_obj = CreateMailBoxParam(
+            name=to_email,
+        )
+        await mail_box_service.create(obj=to_mail_obj)
 
 
     @staticmethod

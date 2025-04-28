@@ -32,6 +32,9 @@ class MailBoxService:
     @staticmethod
     async def create(*, obj: CreateMailBoxParam) -> None:
         async with async_db_session.begin() as db:
+            found = await mail_box_dao.get_by_name(db, obj.name)
+            if found:
+                return
             await mail_box_dao.create(db, obj)
 
     @staticmethod
