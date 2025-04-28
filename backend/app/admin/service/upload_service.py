@@ -9,7 +9,10 @@ from backend.app.admin.schema.doc import CreateSysDocParam, UpdateSysDocParam
 from backend.app.admin.schema.doc_data import CreateSysDocDataParam
 from backend.app.admin.schema.doc_chunk import CreateSysDocChunkParam
 from backend.app.admin.schema.doc_embdding import CreateSysDocEmbeddingParam
+from backend.app.admin.schema.mail_msg import CreateMailMsgParam
 from backend.app.admin.service.doc_service import sys_doc_service
+from backend.app.admin.service.mail_msg_service import mail_msg_service
+from backend.app.admin.service.mail_box_service import mail_box_service
 from backend.utils.doc_utils import process_file, request_text_to_vector
 
 import os
@@ -29,7 +32,7 @@ from email.parser import BytesParser
 from zipfile import ZipFile
 from bs4 import BeautifulSoup
 from backend.app.admin.model import SysDoc
-from backend.utils.upload_utils import get_file_suffix, get_file_type, is_text_file, is_excel_file, is_pdf_file, is_zip_file
+from backend.utils.upload_utils import get_file_suffix, get_file_type, is_text_file, is_excel_file, is_email_file, is_zip_file
 
 # 定义上传文件保存的目录
 UPLOAD_DIRECTORY = "uploads"
@@ -109,6 +112,9 @@ class UploadService:
         content = ''
         if is_excel_file(doc.file_suffix):
             content = upload_service.read_excel_data(doc=doc)
+        
+        if is_email_file(doc.file_suffix):
+            upload_service.read_email_data(doc=doc)
         else:
             loop = asyncio.get_running_loop()
             path = upload_service.get_abs_path(location=doc.file)
@@ -156,7 +162,140 @@ class UploadService:
             obj_list.append(obj)
         await sys_doc_service.create_doc_bulk_chunks(obj_list=obj_list)
 
+    @staticmethod
+    async def read_email_data(doc: SysDoc):
+        if doc.type != 'email':
+            return None
+        
+        file_location = doc.file
+        file_bytes = None
+        try:
+            with open(file_location, 'rb') as file:
+                file_bytes = file.read()
+                result_dict = upload_service.do_read_email(file_bytes)
+                await upload_service.save_email(result_dict=result_dict)
+                
+        except Exception as e:
+            print(f"读取文件时发生错误：{e}")
+            raise e
 
+    @staticmethod
+    async def save_email(result_dict :dict):
+        subject = result_dict.get('subject', '')
+        from_email = result_dict.get('from', '')
+        to_email = result_dict.get('to', '')
+        cc = result_dict.get('cc', '')
+        time = result_dict.get('parsed_date', '')
+        body = result_dict.get('body', '')
+        msg_obj = CreateMailMsgParam(
+            name=subject,
+            original=body,
+            sender=from_email,
+            receiver=to_email,
+            cc=cc,
+            time=time,
+        )
+        await mail_msg_service.create(obj=msg_obj)   
+
+
+    @staticmethod
+    def do_read_email(file_bytes: bytes):
+        
+        if not file_bytes:
+            return None
+        
+        try:
+            import email
+            from email.parser import BytesParser
+            from email.policy import default
+            import datetime
+            
+            # 解析邮件
+            parser = BytesParser(policy=default)
+            msg = parser.parsebytes(file_bytes)
+            
+            # 获取基本信息
+            email_data = {
+                'subject': msg.get('Subject', ''),
+                'from': msg.get('From', ''),
+                'to': msg.get('To', ''),
+                'cc': msg.get('Cc', ''),
+                'date': msg.get('Date', ''),
+                'content_type': msg.get_content_type(),
+            }
+            
+            # 处理日期格式
+            if email_data['date']:
+                try:
+                    # 尝试解析邮件日期为datetime对象
+                    date_tuple = email.utils.parsedate_tz(email_data['date'])
+                    if date_tuple:
+                        timestamp = email.utils.mktime_tz(date_tuple)
+                        dt = datetime.datetime.fromtimestamp(timestamp)
+                        email_data['parsed_date'] = dt
+                except Exception as e:
+                    print(f"解析日期时发生错误: {e}")
+                    email_data['parsed_date'] = None
+            
+            # 获取邮件正文
+            email_data['body'] = ''
+            
+            # 处理纯文本内容
+            plain_text = None
+            html_content = None
+            
+            # 获取邮件内容
+            if msg.is_multipart():
+                # 多部分邮件
+                for part in msg.walk():
+                    content_type = part.get_content_type()
+                    content_disposition = str(part.get("Content-Disposition", ""))
+                    
+                    # 跳过附件
+                    if "attachment" in content_disposition:
+                        continue
+                    
+                    # 获取正文
+                    if content_type == "text/plain" and not plain_text:
+                        plain_text = part.get_payload(decode=True).decode(part.get_content_charset() or 'utf-8', errors='replace')
+                    elif content_type == "text/html" and not html_content:
+                        html_content = part.get_payload(decode=True).decode(part.get_content_charset() or 'utf-8', errors='replace')
+            else:
+                # 单部分邮件
+                content_type = msg.get_content_type()
+                if content_type == "text/plain":
+                    plain_text = msg.get_payload(decode=True).decode(msg.get_content_charset() or 'utf-8', errors='replace')
+                elif content_type == "text/html":
+                    html_content = msg.get_payload(decode=True).decode(msg.get_content_charset() or 'utf-8', errors='replace')
+            
+            # 优先使用纯文本内容，如果没有则使用HTML内容
+            email_data['body'] = plain_text or html_content or ''
+            
+            # 处理附件
+            attachments = []
+            if msg.is_multipart():
+                for part in msg.walk():
+                    if part.get_content_maintype() == 'multipart':
+                        continue
+                    
+                    content_disposition = str(part.get("Content-Disposition", ""))
+                    if "attachment" in content_disposition:
+                        filename = part.get_filename()
+                        if filename:
+                            attachments.append({
+                                'filename': filename,
+                                'content_type': part.get_content_type(),
+                                'size': len(part.get_payload(decode=True))
+                            })
+            
+            email_data['attachments'] = attachments
+            
+            return email_data
+        
+        except Exception as e:
+            print(f"解析邮件时发生错误：{e}")
+            raise e
+        
 
 
     @staticmethod
@@ -256,160 +395,6 @@ class UploadService:
                         traceback.print_exc()
             os.remove(file_location)
 
-
-
-    # 3.1 获取邮件正文
-    def get_email_body(msg):
-        """提取邮件正文，支持纯文本和HTML格式，并从HTML中提取纯文本。"""
-        body = {'plain': '', 'html': ''}
-        if msg.is_multipart():
-            for part in msg.iter_parts():
-                content_type = part.get_content_type()
-                charset = part.get_content_charset() or 'utf-8'
-                if content_type == 'text/plain':
-                    body['plain'] += part.get_payload(decode=True).decode(charset)
-                elif content_type == 'text/html':
-                    # 提取HTML并转换为纯文本
-                    html_content = part.get_payload(decode=True).decode(charset)
-                    soup = BeautifulSoup(html_content, 'html.parser')
-                    body['html'] += soup.get_text()  # 从HTML提取纯文本
-        else:
-            # 非 multipart 邮件
-            content_type = msg.get_content_type()
-            charset = msg.get_content_charset() or 'utf-8'
-            if content_type == 'text/plain':
-                body['plain'] = msg.get_payload(decode=True).decode(charset)
-            elif content_type == 'text/html':
-                # 提取HTML并转换为纯文本
-                html_content = msg.get_payload(decode=True).decode(charset)
-                soup = BeautifulSoup(html_content, 'html.parser')
-                body['html'] = soup.get_text()  # 从HTML提取纯文本
-        return body
-
-
-
-    # 3.2 保存附件并记录路径
-    async def save_attachments(msg, download_folder, belong):
-        """保存附件并返回附件文件路径的列表。"""
-        attachments = []
-        for part in msg.iter_attachments():
-            filename = part.get_filename()
-            file_extension = os.path.splitext(filename)[1]
-            unique_id = str(uuid.uuid4())
-            new_filename = f"{unique_id}{file_extension}"
-            if filename:
-                file_path = os.path.join(download_folder, new_filename)
-                with open(file_path, 'wb') as f:
-                    f.write(part.get_payload(decode=True))
-
-                title = upload_service.get_file_title(filename)
-                path = upload_service.get_abs_path(location=file_path)
-                loop = asyncio.get_running_loop()
-                records = await loop.run_in_executor(
-                    None, process_file, path
-                )
-                content = ''
-                desc = ''
-                if records:
-                    if 'content' not in records:
-                        log.warning(f"{filename}没有content或者不能处理，跳过")
-                        continue
-                    content = records['content']
-                    desc = records['abstract']
-                file_type = upload_service.get_file_type(filename)
-                obj: CreateSysDocParam = CreateSysDocParam(
-                    title=title,
-                    name=filename,
-                    type=file_type,
-                    content=content,
-                    file=file_path,
-                    desc=desc,
-                    belong=belong,
-                    uuid=unique_id
-                )
-                doc = await sys_doc_service.create(obj=obj)
-                await upload_service.insert_text_embs(doc)
-                attachments.append(file_path)
-        return attachments
-
-
-
-
-    # 3.3 单个邮件附件下载到指定目录，并处理其中所有附件。连同邮件正文一起组合
-    async def emailfile_attachments_downloads( eml_file, download_folder,belong):
-        """
-        解析 .eml 文件，提取邮件头、正文、附件，并将结果存储为字典。
-        附件会保存到指定的文件夹。
-        
-        参数:
-            eml_file (str): .eml 文件的路径
-            download_folder (str): 保存附件的文件夹路径 (默认为 "attachments")
-        
-        返回:
-            list[dict]: 邮件内容 + 邮件附件内容
-        """
-        download_folder = Path(download_folder)
-        # 确保保存附件的文件夹存在
-        if not os.path.exists(download_folder):
-            
-            download_folder.mkdir(exist_ok=True,parents=True)
-
-        
-        # 读取并解析 .eml 文件
-        with open(eml_file, 'rb') as f:
-            msg = BytesParser(policy=policy.default).parse(f)
-
-        # 存储邮件信息的字典
-        email_data = {
-            
-        }
-
-        # 获取邮件头信息
-        email_data['subject'] = msg['subject']
-        email_data['from'] = msg['from']
-        email_data['to'] = msg['to']
-        email_data['cc'] = msg['cc']
-        email_data['bcc'] = msg['bcc']
-        email_data['date'] = msg['date']
-        email_data['message-id'] = msg['message-id']
-        
-        
-        body_content = upload_service.get_email_body(msg)
-        body_content = body_content["plain"] + body_content["html"] ## 合并文本类型数据和html数据
-        email_data["body"] = body_content
-        # 下载附件
-        email_data['attachments'] = await upload_service.save_attachments(msg, download_folder,belong) 
-    
-
-
-    @staticmethod
-    async def read_email(file: UploadFile):
-        file_location, _ ,unique_id= await upload_service.save_file(file)
-        name = upload_service.get_filename(file.filename)
-        title = upload_service.get_file_title(name)
-        loop = asyncio.get_running_loop()
-        path = upload_service.get_abs_path(location=file_location)
-        api_res = await loop.run_in_executor(None, process_file, path)
-        content = ''
-        desc = ''
-        email_subject, email_from, email_to, email_time = '', '', '', ''
-        if api_res:
-            content = api_res['content']
-            email_subject = content['subject']
-            email_from = content['from']
-            email_to = content['to']
-            email_time = content['date']
-            email_body = content['body']
-            desc = api_res['abstract']
-        desc_vector = await loop.run_in_executor(None,request_text_to_vector,desc)
-        obj: CreateSysDocParam = CreateSysDocParam(title=title, name=name, type="email",content=email_body,
-                                                email_subject=email_subject,email_from=email_from,
-                                                email_to=email_to, email_time=email_time, file=file_location,desc=desc,uuid=unique_id)
-        doc = await sys_doc_service.create(obj=obj)
-        # 获取邮件的id
-        doc_id = doc.id
-        # 获取附件，下载附件
-        await upload_service.emailfile_attachments_downloads(eml_file=file_location , download_folder="uploads",belong=doc_id)
 
 
 
