@@ -84,7 +84,8 @@ class SysDocService:
 
 
     @staticmethod
-    async def create_doc_tokens(*, doc: SysDoc) -> SysDoc:
+    async def create_doc_tokens(*, id: int) -> SysDoc:
+        doc = await sys_doc_service.get(pk=id)
         title = doc.title
         content = doc.content
         title_tokens = ''

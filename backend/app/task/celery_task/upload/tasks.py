@@ -32,7 +32,7 @@ async def upload_handle_file(self, **kwargs) -> int:
 
         self.update_state(state='PROGRESS', meta={'stage': '创建分词索引', 'progress': 2/4})
 
-        await sys_doc_service.create_doc_tokens(doc=doc)
+        await sys_doc_service.create_doc_tokens(id=doc.id)
 
         self.update_state(state='PROGRESS', meta={'stage': '创建文本向量', 'progress': 3/4})
 
