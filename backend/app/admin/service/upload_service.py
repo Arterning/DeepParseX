@@ -327,7 +327,7 @@ class UploadService:
         content = ''
         
         for excel_data in data_json:
-            print("excel_data",excel_data)
+            # print("excel_data",excel_data)
             strings = upload_service.dict_to_string(excel_data)
             row = strings + '\n'
             content += row

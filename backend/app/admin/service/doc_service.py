@@ -34,12 +34,6 @@ class SysDocService:
     #         res = await sys_doc_dao.token_search(db, tokens)
     #         return res
 
-    @staticmethod
-    async def update_tokens(doc: SysDoc, a_tokens: str = None, b_tokens: str = None,
-                            c_tokens: str = None) -> list[int]:
-        async with async_db_session() as db:
-            res = await sys_doc_dao.update_tokens(db, doc, a_tokens, b_tokens, c_tokens)
-            return res
 
     @staticmethod
     async def get_select(*, name: str = None, type: str = None, email_from: str = None,
@@ -90,20 +84,21 @@ class SysDocService:
 
 
     @staticmethod
-    async def update_doc_tokens(*, doc: SysDoc) -> SysDoc:
+    async def create_doc_tokens(*, doc: SysDoc) -> SysDoc:
         title = doc.title
         content = doc.content
-        a_tokens = ''
-        b_tokens = ''
+        title_tokens = ''
+        content_tokens = ''
         if title:
             a_seg_list = jieba.cut(title, cut_all=True)
-            a_tokens =  " ".join(a_seg_list) + " " + doc.type
+            title_tokens =  " ".join(a_seg_list) + " " + doc.type
         if content:
             b_seg_list = jieba.cut_for_search(content)
-            b_tokens = " ".join(b_seg_list)
-        c_tokens = a_tokens + " " + b_tokens
-        # print("c_tokens", c_tokens)
-        await sys_doc_service.update_tokens(doc, a_tokens, b_tokens, c_tokens)
+            content_tokens = " ".join(b_seg_list)
+        all_tokens = title_tokens + " " + content_tokens
+        async with async_db_session() as db:
+            res = await sys_doc_dao.update_tokens(db, doc, title_tokens, content_tokens, all_tokens)
+            return res
         return doc
 
     @staticmethod
@@ -132,11 +127,8 @@ class SysDocService:
     @staticmethod
     async def update(*, pk: int, obj: UpdateSysDocParam) -> int:
         async with async_db_session.begin() as db:
-            count = await sys_doc_dao.update(db, pk, obj)
-            sys_doc = await sys_doc_dao.get(db, pk)
-            if not sys_doc:
-                raise errors.NotFoundError(msg='文件不存在')
-            await sys_doc_service.update_doc_tokens(sys_doc)
+            await sys_doc_dao.update(db, pk, obj)
+
 
     @staticmethod
     async def  delete(*, pk: list[int]) -> int:
