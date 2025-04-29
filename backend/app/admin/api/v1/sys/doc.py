@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query, Request
+from fastapi.responses import StreamingResponse
+from fastapi.exceptions import HTTPException
 
+from backend.core.conf import settings
 from backend.app.admin.schema.doc import CreateSysDocParam, GetSysDocListDetails, GetSysDocPage, UpdateSysDocParam, GetDocDetail
 from backend.app.admin.service.doc_service import sys_doc_service
 from backend.common.pagination import DependsPagination, paging_data
@@ -13,6 +17,9 @@ from backend.common.security.permission import RequestPermission
 from backend.common.security.rbac import DependsRBAC
 from backend.database.db_pg import CurrentSession
 from backend.utils.serializers import select_as_dict
+from backend.utils.oss_client import minio_client
+
+from minio.error import S3Error
 
 router = APIRouter()
 
@@ -26,6 +33,32 @@ async def get_recent_docs(request: Request) -> ResponseModel:
     docs = await sys_doc_service.get_hot_docs(user_id)
     hot_docs = [GetSysDocListDetails(id=doc.id, title=doc.title, created_time=doc.created_time, updated_time=doc.updated_time) for doc in docs]
     return response_base.success(data=hot_docs)
+
+
+bucket_name = settings.BUCKET_NAME
+
+# 获取原文件
+@router.get("/preview/{obj_name}", summary = "预览文件")
+async def preview_pdf(obj_name: str):
+    try:
+        # 从 MinIO 获取对象
+        response = minio_client.get_object(bucket_name, obj_name)
+
+        # 获取文件的 MIME 类型
+        media_type = response.getheader('Content-Type')
+        
+        async def file_generator(response):
+            while True:
+                chunk = response.read(9024)  # 逐块读取文件
+                if not chunk:
+                    break
+                yield chunk
+            response.close()
+            response.release_conn()
+        return StreamingResponse(file_generator(response), media_type=media_type)
+    except S3Error as e:
+        raise HTTPException(status_code=404, detail="File not found")
+
 
 
 @router.get(
