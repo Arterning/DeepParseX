@@ -31,6 +31,16 @@ def process_file(file_path: str):
         log.error(f"[process_file]中出现错误：{str(e)}")
         return None
 
+        
+# 文本的摘要
+def get_llm_abstract( content ):
+
+    question = "请生成以下文本的简洁的摘要，突出核心内容。请你必须使用中文描述，不超过500字："
+    template = f"{question}\n{content}"
+
+    llm_respone = get_llm_response(content= template )
+    return llm_respone
+
 
 
 # excel请求
@@ -59,21 +69,29 @@ def get_llm_response( content, max_retries=3, delay=0.5):
             else:
                 print("All attempts failed, returning None.")
                 return None
-            
-# 3.6 向大模型请求文本的摘要。模板函数之一
+    
 
-def get_llm_abstract( content ):
+def split_string_by_length(input_string: str, chunk_size: int = 500) -> list[str]:
+    """
+    将输入字符串按照指定长度切分为多个子字符串。
 
-    question = "请生成以下文本的简洁的摘要，突出核心内容。请你必须使用中文描述，不超过500字："
-    template = f"{question}\n{content}"
+    :param input_string: 要切分的输入字符串
+    :param chunk_size: 每个子字符串的最大长度，默认为 500
+    :return: 一个包含切分后的子字符串的列表
+    """
+    # 使用列表推导式切分字符串
+    return [input_string[i:i + chunk_size] for i in range(0, len(input_string), chunk_size)]
 
-    llm_respone = get_llm_response(content= template )
-    return llm_respone
 
 
+def request_text_to_vector(text, dimension=384):
+    if dimension == 1024:
+        return request_text_to_vector_1024(text)
+    else :
+        return request_text_to_vector_384(text)
 
 
-def request_text_to_vector(text , max_length=512):
+def request_text_to_vector_1024(text , max_length=512):
     url = "http://172.17.0.1:8104/text_to_vector"
     
     # 准备请求体
@@ -94,17 +112,28 @@ def request_text_to_vector(text , max_length=512):
         return []
 
 
-
-content_list = ["""故事：最后的胜利198.168.0.1 woshishen10
-在遥远的未来，地球的多个
-198.168.0.1
-国家因资源枯竭和政治纷争
-
- 爆发了全面战争。战火弥漫，整
-198.168.0.1 198.168.0.1
-个世界陷入了混乱与毁灭之中。各国政府为了争夺有限的资源，不择手段，甚至动用了最先进的战争技术。那些曾经在历史上被视为遥不可及的超级武器，现在已成为普通战士的日常装备。
-
-在这场浩劫中，有一支特殊的 
-
-部队，198.168.0.1 123456789  他们是由各国精英组成 146.5.8.9  !@#$%win10"""]
-# print(get_ipaddr(content_list)[0])
+def request_text_to_vector_384(text, max_length=512):
+    url = "http://172.17.0.1:8080/embeddings"
+    texts = split_string_by_length(text, chunk_size=max_length),
+    payload = {
+        "texts": texts,
+    }
+    # 发送 POST 请求
+    try:
+        response = requests.post(url, json=payload)
+        if response.status_code == 200:
+            res = response.json()
+            embeddings = res["embeddings"]
+            result = []
+            for i in range(len(embeddings)):
+                result.append({
+                    "embs": embeddings[i],
+                    "text": texts[i]
+                })
+            return result
+        else:
+            log.error(f"Request failed with status code {response.status_code}")
+            raise Exception(f"Request failed with status code {response.status_code}")
+    except Exception as e:
+        log.error(f"Error occurred: {str(e)}")
+        raise e 
