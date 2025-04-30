@@ -114,13 +114,14 @@ def request_text_to_vector_1024(text , max_length=512):
 
 def request_text_to_vector_384(text, max_length=512):
     url = "http://172.17.0.1:8080/embeddings"
-    texts = split_string_by_length(text, chunk_size=max_length),
+    texts = split_string_by_length(text, chunk_size=max_length)
     payload = {
         "texts": texts,
     }
     # 发送 POST 请求
     try:
         response = requests.post(url, json=payload)
+        # print("response", response)
         if response.status_code == 200:
             res = response.json()
             embeddings = res["embeddings"]
