@@ -2,27 +2,46 @@
 # -*- coding: utf-8 -*-
 from backend.app.admin.service.doc_service import sys_doc_service
 from backend.utils.doc_utils import request_text_to_vector, get_llm_response
+from openai import OpenAI
 
 
 class ChatService:
 
+    @staticmethod
+    async def get_deepseek_api_response(system_context: str, user_input: str):
+        client = OpenAI(api_key="<DeepSeek API Key>", base_url="https://api.deepseek.com")
 
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {"role": "system", "content": system_context},
+                {"role": "user", "content": user_input},
+            ],
+            stream=False
+        )
+
+        return response.choices[0].message.content
+
+
+    @staticmethod
     async def rag_chat(text: str, max_length = 512, check_topk = 2):
         question_text_emb = request_text_to_vector(text=text, max_length=max_length)
         query_vector = question_text_emb[0]["embs"]  # 取第一个文本块的向量
         similar_docs = await sys_doc_service.search_chunk_vector(query_vector=query_vector, limit=check_topk)
         context = "\n".join([doc.chunk_text for doc in similar_docs if doc.chunk_text])
-        template = (
+        system_context = (
             "上下文信息如下。\n"
             "---\n"
             f"{context}\n"
             "---\n"
             "请根据上下文信息而不是先验知识来回答以下的查询。"
             "作为一个人工智能助手，你的回答要尽可能严谨。"
-            f"提问:{text}"
             "回答："
         )
-        response = get_llm_response(content=template)
+        
+        # response = get_llm_response(content=template)
+
+        response = await chat_service.get_deepseek_api_response(system_context, text)
 
         doc_dict = {}
         for doc in similar_docs:
