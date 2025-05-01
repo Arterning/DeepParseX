@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import json
 from typing import Sequence
 
 from sqlalchemy import text
@@ -11,10 +12,13 @@ from backend.app.admin.schema.doc_chunk import CreateSysDocChunkParam
 
 
 class CRUDSysDocDChunk(CRUDPlus[SysDocChunk]):
-    async def search_chunk_vector(self, db: AsyncSession, query_vector: list[float] = None, limit: int = 0)->SysDocChunk:
+    
+    async def search_chunk_vector(self, db: AsyncSession, query_vector: list[float] = None, limit: int = 10)->SysDocChunk:
         # 构建向量搜索SQL
 
-        vector_str = f"[{', '.join(map(str, query_vector))}]"
+        # vector_str = f"[{', '.join(map(str, query_vector))}]"
+
+        vector_str = json.dumps(query_vector)
 
         sql = f"""
         SELECT id, doc_id,doc_name, chunk_text, chunk_embedding <-> :query_vector AS distance 

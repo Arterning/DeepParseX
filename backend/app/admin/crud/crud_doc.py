@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import json
 from typing import Sequence
 
 from sqlalchemy import bindparam, select, Select, text, desc, and_, update
@@ -70,7 +71,9 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
     async def search_by_vector(self, db: AsyncSession, query_vector: list[float] = None, limit: int = 0):
         # 构建向量搜索SQL
 
-        vector_str = f"[{', '.join(map(str, query_vector))}]"
+        # vector_str = f"[{', '.join(map(str, query_vector))}]"
+
+        vector_str = json.dumps(query_vector)
 
         sql = f"""
         SELECT id, name, title, content, embedding <-> :query_vector AS distance 
