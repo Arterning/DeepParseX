@@ -80,18 +80,20 @@ def split_string_by_length(input_string: str, chunk_size: int = 500) -> list[str
     :return: 一个包含切分后的子字符串的列表
     """
     # 使用列表推导式切分字符串
+    if not input_string:
+        return []
     return [input_string[i:i + chunk_size] for i in range(0, len(input_string), chunk_size)]
 
 
 
-def request_text_to_vector(text, dimension=384):
+def request_text_to_vector(text, dimension=384, max_length=512):
     if dimension == 1024:
-        return request_text_to_vector_1024(text)
+        return request_text_to_vector_1024(text, max_length=max_length)
     else :
-        return request_text_to_vector_384(text)
+        return request_text_to_vector_384(text, max_length=max_length)
 
 
-def request_text_to_vector_1024(text , max_length=512):
+def request_text_to_vector_1024(text, max_length=512):
     url = "http://172.17.0.1:8104/text_to_vector"
     
     # 准备请求体
@@ -113,7 +115,7 @@ def request_text_to_vector_1024(text , max_length=512):
 
 
 def request_text_to_vector_384(text, max_length=512):
-    url = "http://172.17.0.1:8080/embeddings"
+    url = "http://192.168.200.229:8080/embeddings"
     texts = split_string_by_length(text, chunk_size=max_length)
     payload = {
         "texts": texts,

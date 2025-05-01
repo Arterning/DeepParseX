@@ -122,23 +122,24 @@ class UploadService:
 
 
     @staticmethod
-    async def insert_text_embs(doc: SysDoc):
+    async def insert_text_embs(*, id: int):
+        doc = await sys_doc_service.get(pk=id)
         doc_id = doc.id
         doc_name = doc.name
         loop = asyncio.get_running_loop()
-        desc_vector = await loop.run_in_executor(None,request_text_to_vector,doc.desc)
-        obj_list=[]
-        for vector in desc_vector:
-            desc_text = vector['text']
-            desc_embedding = vector['embs']
-            obj = CreateSysDocEmbeddingParam(
-                doc_id=doc_id,
-                doc_name=doc_name,
-                desc=desc_text,
-                embedding=desc_embedding
-            )
-            obj_list.append(obj)
-        await sys_doc_service.create_doc_bulk_embedding(obj_list=obj_list)
+        # desc_vector = await loop.run_in_executor(None,request_text_to_vector,doc.desc)
+        # obj_list=[]
+        # for vector in desc_vector:
+        #     desc_text = vector['text']
+        #     desc_embedding = vector['embs']
+        #     obj = CreateSysDocEmbeddingParam(
+        #         doc_id=doc_id,
+        #         doc_name=doc_name,
+        #         desc=desc_text,
+        #         embedding=desc_embedding
+        #     )
+        #     obj_list.append(obj)
+        # await sys_doc_service.create_doc_bulk_embedding(obj_list=obj_list)
         
 
         #所有文本的向量

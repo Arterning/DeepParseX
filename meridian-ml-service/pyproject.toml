@@ -1,0 +1,51 @@
+[project]
+name = "meridian_ml_service"
+version = "0.1.0"
+description = "Python service for ML tasks (embeddings, clustering) for Meridian."
+authors = [{ name = "Iliane Amadou", email = "mail@iliane.xyz" }]
+requires-python = ">=3.11" # Stable, well-supported, performant
+dependencies = [
+    "fastapi>=0.115.12",  # Last version with Pydantic v2 support
+    "uvicorn[standard]>=0.34.2", # Includes performance extras
+    "pydantic>=2.11.3",
+    "numpy>=2.2.0",
+    "torch>=2.6.0",  # CPU version will be installed via extra-index-url
+    "transformers>=4.51.3",
+    "sentence-transformers>=4.1.0", # Often simplifies embedding tasks
+    "python-dotenv>=1.1.0",
+    # Add later when needed:
+    # "umap-learn>=0.5.5",
+    # "hdbscan>=0.8.33",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.4.4",   # Fast linter/formatter
+    "mypy>=1.10.0",  # Static type checker
+]
+
+# Configuration for Ruff (Linter/Formatter)
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+# See https://docs.astral.sh/ruff/rules/ for rule codes
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "T20", "SIM", "PTH"]
+ignore = ["E501"] # Ignore line length rule (handled by formatter)
+
+[tool.ruff.format]
+quote-style = "double"
+
+# Configuration for Mypy (Type Checker)
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true # Be pragmatic initially
+# Add stricter checks as needed
+
+# Build system config (standard for setuptools/uv)
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

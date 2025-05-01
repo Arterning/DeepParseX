@@ -36,7 +36,7 @@ async def upload_handle_file(self, **kwargs) -> int:
 
         self.update_state(state='PROGRESS', meta={'stage': '创建文本向量', 'progress': 3/4})
 
-        await upload_service.insert_text_embs(doc)
+        await upload_service.insert_text_embs(id=doc.id)
         
         # n = 30
         # for i in range(0, n):

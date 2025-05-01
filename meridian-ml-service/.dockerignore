@@ -1,0 +1,35 @@
+Dockerfile
+.dockerignore
+.git
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv/
+venv/
+env/
+*.env.*
+!.env.example
+# Additional exclusions for ML projects
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+**/.cache/
+**/__pycache__/
+**/*.egg-info/
+dist/
+build/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+**/*.ipynb
+.DS_Store
+# Documentation
+docs/
+README.md
+# Tests
+tests/
+# Dev tooling
+.github/
