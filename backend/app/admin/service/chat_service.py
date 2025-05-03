@@ -1,26 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from backend.app.admin.service.doc_service import sys_doc_service
-from backend.utils.doc_utils import request_text_to_vector, get_llm_response
-from openai import OpenAI
+from backend.app.admin.service.llm_service import llm_service
+from backend.utils.doc_utils import request_text_to_vector
+
 
 
 class ChatService:
-
-    @staticmethod
-    async def get_deepseek_api_response(system_context: str, user_input: str):
-        client = OpenAI(api_key="<DeepSeek API Key>", base_url="https://api.deepseek.com")
-
-        response = client.chat.completions.create(
-            model="deepseek-chat",
-            messages=[
-                {"role": "system", "content": system_context},
-                {"role": "user", "content": user_input},
-            ],
-            stream=False
-        )
-
-        return response.choices[0].message.content
 
 
     @staticmethod
@@ -48,9 +34,8 @@ class ChatService:
                 sources[f"[{idx + 1}]"] = link
 
         
-        # response = get_llm_response(content=template)
+        response = await llm_service.get_llm_response(system_context, text)
 
-        response = await chat_service.get_deepseek_api_response(system_context, text)
 
         # 替换回答中的 [编号] 为超链接
         for ref, link in sources.items():
