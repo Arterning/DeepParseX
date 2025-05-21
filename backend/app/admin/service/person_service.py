@@ -4,6 +4,7 @@ from typing import Sequence
 
 from backend.app.admin.crud.crud_person import person_dao
 from backend.app.admin.model.sys_person import Person
+from backend.app.admin.model.sys_person_relation import PersonRelation
 from backend.app.admin.schema.person import CreatePersonParam, UpdatePersonParam
 from backend.common.exception import errors
 from backend.database.db_pg import async_db_session
@@ -45,6 +46,15 @@ class PersonService:
         async with async_db_session.begin() as db:
             count = await person_dao.delete(db, pk)
             return count
+
+    @staticmethod
+    async def get_subgraph(*, center_person_id: int, degrees=7) -> list[PersonRelation]:
+         """
+            获取以某个人为中心的n度关系子图
+         """
+         async with async_db_session.begin() as db:
+             return await person_dao.get_subgraph(db, center_person_id, degrees)
+         
 
 
 person_service = PersonService()

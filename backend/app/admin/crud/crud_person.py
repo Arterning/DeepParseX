@@ -2,11 +2,12 @@
 # -*- coding: utf-8 -*-
 from typing import Sequence
 
-from sqlalchemy import delete, Select
+from sqlalchemy import delete, Select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
 
 from backend.app.admin.model.sys_person import Person
+from backend.app.admin.model.sys_person_relation import PersonRelation
 from backend.app.admin.schema.person import CreatePersonParam, UpdatePersonParam
 
 
@@ -70,6 +71,39 @@ class CRUDPerson(CRUDPlus[Person]):
         :return:
         """
         return  await self.delete_model_by_column(db, allow_multiple=True, id__in=pk)
+
+    
+    async def get_subgraph(self, db: AsyncSession, center_person_id: int, degrees: int) -> list[PersonRelation]:
+        sql = f"""
+        WITH RECURSIVE graph_search AS (SELECT person_id, other_id, 1 AS degree, relation_type
+                                FROM sys_person_relation
+                                WHERE person_id = :center_person_id
+                                   OR other_id = :center_person_id
+
+                                UNION
+
+                                SELECT r.person_id, r.other_id, gs.degree + 1, r.relation_type
+                                FROM sys_person_relation r
+                                         JOIN graph_search gs ON
+                                            r.person_id = gs.other_id OR
+                                            r.other_id = gs.person_id OR
+                                            r.person_id = gs.person_id OR
+                                            r.other_id = gs.other_id
+                                WHERE gs.degree < :degrees)
+SELECT DISTINCT person_id, other_id, relation_type
+FROM graph_search
+        """
+        result = await db.execute(
+            text(sql),
+            {
+                "center_person_id": center_person_id,
+                "degrees": degrees
+            }
+        )
+        subgraph = result.fetchall()
+        return subgraph
+
+
 
 
 person_dao: CRUDPerson = CRUDPerson(Person)

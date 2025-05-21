@@ -26,6 +26,7 @@ from backend.app.admin.model.mail_box import MailBox
 from backend.app.admin.model.social_account_post import SocialAccountPost
 from backend.app.admin.model.social_account import SocialAccount
 from backend.app.admin.model.sys_person import Person
+from backend.app.admin.model.sys_person_relation import PersonRelation
 from backend.app.admin.model.sys_news import News
 from backend.app.admin.model.sys_subject import Subject
 from backend.app.admin.model.sys_scandal import Scandal

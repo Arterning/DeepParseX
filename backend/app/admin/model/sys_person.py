@@ -31,21 +31,21 @@ class Person(Base):
     
     name: Mapped[str] = mapped_column(String(500), default='', comment='人物名称')
     
-    other_name: Mapped[str] = mapped_column(String(500), default='', comment='其他名')
+    other_name: Mapped[str | None] = mapped_column(String(500), default='', comment='其他名')
     
-    gender: Mapped[str] = mapped_column(String(20), default='', comment='性别')
+    gender: Mapped[str | None] = mapped_column(String(20), default='', comment='性别')
     
-    organization: Mapped[str] = mapped_column(String(500), default='', comment='所属组织')
+    organization: Mapped[str | None] = mapped_column(String(500), default='', comment='所属组织')
     
-    position: Mapped[str] = mapped_column(String(500), default='', comment='职位')
+    position: Mapped[str | None] = mapped_column(String(500), default='', comment='职位')
     
-    profession: Mapped[str] = mapped_column(String(500), default='', comment='职业')
+    profession: Mapped[str | None] = mapped_column(String(500), default='', comment='职业')
     
     birth_date: Mapped[datetime | None] = mapped_column(default=None, comment='出生日期')
     
-    school: Mapped[str] = mapped_column(String(500), default='', comment='毕业院校/专业')
+    school: Mapped[str | None] = mapped_column(String(500), default='', comment='毕业院校/专业')
 
-    resume: Mapped[str] = mapped_column(TEXT, default='', comment='人物简历')
+    resume: Mapped[str | None] = mapped_column(TEXT, default='', comment='人物简历')
 
     mail_boxes: Mapped[list['MailBox']] = relationship(init=False, back_populates='person')
 

@@ -18,9 +18,9 @@ class PersonRelation(Base):
     )
 
     # 关系类型
-    type: Mapped[str | None] = mapped_column(TEXT,default=None, comment='关系类型')
+    relation_type: Mapped[str | None] = mapped_column(TEXT,default=None, comment='关系类型')
 
     # 关系权重
-    weight: Mapped[int] = mapped_column(default=0, comment='关系权重')
+    weight: Mapped[int | None] = mapped_column(default=0, comment='关系权重')
 
-    description : Mapped[str | None] = mapped_column(String(255), default=None, comment='关系详情')
+    description : Mapped[str | None] = mapped_column(TEXT, default=None, comment='关系详情')
