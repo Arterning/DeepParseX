@@ -63,7 +63,26 @@ class PersonService:
          """
          async with async_db_session.begin() as db:
              return await person_dao.get_relations(db, center_person_id, degrees)
-         
+
+
+    @staticmethod
+    async def get_relation_graph_data(*, center_person_id: int, degrees=7) -> dict:
+         """
+            获取以某个人为中心的n度关系
+         """
+         async with async_db_session.begin() as db:
+             relations = await person_dao.get_relations(db, center_person_id, degrees)
+             person_ids = {p for edge in relations for p in edge}
+             person_ids = list(person_ids)
+             #  去掉person_ids中的非数字元素
+             person_ids = [p for p in person_ids if isinstance(p, int)]
+             persons = await person_dao.get_by_ids(db, person_ids)
+             #  persons只需要保留id和name防止出现sqlalchemy.orm.exc.DetachedInstanceError:
+             persons = [{"id": p.id, "name": p.name} for p in persons]
+
+             return {"nodes": persons, "edges": relations}
+     
+
     @staticmethod
     async def get_subgraph(*, center_person_id: int, degrees=7) -> list[PersonRelation]:
          """
@@ -91,7 +110,7 @@ class PersonService:
                     continue
                 # 这里可以添加更详细的关系属性
                 graph.add_edge(source, target, relation_type=relation_type)
-             return {"nodes": persons, "edges": relations, "graph": graph}
+             return graph
 
          
 

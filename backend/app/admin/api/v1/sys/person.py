@@ -21,6 +21,8 @@ router = APIRouter()
 async def get_person(pk: Annotated[int, Path(...)]) -> ResponseModel:
     person = await person_service.get(pk=pk)
     data = GetPersonDetails(**select_as_dict(person))
+    graph_data = await person_service.get_relation_graph_data(center_person_id=pk)
+    data.graph_data = graph_data
     return response_base.success(data=data)
 
 

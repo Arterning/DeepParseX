@@ -18,7 +18,7 @@ class PersonSchemaBase(SchemaBase):
     profession: str | None = None
     birth_date: datetime | None = None
     school: str | None = None
-
+    
     
 
 
@@ -43,6 +43,8 @@ class GetPersonDetails(PersonSchemaBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+
+    graphData: dict | None = None
     
     created_time: datetime
     updated_time: datetime | None = None

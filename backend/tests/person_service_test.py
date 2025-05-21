@@ -16,8 +16,7 @@ async def get_relation_list():
     print(list(person_ids))
 
 async def get_relation_graph():
-    res = await person_service.get_subgraph(center_person_id=11)
-    graph = res['graph']
+    graph = await person_service.get_subgraph(center_person_id=11)
     path = nx.shortest_path(graph, 11, 19)
     print("path", path)
 
