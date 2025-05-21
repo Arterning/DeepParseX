@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from typing import Sequence
 
-from sqlalchemy import delete, Select, text
+from sqlalchemy import select,delete, Select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
 
@@ -23,6 +23,11 @@ class CRUDPerson(CRUDPlus[Person]):
         """
 
         return await self.select_model(db, pk)
+    
+    async def get_by_ids(self, db: AsyncSession, ids: list[int]) -> Sequence[Person]:
+        res = await db.execute(select(self.model).where(self.model.id.in_(ids)))
+        return res.scalars().all()
+
 
     async def get_list(self) -> Select:
         """
@@ -73,7 +78,7 @@ class CRUDPerson(CRUDPlus[Person]):
         return  await self.delete_model_by_column(db, allow_multiple=True, id__in=pk)
 
     
-    async def get_subgraph(self, db: AsyncSession, center_person_id: int, degrees: int) -> list[PersonRelation]:
+    async def get_relations(self, db: AsyncSession, center_person_id: int, degrees: int) -> list[PersonRelation]:
         sql = f"""
         WITH RECURSIVE graph_search AS (SELECT person_id, other_id, 1 AS degree, relation_type
                                 FROM sys_person_relation
