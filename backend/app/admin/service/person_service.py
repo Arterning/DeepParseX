@@ -79,8 +79,9 @@ class PersonService:
              persons = await person_dao.get_by_ids(db, person_ids)
              #  persons只需要保留id和name防止出现sqlalchemy.orm.exc.DetachedInstanceError:
              persons = [{"id": p.id, "name": p.name} for p in persons]
+             edges = [{"source": r.person_id, "target": r.other_id, "relation_type": r.relation_type} for r in relations]
 
-             return {"nodes": persons, "edges": relations}
+             return {"nodes": persons, "edges": edges}
      
 
     @staticmethod

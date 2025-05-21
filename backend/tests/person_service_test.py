@@ -47,8 +47,14 @@ async def find_common_connections():
     res = person_service.find_common_connections(graph=graph, person1_id=11, person2_id=19)
     print(res)
 
+
+async def test_get_graph_data():
+    res = await person_service.get_relation_graph_data(center_person_id=11)
+    print(res)
+
+
 async def init() -> None:
-    await find_common_connections()
+    await test_get_graph_data()
     pass
 
 if __name__ == '__main__':

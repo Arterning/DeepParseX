@@ -44,7 +44,7 @@ class GetPersonDetails(PersonSchemaBase):
 
     id: int
 
-    graphData: dict | None = None
+    graph_data: dict | None = None
     
     created_time: datetime
     updated_time: datetime | None = None
