@@ -5,7 +5,7 @@
 groups = ["default", "deploy", "lint"]
 strategy = ["inherit_metadata"]
 lock_version = "4.4.1"
-content_hash = "sha256:2e239d1ebeb2d83c9cacd56793a41b9f1716767e42cff3b5942386695eac4525"
+content_hash = "sha256:94476999b4ec88c5c14feea38a09fb75ae5137673be020d6d7760cd819c47b39"
 
 [[package]]
 name = "aiofiles"
@@ -1140,6 +1140,17 @@ files = [
     {file = "msgspec-0.18.5-cp312-cp312-musllinux_1_1_x86_64.whl", hash = "sha256:b491b2549d22e11d7cfe34a231f9bd006cb6b71adefa070a070075d2f601e75c"},
     {file = "msgspec-0.18.5-cp312-cp312-win_amd64.whl", hash = "sha256:c79e7115f0143688c5d866359e7b6b76dd1581a81c9aeac7805a9d6320e9f2ca"},
     {file = "msgspec-0.18.5.tar.gz", hash = "sha256:8e545651531f2d01b983d0ac0c7f3b6d99674267ff261b5f344f5016160b5608"},
+]
+
+[[package]]
+name = "networkx"
+version = "3.4.2"
+requires_python = ">=3.10"
+summary = "Python package for creating and manipulating graphs and networks"
+groups = ["default"]
+files = [
+    {file = "networkx-3.4.2-py3-none-any.whl", hash = "sha256:df5d4365b724cf81b8c6a7312509d0c22386097011ad1abe274afd5e9d3bbc5f"},
+    {file = "networkx-3.4.2.tar.gz", hash = "sha256:307c3669428c5362aab27c8a1260aa8f47c4e91d3891f48be0141738d8d053e1"},
 ]
 
 [[package]]

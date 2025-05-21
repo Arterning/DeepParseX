@@ -62,6 +62,7 @@ dependencies = [
     "duckdb>=1.2.2",
     "minio>=7.2.15",
     "openai>=1.76.2",
+    "networkx>=3.4.2",
 ]
 requires-python = ">=3.10,<3.13"
 readme = "README.md"
