@@ -1,8 +1,8 @@
 """Entity standardization and relationship inference for knowledge graphs."""
 import re
 from collections import defaultdict
-from src.knowledge_graph.llm import call_llm
-from src.knowledge_graph.prompts import (
+from backend.app.admin.service.knowledge_graph.llm import call_llm
+from backend.app.admin.service.knowledge_graph.prompts import (
     ENTITY_RESOLUTION_SYSTEM_PROMPT, 
     get_entity_resolution_user_prompt,
     RELATIONSHIP_INFERENCE_SYSTEM_PROMPT,
