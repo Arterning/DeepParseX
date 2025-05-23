@@ -21,11 +21,60 @@ import jieba
 
 class SysDocService:
 
-    # 构建文件的知识图谱
     @staticmethod
-    async def build_graph(*, pk: int) :
-        pass
-
+    async def build_graph(*, pk: int):
+        """构建文件的知识图谱
+        
+        Args:
+            pk (int): 文档ID
+            
+        Returns:
+            list[SubjectPredictObject]: 生成的知识图谱三元组列表
+        """
+        # 获取文档
+        doc = await sys_doc_service.get(pk=pk)
+        if not doc.content:
+            return []
+            
+        # 配置知识图谱生成参数
+        config = {
+            "llm": {
+                "model": "gpt-3.5-turbo",
+                "max_tokens": 1000,
+                "temperature": 0.7
+            },
+            "chunking": {
+                "chunk_size": 500,
+                "overlap": 50
+            },
+            "standardization": {
+                "enabled": True
+            },
+            "inference": {
+                "enabled": True
+            }
+        }
+        
+        # 生成知识图谱
+        spo_list = kg_service.generate_knowledge_graph(doc.content, config)
+        if not spo_list:
+            return []
+            
+        # 构建SPO对象列表
+        spo_objects = []
+        async with async_db_session.begin() as db:
+            for spo in spo_list:
+                # 创建SPO对象
+                spo_obj = SubjectPredictObject(
+                    subject=spo.get("subject"),
+                    predict=spo.get("predicate"),  # 注意这里predicate映射到predict字段
+                    object=spo.get("object"),
+                    doc_id=pk
+                )
+                spo_objects.append(spo_obj)
+                db.add(spo_obj)
+                
+        return spo_objects
 
 
     @staticmethod
