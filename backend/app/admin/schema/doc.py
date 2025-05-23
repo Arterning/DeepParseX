@@ -51,6 +51,16 @@ class GetSysDocListDetails(SysDocSchemaBase):
     updated_time: datetime | None = None
 
 
+class GetDocSPO(SchemaBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    created_time: datetime
+    updated_time: datetime | None = None
+    subject: str | None = None
+    predicate: str | None = None
+    object: str | None = None
+
 class GetDocDetail(SysDocSchemaBase):
     model_config = ConfigDict(from_attributes=True)
 
@@ -58,3 +68,4 @@ class GetDocDetail(SysDocSchemaBase):
     created_time: datetime
     updated_time: datetime | None = None
     doc_data: list[dict]
+    doc_spos: list[GetDocSPO]
