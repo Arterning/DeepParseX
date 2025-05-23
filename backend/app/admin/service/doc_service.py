@@ -20,6 +20,14 @@ import asyncio
 import jieba
 
 class SysDocService:
+
+    # 构建文件的知识图谱
+    @staticmethod
+    async def build_graph(*, pk: int) :
+        pass
+
+
+
     @staticmethod
     async def get(*, pk: int) -> SysDoc:
         async with async_db_session() as db:

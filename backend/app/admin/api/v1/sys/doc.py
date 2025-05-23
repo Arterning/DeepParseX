@@ -24,8 +24,15 @@ from minio.error import S3Error
 router = APIRouter()
 
 
+# 构建文件的知识图谱
+@router.get('/build_graph/{pk}', summary='构建文件的知识图谱',
+    dependencies=[DependsJwtAuth]
+ )
+async def build_graph(pk: Annotated[int, Path(...)]) -> ResponseModel:
+    return await sys_doc_service.build_graph(pk=pk)
 
-@router.get('/recent_docs', summary='获取最新上传文件',
+
+@router.get('/recent_docs/{pk}', summary='获取最新上传文件',
     dependencies=[DependsJwtAuth]
  )
 async def get_recent_docs(request: Request) -> ResponseModel:

@@ -36,3 +36,4 @@ class SysDoc(Base):
     doc_data: Mapped[list['SysDocData']] = relationship(init=False, back_populates='doc')
     doc_chunk: Mapped[list['SysDocChunk']] = relationship(init=False, back_populates='doc')
     doc_desc: Mapped[list['SysDocEmbedding']] = relationship(init=False, back_populates='doc')
+    doc_spos: Mapped[list['SubjectPredictObject']] = relationship(init=False, back_populates='doc')
