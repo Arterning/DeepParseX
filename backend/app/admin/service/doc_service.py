@@ -4,11 +4,13 @@ from typing import Sequence
 
 from sqlalchemy import Select
 
+from backend.app.admin.service.knowledge_graph.kg_service import kg_service
 from backend.app.admin.crud.crud_doc import sys_doc_dao
 from backend.app.admin.crud.crud_doc_data import sys_doc_data_dao
 from backend.app.admin.crud.crud_doc_chunk import sys_doc_chunk_dao
 from backend.app.admin.crud.crud_doc_embedding import sys_doc_embedding_dao
 from backend.app.admin.model import SysDoc
+from backend.app.admin.model import SubjectPredictObject
 from backend.app.admin.model import SysDocData,SysDocChunk
 from backend.app.admin.schema.doc import CreateSysDocParam, UpdateSysDocParam
 from backend.common.exception import errors
@@ -67,14 +69,14 @@ class SysDocService:
                 # 创建SPO对象
                 spo_obj = SubjectPredictObject(
                     subject=spo.get("subject"),
-                    predict=spo.get("predicate"),  # 注意这里predicate映射到predict字段
+                    predicate=spo.get("predicate"),
                     object=spo.get("object"),
                     doc_id=pk
                 )
                 spo_objects.append(spo_obj)
                 db.add(spo_obj)
                 
-        return spo_objects
+        return spo_list
 
 
     @staticmethod
