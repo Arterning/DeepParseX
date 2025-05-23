@@ -29,7 +29,13 @@ router = APIRouter()
     dependencies=[DependsJwtAuth]
  )
 async def build_graph(pk: Annotated[int, Path(...)]) -> ResponseModel:
-    return await sys_doc_service.build_graph(pk=pk)
+    await sys_doc_service.build_graph(pk=pk)
+    doc = await sys_doc_service.get(pk=pk)
+    if not doc.doc_spos:
+        return response_base.fail()
+    triples = doc.doc_spos
+    visualize_knowledge_graph = sys_doc_service.build_visualize_knowledge_graph(triples=triples)
+    return response_base.success(data=visualize_knowledge_graph)
 
 
 @router.get('/recent_docs/{pk}', summary='获取最新上传文件',
