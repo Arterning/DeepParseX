@@ -187,7 +187,7 @@ class SysDocService:
     @staticmethod
     async def update(*, pk: int, obj: UpdateSysDocParam) -> int:
         async with async_db_session.begin() as db:
-            await sys_doc_dao.update(db, pk, obj)
+            return await sys_doc_dao.update(db, pk, obj)
 
 
     @staticmethod
