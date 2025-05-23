@@ -69,3 +69,4 @@ class GetDocDetail(SysDocSchemaBase):
     updated_time: datetime | None = None
     doc_data: list[dict]
     doc_spos: list[GetDocSPO]
+    graph_data: dict

@@ -88,7 +88,10 @@ async def get_sys_doc(pk: Annotated[int, Path(...)]) -> ResponseModel:
     for data in doc.doc_data:
         doc_data.append(data.excel_data)
     doc_dict = select_as_dict(doc)
+    graph_data = sys_doc_service.build_visualize_knowledge_graph(triples=doc.doc_spos)
+
     doc_dict.update({"doc_data": doc_data})
+    doc_dict.update({"graph_data": graph_data})
     data = GetDocDetail(**doc_dict)
     return response_base.success(data=data)
 
