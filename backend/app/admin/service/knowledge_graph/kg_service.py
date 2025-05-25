@@ -98,6 +98,47 @@ def process_with_llm(config, input_text, debug=False):
         print("\n\nERROR ### Could not extract valid JSON from response: ", response, "\n\n")
         return None
 
+def get_entity_types(entities, config):
+    """
+    获取实体的类型
+    
+    Args:
+        entities: 实体列表
+        config: 配置信息
+        
+    Returns:
+        dict: 实体类型字典，key为实体，value为类型
+    """
+    system_prompt = """你是一个实体类型分类专家。你需要判断给定实体的类型。
+类型只能是以下几种：人物、事件、组织、概念、地点。
+请以JSON格式返回，key为实体，value为类型。"""
+    
+    # 将实体列表转换为字符串
+    entities_text = "、".join(entities)
+    user_prompt = f"请判断以下实体的类型：{entities_text}"
+    
+    # LLM configuration
+    model = config.get("llm", {}).get("model", "gpt-3.5-turbo")
+    api_key = config.get("llm", {}).get("api_key")
+    max_tokens = config.get("llm", {}).get("max_tokens", 1000)
+    temperature = config.get("llm", {}).get("temperature", 0.7)
+    base_url = config.get("llm", {}).get("base_url", "https://api.openai.com/v1/chat/completions")
+    
+    # 调用LLM
+    response = call_llm(
+        model,
+        user_prompt,
+        api_key,
+        system_prompt,
+        max_tokens,
+        temperature,
+        base_url
+    )
+    
+    # 解析返回的JSON
+    entity_types = extract_json_from_text(response)
+    return entity_types if entity_types else {}
+
 def process_text_in_chunks(config: dict, full_text, debug=False):
     """
     Process a large text by breaking it into chunks with overlap,
@@ -185,6 +226,43 @@ def process_text_in_chunks(config: dict, full_text, debug=False):
         inferred_count = sum(1 for triple in all_results if triple.get("inferred", False))
         print(f"\nAdded {inferred_count} inferred relationships")
         print(f"Final knowledge graph: {len(all_results)} triples")
+    
+    # 在实体标准化之后，添加实体类型识别
+    if all_results:
+        print("\n" + "="*50)
+        print("PHASE 4: ENTITY TYPE CLASSIFICATION")
+        print("="*50)
+        
+        # 收集所有唯一的主语和宾语
+        unique_entities = set()
+        for triple in all_results:
+            if "subject" in triple:
+                unique_entities.add(triple["subject"])
+            if "object" in triple:
+                unique_entities.add(triple["object"])
+        
+        print(f"开始识别 {len(unique_entities)} 个唯一实体的类型")
+        
+        # 获取实体类型
+        entity_types = get_entity_types(list(unique_entities), config)
+        
+        # 将类型信息添加到三元组中
+        for triple in all_results:
+            if triple["subject"] in entity_types:
+                triple["subject_type"] = entity_types[triple["subject"]]
+            if triple["object"] in entity_types:
+                triple["object_type"] = entity_types[triple["object"]]
+        
+        print("实体类型识别完成")
+        
+        # 统计各类型实体数量
+        type_counts = {}
+        for entity_type in entity_types.values():
+            type_counts[entity_type] = type_counts.get(entity_type, 0) + 1
+        
+        print("\n实体类型统计：")
+        for type_name, count in type_counts.items():
+            print(f"- {type_name}: {count} 个")
     
     return all_results
 
