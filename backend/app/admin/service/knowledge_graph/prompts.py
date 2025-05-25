@@ -26,7 +26,7 @@ MAIN_USER_PROMPT = """
 - 实体命名力求精确 - 使用特定形式区分相似但不同的实体
 - 在整个文档中对相同概念使用相同的实体名称，以最大程度地增强关联性
 - 识别实体引用时，请考虑整个上下文
-- 所有谓词必须不超过 3 个词 - 这是硬性要求
+- 所有谓词必须不超过 3 个字 - 这是硬性要求
 
 输出要求：
 
@@ -39,12 +39,12 @@ MAIN_USER_PROMPT = """
 [
   {
     "subject": "Term A",
-    "predicate": "relates to",  // 注意：只有 2 个词
+    "predicate": "有关联",  // 注意：只有 3 个字
     "object": "Term B"
   },
   {
     "subject": "Term C",
-    "predicate": "uses",  // 注意：只有 1 个词
+    "predicate": "使用",  // 注意：只有 2 个字
     "object": "Term D"
   }
 ]

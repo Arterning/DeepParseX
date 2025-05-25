@@ -15,8 +15,10 @@ class SubjectPredictObject(Base):
 
     id: Mapped[id_key] = mapped_column(init=False)
     subject: Mapped[str | None] = mapped_column(TEXT, default=None, comment='主语')
+    subject_type: Mapped[str | None] = mapped_column(String(255), default=None, comment='主语类型')
     predicate: Mapped[str | None] = mapped_column(String(255), default=None, comment='谓语')
     object: Mapped[str | None] = mapped_column(TEXT, default=None, comment='宾语')
+    object_type: Mapped[str | None] = mapped_column(String(255), default=None, comment='宾语类型')
 
     doc_id: Mapped[int | None] = mapped_column(
         ForeignKey('sys_doc.id', ondelete='CASCADE'), default=None, index=True, comment='文件ID'

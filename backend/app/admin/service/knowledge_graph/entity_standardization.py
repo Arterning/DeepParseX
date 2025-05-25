@@ -428,7 +428,7 @@ def _resolve_entities_with_llm(triples, config):
         
         # Extract JSON mapping
         import json
-        from src.knowledge_graph.llm import extract_json_from_text
+        from backend.app.admin.service.knowledge_graph.llm import extract_json_from_text
         
         entity_mapping = extract_json_from_text(response)
         
@@ -524,7 +524,7 @@ def _infer_relationships_with_llm(triples, communities, config):
                 response = call_llm(model, user_prompt, api_key, system_prompt, max_tokens, temperature, base_url)
                 
                 # Extract JSON results
-                from src.knowledge_graph.llm import extract_json_from_text
+                from backend.app.admin.service.knowledge_graph.llm import extract_json_from_text
                 inferred_triples = extract_json_from_text(response)
                 
                 if inferred_triples and isinstance(inferred_triples, list):
@@ -638,7 +638,7 @@ def _infer_within_community_relationships(triples, communities, config):
             response = call_llm(model, user_prompt, api_key, system_prompt, max_tokens, temperature, base_url)
             
             # Extract JSON results
-            from src.knowledge_graph.llm import extract_json_from_text
+            from backend.app.admin.service.knowledge_graph.llm import extract_json_from_text
             inferred_triples = extract_json_from_text(response)
             
             if inferred_triples and isinstance(inferred_triples, list):

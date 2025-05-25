@@ -134,6 +134,13 @@ def get_entity_types(entities, config):
         temperature,
         base_url
     )
+
+    debug = config.get("debug", False)
+    # Print raw response only if debug mode is on
+    if debug:
+        print("Raw LLM response:")
+        print(response)
+        print("\n---\n")
     
     # 解析返回的JSON
     entity_types = extract_json_from_text(response)

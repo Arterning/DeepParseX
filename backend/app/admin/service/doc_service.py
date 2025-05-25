@@ -53,7 +53,7 @@ class SysDocService:
                 "enabled": True
             },
             "inference": {
-                "enabled": True
+                "enabled": False
             }
         }
         
@@ -69,8 +69,10 @@ class SysDocService:
                 # 创建SPO对象
                 spo_obj = SubjectPredictObject(
                     subject=spo.get("subject"),
+                    subject_type=spo.get("subject_type", "未知"),
                     predicate=spo.get("predicate"),
                     object=spo.get("object"),
+                    object_type=spo.get("object_type", "未知"),
                     doc_id=pk
                 )
                 spo_objects.append(spo_obj)
@@ -97,12 +99,19 @@ class SysDocService:
         
         # Track inferred vs. original relationships
         inferred_edges = set()
+
+        # Node types
+        node_types = {}
         
         # Add all subjects and objects as nodes
         for triple in triples:
             subject = triple.subject
+            subject_type = triple.subject_type or "未知"
+            node_types[subject] = subject_type
             predicate = triple.predicate
             obj = triple.object
+            object_type = triple.object_type or "未知"
+            node_types[obj] = object_type
             all_nodes.add(subject)
             all_nodes.add(obj)
             
@@ -110,7 +119,7 @@ class SysDocService:
             inferred_edges.add((subject, predicate, obj))
 
         # Create nodes
-        nodes = [{"id": node, "label": node} for node in all_nodes]
+        nodes = [{"id": node, "label": node, "type": node_types.get(node, "未知")} for node in all_nodes]
 
         # Create edges
         edges = [{
