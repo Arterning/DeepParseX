@@ -29,7 +29,13 @@ router = APIRouter()
     dependencies=[DependsJwtAuth]
  )
 async def build_graph(pk: Annotated[int, Path(...)]) -> ResponseModel:
-    return await sys_doc_service.build_graph(pk=pk)
+    await sys_doc_service.build_graph(pk=pk)
+    doc = await sys_doc_service.get(pk=pk)
+    if not doc.doc_spos:
+        return response_base.fail()
+    triples = doc.doc_spos
+    visualize_knowledge_graph = sys_doc_service.build_visualize_knowledge_graph(triples=triples)
+    return response_base.success(data=visualize_knowledge_graph)
 
 
 @router.get('/recent_docs/{pk}', summary='获取最新上传文件',
@@ -87,10 +93,12 @@ async def get_sys_doc(pk: Annotated[int, Path(...)]) -> ResponseModel:
     doc_data = []
     for data in doc.doc_data:
         doc_data.append(data.excel_data)
-    data = GetDocDetail(id=doc.id, title=doc.title, name=doc.name, file=doc.file,
-                        content=doc.content, created_time=doc.created_time,
-                        updated_time=doc.updated_time, desc=doc.desc,
-                        type=doc.type, doc_data=doc_data,account_pwd=doc.account_pwd)
+    doc_dict = select_as_dict(doc)
+    graph_data = sys_doc_service.build_visualize_knowledge_graph(triples=doc.doc_spos)
+
+    doc_dict.update({"doc_data": doc_data})
+    doc_dict.update({"graph_data": graph_data})
+    data = GetDocDetail(**doc_dict)
     return response_base.success(data=data)
 
 

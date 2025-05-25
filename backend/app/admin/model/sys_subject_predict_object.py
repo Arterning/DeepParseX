@@ -15,7 +15,7 @@ class SubjectPredictObject(Base):
 
     id: Mapped[id_key] = mapped_column(init=False)
     subject: Mapped[str | None] = mapped_column(TEXT, default=None, comment='主语')
-    predict: Mapped[str | None] = mapped_column(String(255), default=None, comment='谓语')
+    predicate: Mapped[str | None] = mapped_column(String(255), default=None, comment='谓语')
     object: Mapped[str | None] = mapped_column(TEXT, default=None, comment='宾语')
 
     doc_id: Mapped[int | None] = mapped_column(
