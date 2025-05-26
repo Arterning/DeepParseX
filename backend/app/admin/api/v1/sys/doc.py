@@ -38,7 +38,7 @@ async def build_graph(pk: Annotated[int, Path(...)]) -> ResponseModel:
     return response_base.success(data=visualize_knowledge_graph)
 
 
-@router.get('/recent_docs/{pk}', summary='获取最新上传文件',
+@router.get('/recent_docs', summary='获取最新上传文件',
     dependencies=[DependsJwtAuth]
  )
 async def get_recent_docs(request: Request) -> ResponseModel:
