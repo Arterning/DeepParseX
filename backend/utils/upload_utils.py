@@ -41,17 +41,17 @@ def get_file_suffix(filename: str):
 
 
 file_type_handlers = {
-    'excel': is_excel_file,
-    'csv': is_csv_file,
-    'picture': is_picture_file,
-    'media': is_media_file,
-    'text': is_text_file,
-    'email': is_email_file,
-    'pdf': is_pdf_file,
-    'zip': is_zip_file
+    '表格': is_excel_file,
+    '表格': is_csv_file,
+    '图片': is_picture_file,
+    '媒体': is_media_file,
+    '文本': is_text_file,
+    '邮件': is_email_file,
+    'PDF': is_pdf_file,
+    '压缩包': is_zip_file
 }
 def get_file_type(file_suffix: str):
     for file_type, handler in file_type_handlers.items():
         if handler(file_suffix):
             return file_type
-    return 'text'
+    return '文本'
