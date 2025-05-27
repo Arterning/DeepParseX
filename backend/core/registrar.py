@@ -107,7 +107,7 @@ def register_static_file(app: FastAPI):
         if not os.path.exists(STATIC_DIR):
             os.mkdir(STATIC_DIR)
         app.mount('/static', StaticFiles(directory=STATIC_DIR), name='static')
-        app.mount('/uploads', StaticFiles(directory=UPLOAD_DIR), name='uploads')
+        # app.mount('/uploads', StaticFiles(directory=UPLOAD_DIR), name='uploads')
 
 def register_middleware(app: FastAPI):
     """
