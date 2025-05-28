@@ -160,6 +160,8 @@ class SysDocService:
 
     @staticmethod
     async def search(*, tokens: str = None):
+        seg_list = jieba.cut_for_search(tokens) if tokens else []
+        tokens = ' '.join(seg_list)
         async with async_db_session() as db:
             res = await sys_doc_dao.search(db, tokens)
             return res

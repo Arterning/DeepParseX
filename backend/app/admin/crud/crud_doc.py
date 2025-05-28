@@ -48,7 +48,7 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
         if tokens:
             query = f"""
             SELECT id, name, title, type,
-            ts_headline('simple', c_tokens, plainto_tsquery(:tokens)) AS hit
+            ts_headline('simple', doc_tokens, plainto_tsquery(:tokens)) AS hit
             FROM sys_doc
             WHERE tokens @@ plainto_tsquery(:tokens);
             """
@@ -164,22 +164,22 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
         """
         return await self.create_model(db, obj_in)
 
-    async def update_tokens(self, db: AsyncSession, doc: SysDoc,
-                             a_tokens: str, b_tokens: str, c_tokens: str):
+    async def update_tokens(self, db: AsyncSession, doc: SysDoc, title_tokens: str, content_tokens: str, doc_tokens: str):
         update_sql = """
             UPDATE sys_doc
-            SET tokens = setweight(to_tsvector('simple', :a_tokens), 'A') ||
-                        setweight(to_tsvector('simple', :b_tokens), 'B'),
-                c_tokens=:c_tokens
+            SET doc_vector = setweight(to_tsvector('simple', :title_tokens), 'A') ||
+                        setweight(to_tsvector('simple', :content_tokens), 'B'),
+                doc_tokens=:doc_tokens
             WHERE id = :doc_id
         """
         result = await db.execute(
             text(update_sql), 
             {
-                "a_tokens": a_tokens,
-                "b_tokens": b_tokens,
-                "c_tokens": c_tokens,
-                "doc_id": doc.id}
+                "title_tokens": title_tokens,
+                "content_tokens": content_tokens,
+                "doc_tokens": doc_tokens,
+                "doc_id": doc.id
+            }
         )
         await db.commit()  # 提交事务
         return result
