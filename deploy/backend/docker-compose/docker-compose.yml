@@ -50,17 +50,17 @@ services:
         supervisorctl restart fastapi_server
 
   fba_pg:
-    image: pgvector/pgvector:pg17
+    image: paradedb/paradedb:0.15.20-pg16
     container_name: fba_pg
     ports:
       - "5432:5432"
     restart: always
     volumes:
-      - fba_pg:/var/lib/postgresql/data/pgdata
+      - fba_pg:/var/lib/postgresql/data/
     networks:
       - fba_network
     environment:
-      - PGDATA=/var/lib/postgresql/data/pgdata
+      - PGDATA=/var/lib/postgresql/data/
       - POSTGRES_PASSWORD=changethis
       - POSTGRES_USER=postgres
       - POSTGRES_DB=fba
