@@ -85,37 +85,8 @@ def split_string_by_length(input_string: str, chunk_size: int = 500) -> list[str
     return [input_string[i:i + chunk_size] for i in range(0, len(input_string), chunk_size)]
 
 
-
-def request_text_to_vector(text, dimension=384, max_length=512):
-    if dimension == 1024:
-        return request_text_to_vector_1024(text, max_length=max_length)
-    else :
-        return request_text_to_vector_384(text, max_length=max_length)
-
-
-def request_text_to_vector_1024(text, max_length=512):
-    url = "http://172.17.0.1:8104/text_to_vector"
-    
-    # 准备请求体
-    payload = {"text": text,
-               "max_length":max_length}
-
-    # 发送 POST 请求
-    try:
-        response = requests.post(url, json=payload)
-        
-        if response.status_code == 200:
-            return response.json()
-        else:
-            log.error(f"Request failed with status code {response.status_code}")
-            return []
-    except Exception as e:
-        log.error(f"Error occurred: {str(e)}")
-        return []
-
-
-def request_text_to_vector_384(text, max_length=512):
-    url = "http://192.168.200.229:8080/embeddings"
+def request_text_to_vector_bge(text, max_length=512):
+    url = "http://192.168.200.229:8002/embeddings"
     texts = split_string_by_length(text, chunk_size=max_length)
     payload = {
         "texts": texts,
@@ -140,3 +111,33 @@ def request_text_to_vector_384(text, max_length=512):
     except Exception as e:
         log.error(f"Error occurred: {str(e)}")
         raise e 
+    
+def request_text_to_vector(text, model="bge-large-zh-v1.5", max_length=512):
+    if model == "bge-large-zh-v1.5":
+        return request_text_to_vector_bge(text, max_length=max_length)
+    else :
+        return request_text_to_vector_api(text, max_length=max_length)
+        
+
+def request_text_to_vector_api(text, max_length=512):
+    url = "http://172.17.0.1:8104/text_to_vector"
+    
+    # 准备请求体
+    payload = {"text": text,
+               "max_length":max_length}
+
+    # 发送 POST 请求
+    try:
+        response = requests.post(url, json=payload)
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            log.error(f"Request failed with status code {response.status_code}")
+            return []
+    except Exception as e:
+        log.error(f"Error occurred: {str(e)}")
+        return []
+
+
+

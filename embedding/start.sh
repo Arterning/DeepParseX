@@ -1,0 +1,1 @@
+pm2 start "uv run uvicorn src.meridian_ml_service.main:app --host 0.0.0.0 --port 8002" --name embedding-api

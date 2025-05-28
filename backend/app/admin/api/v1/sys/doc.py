@@ -136,7 +136,8 @@ async def get_pagination_sys_doc(db: CurrentSession,
     ],
 )
 async def create_sys_doc(obj: CreateSysDocParam) -> ResponseModel:
-    await sys_doc_service.create(obj=obj)
+    doc = await sys_doc_service.create(obj=obj)
+    await sys_doc_service.create_doc_tokens(id=doc.id)
     return response_base.success()
 
 
@@ -150,6 +151,7 @@ async def create_sys_doc(obj: CreateSysDocParam) -> ResponseModel:
 )
 async def update_sys_doc(pk: Annotated[int, Path(...)], obj: UpdateSysDocParam) -> ResponseModel:
     count = await sys_doc_service.update(pk=pk, obj=obj)
+    await sys_doc_service.create_doc_tokens(id=pk)
     if count > 0:
         return response_base.success()
     return response_base.fail()
