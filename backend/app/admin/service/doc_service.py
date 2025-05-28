@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import re
 from typing import Sequence
-
 from sqlalchemy import Select
+from typing import List
 
 from backend.app.admin.service.knowledge_graph.kg_service import kg_service
 from backend.app.admin.crud.crud_doc import sys_doc_dao
@@ -158,12 +159,25 @@ class SysDocService:
                                           email_time=email_time, email_to=email_to,
                                           likeq=likeq, ids=ids, email_from=email_from)
 
+    def highlight_text(original: str, keywords: List[str], start_tag='<b>', end_tag='</b>') -> str:
+        sorted_keywords = sorted(keywords, key=len, reverse=True)
+        for kw in sorted_keywords:
+            pattern = re.escape(kw)
+            original = re.sub(pattern, f'{start_tag}{kw}{end_tag}', original)
+        return original
+    
     @staticmethod
     async def search(*, tokens: str = None):
-        seg_list = jieba.cut_for_search(tokens) if tokens else []
-        tokens = ' '.join(seg_list)
+        cut = jieba.cut_for_search(tokens)
+        seg_list = list(cut)  # 立即转换为列表
+        # print("seg_list:", seg_list)
         async with async_db_session() as db:
+            tokens = ' '.join(seg_list)
             res = await sys_doc_dao.search(db, tokens)
+            for item in res:
+                # 对每个文档的内容进行高亮处理
+                hit = SysDocService.highlight_text(item.get("content"), seg_list)
+                item["hit"] = hit
             return res
 
     @staticmethod

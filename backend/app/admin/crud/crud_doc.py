@@ -44,13 +44,13 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
     #     else:
     #         return None
 
-    async def search(self, db: AsyncSession, tokens: str = None):
+    async def search_hit(self, db: AsyncSession, tokens: str = None):
         if tokens:
             query = f"""
             SELECT id, name, title, type,
             ts_headline('simple', doc_tokens, plainto_tsquery(:tokens)) AS hit
             FROM sys_doc
-            WHERE tokens @@ plainto_tsquery(:tokens);
+            WHERE doc_tokens @@ plainto_tsquery(:tokens);
             """
             result = await db.execute(text(query), {"tokens": tokens})
             # 使用 fetchall() 来获取完整的行
@@ -69,6 +69,30 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
         else:
             return []
     
+    async def search(self, db: AsyncSession, tokens: str = None):
+        if tokens:
+            query = f"""
+            SELECT id, name, title, type, content
+            FROM sys_doc
+            WHERE doc_tokens @@ plainto_tsquery(:tokens);
+            """
+            result = await db.execute(text(query), {"tokens": tokens})
+            # 使用 fetchall() 来获取完整的行
+            docs = result.fetchall()  # 返回所有行
+
+            # 将每一行转为字典格式，便于查看
+            docs_list = [{
+                "id": doc.id, 
+                "name": doc.name, 
+                "type": doc.type,
+                "title": doc.title,
+                "content": doc.content
+            } for doc in docs]
+            
+            return docs_list
+        else:
+            return []
+        
     async def search_by_vector(self, db: AsyncSession, query_vector: list[float] = None, limit: int = 0):
         # 构建向量搜索SQL
 
