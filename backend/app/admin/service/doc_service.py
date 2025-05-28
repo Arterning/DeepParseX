@@ -166,38 +166,60 @@ class SysDocService:
             original = re.sub(pattern, f'{start_tag}{kw}{end_tag}', original)
         return original
     
-    def highlight_text_window(original: str, keywords: List[str], start_tag='<b>', end_tag='</b>', window=30, max_snippets=3) -> str:
-        snippets = []
-        seen = set()
+    def highlight_text_window(
+        original: str, 
+        keywords: List[str], 
+        start_tag='<b>', 
+        end_tag='</b>', 
+        window=30, 
+        max_snippets=3
+    ) -> str:
+        # 合并所有关键词构造整体正则模式
         sorted_keywords = sorted(set(keywords), key=len, reverse=True)
+        keyword_pattern = '|'.join(map(re.escape, sorted_keywords))
 
-        for kw in sorted_keywords:
-            # 找到所有关键词出现的位置
-            for match in re.finditer(re.escape(kw), original):
-                start, end = match.start(), match.end()
-
-                # 避免重复高亮
-                if (start, end) in seen:
-                    continue
-                seen.add((start, end))
-
-                # 截取前后 window 个字符作为上下文
-                prefix_start = max(start - window, 0)
-                suffix_end = min(end + window, len(original))
-                context = original[prefix_start:start] + f"{start_tag}{kw}{end_tag}" + original[end:suffix_end]
-                snippets.append(context)
-
-                # 最多返回 max_snippets 个片段
-                if len(snippets) >= max_snippets:
-                    break
-            if len(snippets) >= max_snippets:
-                break
-
-        if snippets:
-            return " ... ".join(snippets)
-        else:
-            # 没有命中就返回前200个字符作为摘要
+        matches = list(re.finditer(keyword_pattern, original))
+        if not matches:
             return original[:200] + ('...' if len(original) > 200 else '')
+
+        # 合并相邻或重叠的窗口
+        merged_windows = []
+        current_window = None
+
+        for match in matches:
+            start, end = match.start(), match.end()
+            window_start = max(start - window, 0)
+            window_end = min(end + window, len(original))
+
+            if current_window is None:
+                current_window = [window_start, window_end]
+            else:
+                # 如果当前匹配与上一个窗口重叠或相邻，就合并窗口
+                if window_start <= current_window[1]:
+                    current_window[1] = max(current_window[1], window_end)
+                else:
+                    merged_windows.append(tuple(current_window))
+                    current_window = [window_start, window_end]
+
+        if current_window:
+            merged_windows.append(tuple(current_window))
+
+        # 最多保留 max_snippets 段
+        merged_windows = merged_windows[:max_snippets]
+
+        snippets = []
+        for start, end in merged_windows:
+            snippet = original[start:end]
+
+            # 高亮所有关键词（每段内）
+            def replacer(match):
+                return f"{start_tag}{match.group(0)}{end_tag}"
+
+            highlighted = re.sub(keyword_pattern, replacer, snippet)
+            snippets.append(highlighted)
+
+        return " ... ".join(snippets)
+
 
     
     @staticmethod
@@ -210,7 +232,7 @@ class SysDocService:
             res = await sys_doc_dao.search(db, tokens)
             for item in res:
                 # 对每个文档的内容进行高亮处理
-                hit = SysDocService.highlight_text(item.get("content"), seg_list)
+                hit = SysDocService.highlight_text_window(item.get("content"), seg_list)
                 item["hit"] = hit
             return res
 

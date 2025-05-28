@@ -1,6 +1,6 @@
 import jieba
 
-text = "我喜欢使用人工智能来解决问题"
+text = "后门攻击方法"
 seg_list = jieba.cut_for_search(text)
 
 # 转换为数组
