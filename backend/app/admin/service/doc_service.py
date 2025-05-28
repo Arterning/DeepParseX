@@ -159,7 +159,14 @@ class SysDocService:
                                           email_time=email_time, email_to=email_to,
                                           likeq=likeq, ids=ids, email_from=email_from)
 
-    def highlight_text(original: str, keywords: List[str], start_tag='<b>', end_tag='</b>', window=30, max_snippets=3) -> str:
+    def highlight_text(original: str, keywords: List[str], start_tag='<b>', end_tag='</b>') -> str:
+        sorted_keywords = sorted(keywords, key=len, reverse=True)
+        for kw in sorted_keywords:
+            pattern = re.escape(kw)
+            original = re.sub(pattern, f'{start_tag}{kw}{end_tag}', original)
+        return original
+    
+    def highlight_text_window(original: str, keywords: List[str], start_tag='<b>', end_tag='</b>', window=30, max_snippets=3) -> str:
         snippets = []
         seen = set()
         sorted_keywords = sorted(set(keywords), key=len, reverse=True)
