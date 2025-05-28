@@ -159,12 +159,39 @@ class SysDocService:
                                           email_time=email_time, email_to=email_to,
                                           likeq=likeq, ids=ids, email_from=email_from)
 
-    def highlight_text(original: str, keywords: List[str], start_tag='<b>', end_tag='</b>') -> str:
-        sorted_keywords = sorted(keywords, key=len, reverse=True)
+    def highlight_text(original: str, keywords: List[str], start_tag='<b>', end_tag='</b>', window=30, max_snippets=3) -> str:
+        snippets = []
+        seen = set()
+        sorted_keywords = sorted(set(keywords), key=len, reverse=True)
+
         for kw in sorted_keywords:
-            pattern = re.escape(kw)
-            original = re.sub(pattern, f'{start_tag}{kw}{end_tag}', original)
-        return original
+            # 找到所有关键词出现的位置
+            for match in re.finditer(re.escape(kw), original):
+                start, end = match.start(), match.end()
+
+                # 避免重复高亮
+                if (start, end) in seen:
+                    continue
+                seen.add((start, end))
+
+                # 截取前后 window 个字符作为上下文
+                prefix_start = max(start - window, 0)
+                suffix_end = min(end + window, len(original))
+                context = original[prefix_start:start] + f"{start_tag}{kw}{end_tag}" + original[end:suffix_end]
+                snippets.append(context)
+
+                # 最多返回 max_snippets 个片段
+                if len(snippets) >= max_snippets:
+                    break
+            if len(snippets) >= max_snippets:
+                break
+
+        if snippets:
+            return " ... ".join(snippets)
+        else:
+            # 没有命中就返回前200个字符作为摘要
+            return original[:200] + ('...' if len(original) > 200 else '')
+
     
     @staticmethod
     async def search(*, tokens: str = None):
