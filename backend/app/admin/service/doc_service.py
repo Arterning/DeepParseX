@@ -233,6 +233,7 @@ class SysDocService:
             for item in res:
                 # 对每个文档的内容进行高亮处理
                 hit = SysDocService.highlight_text_window(item.get("content"), seg_list)
+                item["title"] = SysDocService.highlight_text(item.get("title"), seg_list)
                 item["hit"] = hit
             return res
 
