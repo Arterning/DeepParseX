@@ -10,7 +10,7 @@ def is_zip_file(file_suffix: str) -> bool:
     return file_suffix in ['.zip']
 
 def is_excel_file(file_suffix: str) -> bool:
-    return file_suffix in ['.xls', '.xlsx']
+    return file_suffix in ['.xls', '.xlsx', '.csv']
 
 def is_csv_file(file_suffix: str) -> bool:
     return file_suffix in ['.csv']
@@ -42,7 +42,6 @@ def get_file_suffix(filename: str):
 
 file_type_handlers = {
     '表格': is_excel_file,
-    '表格': is_csv_file,
     '图片': is_picture_file,
     '媒体': is_media_file,
     '文本': is_text_file,
@@ -53,5 +52,7 @@ file_type_handlers = {
 def get_file_type(file_suffix: str):
     for file_type, handler in file_type_handlers.items():
         if handler(file_suffix):
+            # print("匹配到文件类型:", file_type)
             return file_type
+    # print("未匹配到文件类型，默认返回文本")
     return '文本'

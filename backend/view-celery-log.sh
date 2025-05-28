@@ -1,0 +1,1 @@
+docker exec -it fba_celery tail -f /var/log/celery/fba_celery_worker.log

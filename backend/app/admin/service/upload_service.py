@@ -36,7 +36,7 @@ from zipfile import ZipFile
 from bs4 import BeautifulSoup
 from backend.app.admin.model import SysDoc
 from backend.utils.oss_client import minio_client
-from backend.utils.upload_utils import get_file_suffix, get_file_type, is_text_file, is_excel_file, is_email_file, is_pdf_file, is_zip_file
+from backend.utils.upload_utils import get_file_suffix, get_file_type, is_text_file, is_picture_file, is_excel_file, is_email_file, is_pdf_file, is_zip_file
 
 bucket_name = settings.BUCKET_NAME
 
@@ -108,13 +108,17 @@ class UploadService:
         
         if is_email_file(doc.file_suffix):
             content = await upload_service.read_email_data(doc=doc, file_bytes=file_bytes)
+
+        if is_picture_file(doc.file_suffix):
+            content = "图片文件无法直接读取内容，请查看附件。"
         
         
         if is_pdf_file(doc.file_suffix):
-            loop = asyncio.get_running_loop()
-            api_res = await loop.run_in_executor(None, process_file, file_bytes)
-            content = api_res['content']
-            desc = api_res['abstract']
+            content = "PDF文件无法直接读取内容，请查看附件。"
+            # loop = asyncio.get_running_loop()
+            # api_res = await loop.run_in_executor(None, process_file, file_bytes)
+            # content = api_res['content']
+            # desc = api_res['abstract']
         
         obj = UpdateSysDocParam(content=content, desc=desc)
         await sys_doc_service.update(pk=doc.id, obj=obj)
@@ -140,10 +144,11 @@ class UploadService:
         #     )
         #     obj_list.append(obj)
         # await sys_doc_service.create_doc_bulk_embedding(obj_list=obj_list)
-        
+        if not doc.content:
+            return
 
         #所有文本的向量
-        vector_data = await loop.run_in_executor(None,request_text_to_vector,doc.content)
+        vector_data = await loop.run_in_executor(None, request_text_to_vector, doc.content)
         obj_list=[]
         for vector in vector_data:
             chunk_text = vector['text']
@@ -303,9 +308,6 @@ class UploadService:
     @staticmethod
     async def read_excel_data(doc: SysDoc, file_bytes: bytes):
 
-        if (doc.type != 'excel'): 
-            return
-        
 
         # 读取文件内容
         df = pd.read_excel(BytesIO(file_bytes), nrows=10, header=None, engine='xlrd')
