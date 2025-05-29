@@ -176,7 +176,7 @@ class UploadService:
 
     @staticmethod
     async def read_email_data(doc: SysDoc, file_bytes: bytes):
-        if doc.type != 'email':
+        if doc.type != '邮件':
             return None
         
         try:

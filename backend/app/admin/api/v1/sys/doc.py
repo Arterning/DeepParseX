@@ -172,4 +172,14 @@ async def delete_sys_doc(pk: Annotated[list[int], Query(...)]) -> ResponseModel:
         await sys_doc_service.delete_doc_data(doc_id=pk)
         await sys_doc_service.delete_doc_chunk(doc_id=pk)
         return response_base.success()
+    
+    for id in pk:
+        doc = await sys_doc_service.get(pk=id)
+        if not doc:
+            continue
+        file = doc.file
+        try:
+            minio_client.remove_object(bucket_name, file)
+        except S3Error:
+            continue
     return response_base.fail()
