@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from datetime import datetime
-from sqlalchemy import UUID, String
+from sqlalchemy import UUID, String, ForeignKey
 from sqlalchemy.schema import Index
 from sqlalchemy.dialects.postgresql import TEXT, TSVECTOR
 
@@ -32,14 +32,23 @@ class SysDoc(Base):
     doc_tokens: Mapped[str | None] = mapped_column(TEXT, default=None, comment='分词内容')
     doc_vector: Mapped[TSVECTOR | None] = mapped_column(TSVECTOR, default=None, comment='分词向量')
     error_msg: Mapped[str | None] = mapped_column(TEXT, default=None, comment='错误信息')
+    source: Mapped[str | None] = mapped_column(TEXT, default=None, comment='文件来源')
     belong: Mapped[int | None] = mapped_column(default=None, comment='文件属于')
     account_pwd: Mapped[str|None] = mapped_column(TEXT,default=None,comment="用户名密码")
     uuid: Mapped[UUID] = mapped_column(UUID(as_uuid=True), default=None,nullable=True, unique=True, comment='唯一标识符')
     
     doc_time: Mapped[datetime | None] = mapped_column(
-        TIMESTAMP(timezone=True), default=None, init=False, sort_order=99, comment='文件创建时间'
+        TIMESTAMP(timezone=True), default=None, init=True, sort_order=99, comment='文件创建时间'
     )
     size: Mapped[int | None] = mapped_column(default=None, comment='文件大小')
+
+    dept_id: Mapped[int | None] = mapped_column(
+        ForeignKey('sys_dept.id', ondelete='SET NULL'), default=None, comment='部门关联ID'
+    )
+    created_by: Mapped[int | None] = mapped_column(default=None, comment='创建人ID')
+    created_user: Mapped[str | None] = mapped_column(TEXT, default=None, comment='创建人')
+    updated_by: Mapped[int | None] = mapped_column(init=False, default=None, comment='修改人ID')
+    updated_user: Mapped[str | None] = mapped_column(TEXT, default=None, comment='修改人')
 
     doc_data: Mapped[list['SysDocData']] = relationship(init=False, back_populates='doc')
     doc_chunk: Mapped[list['SysDocChunk']] = relationship(init=False, back_populates='doc')

@@ -66,7 +66,7 @@ class UploadService:
 
 
     @staticmethod
-    async def save_file(file: UploadFile = File(...), meta: dict = {}):
+    async def save_file(file: UploadFile = File(...), meta: dict = {}, user = None):
         unique_id = str(uuid.uuid4())
         # 文件后缀
         file_suffix = get_file_suffix(file.filename)
@@ -91,6 +91,9 @@ class UploadService:
             file_suffix=file_suffix,
             doc_time=last_modified,
             size=size,
+            dept_id= user.dept_id if user else None,
+            created_by= user.id if user else None,
+            created_user= user.username if user else None,
         )
         
         doc = await sys_doc_service.create(obj=obj)

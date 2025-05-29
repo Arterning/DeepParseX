@@ -19,15 +19,15 @@ class SysDocSchemaBase(SchemaBase):
     account_pwd:str | None = None
     doc_time: datetime | None = None
     size: int | None = None
+    source: str | None = None
+    dept_id: int | None = None
+    created_by: int | None = None
+    created_user: str | None = None
+    
 
-class GetSysDocPage(SchemaBase):
+class GetSysDocPage(SysDocSchemaBase):
     id: int
     model_config = ConfigDict(from_attributes=True)
-    title: str
-    name: str | None = None
-    type: str | None = None
-    desc: str | None = None
-    # uuid: str | None = None
     created_time: datetime
 
 
