@@ -66,7 +66,7 @@ class UploadService:
 
 
     @staticmethod
-    async def save_file(file: UploadFile = File(...)):
+    async def save_file(file: UploadFile = File(...), meta: dict = {}):
         unique_id = str(uuid.uuid4())
         # 文件后缀
         file_suffix = get_file_suffix(file.filename)
@@ -79,10 +79,19 @@ class UploadService:
 
 
         file_type = get_file_type(file_suffix)
+        last_modified = meta.get('last_modified', None)
+        size = meta.get('size', None)
 
-        obj = CreateSysDocParam(title=file.filename, name=file.filename, type=file_type,
-                                                    file=new_filename, uuid=unique_id, 
-                                                    file_suffix=file_suffix)
+        obj = CreateSysDocParam(
+            title=file.filename, 
+            name=file.filename, 
+            type=file_type,
+            file=new_filename, 
+            uuid=unique_id, 
+            file_suffix=file_suffix,
+            doc_time=last_modified,
+            size=size,
+        )
         
         doc = await sys_doc_service.create(obj=obj)
 

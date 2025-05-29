@@ -39,6 +39,7 @@ class SysDoc(Base):
     doc_time: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), default=None, init=False, sort_order=99, comment='文件创建时间'
     )
+    size: Mapped[int | None] = mapped_column(default=None, comment='文件大小')
 
     doc_data: Mapped[list['SysDocData']] = relationship(init=False, back_populates='doc')
     doc_chunk: Mapped[list['SysDocChunk']] = relationship(init=False, back_populates='doc')

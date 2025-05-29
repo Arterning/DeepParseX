@@ -17,6 +17,8 @@ class SysDocSchemaBase(SchemaBase):
     file: str | None = None
     belong: int | None = None
     account_pwd:str | None = None
+    doc_time: datetime | None = None
+    size: int | None = None
 
 class GetSysDocPage(SchemaBase):
     id: int
