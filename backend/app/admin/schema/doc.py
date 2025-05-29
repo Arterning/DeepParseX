@@ -16,10 +16,10 @@ class SysDocSchemaBase(SchemaBase):
     desc: str | None = None
     file: str | None = None
     belong: int | None = None
-    account_pwd:str | None = None
     doc_time: datetime | None = None
     size: int | None = None
     source: str | None = None
+    status: int | None = None
     dept_id: int | None = None
     created_by: int | None = None
     created_user: str | None = None

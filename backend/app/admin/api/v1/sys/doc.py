@@ -44,7 +44,7 @@ async def build_graph(pk: Annotated[int, Path(...)]) -> ResponseModel:
 async def get_recent_docs(request: Request) -> ResponseModel:
     user_id = request.user.id
     docs = await sys_doc_service.get_hot_docs(user_id)
-    hot_docs = [GetSysDocListDetails(id=doc.id, title=doc.title, created_time=doc.created_time, updated_time=doc.updated_time) for doc in docs]
+    hot_docs = [GetSysDocListDetails(id=doc.id, title=doc.title, type=doc.type, created_time=doc.created_time, updated_time=doc.updated_time) for doc in docs]
     return response_base.success(data=hot_docs)
 
 

@@ -337,12 +337,6 @@ class SysDocService:
             count = await sys_doc_chunk_dao.delete(db, doc_id)
             return count
         
-    @staticmethod
-    async def update_account_pwd(*, pk: list[int], accounts: list[str]):
-        async with async_db_session.begin() as db:
-            count = await sys_doc_dao.update_account_pwd(db, pk,accounts)
-            return count
-
 
     @staticmethod
     async def get_hot_docs(user_id: int = None) -> Sequence[SysDoc]:

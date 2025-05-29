@@ -17,7 +17,6 @@ from backend.app.admin.api.v1.sys.chat import router as chat_router
 from backend.app.admin.api.v1.sys.org import router as org_router
 from backend.app.admin.api.v1.sys.person import router as person_router
 from backend.app.admin.api.v1.sys.assets import router as assets_router
-from backend.app.admin.api.v1.sys.account_pwd import router as account_pwd_router
 from backend.app.admin.api.v1.sys.ip_addr import router as ip_addr_router
 from backend.app.admin.api.v1.sys.event import router as event_router
 from backend.app.admin.api.v1.sys.tag import router as tag_router
@@ -49,7 +48,6 @@ router.include_router(chat_router, prefix='/chat', tags=['对话'])
 router.include_router(org_router,prefix='/org',tags=['组织'])
 router.include_router(person_router,prefix='/person',tags=['人物'])
 router.include_router(assets_router,prefix='/asset',tags=['资产'])
-router.include_router(account_pwd_router,prefix='/account_pwd',tags=['提取用户名密码'])
 router.include_router(ip_addr_router,prefix='/ip_addr',tags=['提取ip地址'])
 router.include_router(event_router,prefix='/events',tags=['事件'])
 router.include_router(tag_router,prefix='/tags',tags=['标签'])

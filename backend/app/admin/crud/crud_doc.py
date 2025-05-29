@@ -221,24 +221,6 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
         return await self.update_model(db, pk, obj_in)
     
 
-    async def update_account_pwd(self,db:AsyncSession,pk:list[int],accounts:list[str]):
-        """
-        更新 SysDoc
-
-        :param db:
-        :param pk:
-        :return
-        """
-        updated_rows = 0
-        for id, account in zip(pk, accounts):
-            update_stmt = update(self.model).where(self.model.id == id).values({"account_pwd": account})  # 更新单条记录
-            result = await db.execute(update_stmt)  # 执行更新
-            updated_rows += result.rowcount  # 累加更新的行数
-
-        await db.commit()  # 提交事务
-        return updated_rows  # 返回更新的行数
-        
-       
 
 
     async def delete(self, db: AsyncSession, pk: list[int]) -> int:

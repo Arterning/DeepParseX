@@ -34,13 +34,13 @@ class SysDoc(Base):
     error_msg: Mapped[str | None] = mapped_column(TEXT, default=None, comment='错误信息')
     source: Mapped[str | None] = mapped_column(TEXT, default=None, comment='文件来源')
     belong: Mapped[int | None] = mapped_column(default=None, comment='文件属于')
-    account_pwd: Mapped[str|None] = mapped_column(TEXT,default=None,comment="用户名密码")
     uuid: Mapped[UUID] = mapped_column(UUID(as_uuid=True), default=None,nullable=True, unique=True, comment='唯一标识符')
     
     doc_time: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), default=None, init=True, sort_order=99, comment='文件创建时间'
     )
     size: Mapped[int | None] = mapped_column(default=None, comment='文件大小')
+    status: Mapped[int | None] = mapped_column(default=1, comment='文件状态(0解析中 1正常 2出错)')
 
     dept_id: Mapped[int | None] = mapped_column(
         ForeignKey('sys_dept.id', ondelete='SET NULL'), default=None, comment='部门关联ID'
