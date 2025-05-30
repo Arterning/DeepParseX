@@ -77,7 +77,7 @@ VALUES (1, 'af4c804f-3966-4949-ace2-3bb7416ea926', 'admin', '用户88888', '$2b$
 INSERT INTO sys_user_role (id, user_id, role_id)
 VALUES (1, 1, 1);
 
-CREATE INDEX idx_sys_doc_fulltext ON sys_doc USING gin (to_tsvector('simple', tokens::text));
+CREATE INDEX idx_sys_doc_fulltext ON sys_doc USING gin (to_tsvector('simple', doc_tokens::text));
 
 
 SELECT setval('sys_menu_id_seq', (SELECT MAX(id) FROM sys_menu));
