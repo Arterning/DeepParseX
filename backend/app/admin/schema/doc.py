@@ -4,7 +4,7 @@ from datetime import datetime
 from pydantic import ConfigDict
 
 from backend.common.schema import SchemaBase
-
+from backend.app.admin.schema.mail_msg import GetMailMsgDetails
 
 class SysDocSchemaBase(SchemaBase):
     title: str
@@ -72,3 +72,4 @@ class GetDocDetail(SysDocSchemaBase):
     doc_data: list[dict]
     doc_spos: list[GetDocSPO]
     graph_data: dict
+    email_msg: GetMailMsgDetails | None = None

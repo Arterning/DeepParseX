@@ -51,4 +51,10 @@ class MailMsg(Base):
 
     # 附件
     attachments: Mapped[list['MailAttachment']] = relationship(init=False, back_populates='mail_msg')
+
+    doc_id: Mapped[int | None] = mapped_column(
+        ForeignKey('sys_doc.id', ondelete='CASCADE'), default=None, index=True, comment='文件ID'
+    )
+
+    doc: Mapped[Union['SysDoc', None]] = relationship(init=False, back_populates='email_msg')
     

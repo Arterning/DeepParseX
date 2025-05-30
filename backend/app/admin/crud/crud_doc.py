@@ -25,6 +25,7 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
         doc = await db.execute(
             select(self.model)
             .options(selectinload(self.model.doc_data))
+            .options(selectinload(self.model.email_msg))
             .options(selectinload(self.model.doc_spos))
             .where(*where)
         )

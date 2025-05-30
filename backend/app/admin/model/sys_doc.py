@@ -50,6 +50,7 @@ class SysDoc(Base):
     updated_by: Mapped[int | None] = mapped_column(init=False, default=None, comment='修改人ID')
     updated_user: Mapped[str | None] = mapped_column(TEXT, default=None, comment='修改人')
 
+    email_msg: Mapped['MailMsg'] = relationship(init=False, back_populates='doc')
     doc_data: Mapped[list['SysDocData']] = relationship(init=False, back_populates='doc')
     doc_chunk: Mapped[list['SysDocChunk']] = relationship(init=False, back_populates='doc')
     doc_desc: Mapped[list['SysDocEmbedding']] = relationship(init=False, back_populates='doc')
