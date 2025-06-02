@@ -223,14 +223,15 @@ class SysDocService:
 
     
     @staticmethod
-    async def search(*, tokens: str = None):
+    async def search(*, tokens: str = None, page: int = None, size: int = None):
         cut = jieba.cut_for_search(tokens)
         seg_list = list(cut)  # 立即转换为列表
         # print("seg_list:", seg_list)
         async with async_db_session() as db:
             tokens = ' '.join(seg_list)
-            res = await sys_doc_dao.search(db, tokens)
-            for item in res:
+            res = await sys_doc_dao.search(db, tokens, page, size)
+            items = res.get("items")
+            for item in items:
                 # 对每个文档的内容进行高亮处理
                 hit = SysDocService.highlight_text_window(item.get("content"), seg_list)
                 item["title"] = SysDocService.highlight_text(item.get("title"), seg_list)

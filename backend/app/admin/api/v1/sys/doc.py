@@ -82,8 +82,12 @@ async def preview_pdf(obj_name: str):
         DependsPagination,
     ],
 )
-async def search(tokens: Annotated[str | None, Query()] = None) -> ResponseModel:
-    docs = await sys_doc_service.search(tokens=tokens)
+async def search(
+    tokens: Annotated[str | None, Query()] = None,
+    page: Annotated[int | None, Query()] = None,
+    size: Annotated[int | None, Query()] = None
+) -> ResponseModel:
+    docs = await sys_doc_service.search(tokens=tokens, page=page, size=size)
     return response_base.success(data=docs)
 
 

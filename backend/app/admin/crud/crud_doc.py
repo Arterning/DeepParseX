@@ -70,14 +70,27 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
         else:
             return []
     
-    async def search(self, db: AsyncSession, tokens: str = None):
+    async def search(self, db: AsyncSession, tokens: str = None, page: int = None, size: int = None):
+        # 初始化分页参数
+        if page is None:
+            page = 1
+        if size is None:
+            size = 10
+            
+        # 计算偏移量
+        offset = (page - 1) * size
+
         if tokens:
             query = f"""
             SELECT id, name, title, type, content
             FROM sys_doc
-            WHERE doc_tokens @@ plainto_tsquery(:tokens);
+            WHERE doc_tokens @@ plainto_tsquery(:tokens)
+            LIMIT :limit OFFSET :offset;
             """
-            result = await db.execute(text(query), {"tokens": tokens})
+            result = await db.execute(
+                text(query), 
+                {"tokens": tokens, "limit": size, "offset": offset}
+            )
             # 使用 fetchall() 来获取完整的行
             docs = result.fetchall()  # 返回所有行
 
@@ -89,10 +102,30 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
                 "title": doc.title,
                 "content": doc.content
             } for doc in docs]
+
+            # 执行总记录数查询
+            count_query = f"""
+            SELECT count(*)
+            FROM sys_doc
+            WHERE doc_tokens @@ plainto_tsquery(:tokens);
+            """
+            count_result = await db.execute(text(count_query), {"tokens": tokens})
+            total = count_result.scalar()
             
-            return docs_list
+            # 返回包含分页信息的结果
+            return {
+                "items": docs_list,
+                "page": page,
+                "size": size,
+                "total": total
+            }
         else:
-            return []
+            return {
+                "items": [],
+                "page": page,
+                "size": size,
+                "total": 0
+            }
         
     async def search_by_vector(self, db: AsyncSession, query_vector: list[float] = None, limit: int = 0):
         # 构建向量搜索SQL
