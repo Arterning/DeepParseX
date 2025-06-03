@@ -75,3 +75,4 @@ class GetDocDetail(SysDocSchemaBase):
     doc_spos: list[GetDocSPO]
     graph_data: dict
     email_msg: GetMailMsgDetails | None = None
+    error_msg: str | None = None

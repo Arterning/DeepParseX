@@ -120,6 +120,7 @@ async def get_pagination_sys_doc(db: CurrentSession,
                                  doc_type: Annotated[str | None, Query()] = None,
                                  content: Annotated[str | None, Query()] = None,
                                  source: Annotated[str | None, Query()] = None,
+                                 rangeValue: Annotated[list[str] | None, Query()] = ['', ''],
                                 ) -> ResponseModel:
     # ids = await sys_doc_service.token_search(tokens=tokens)
     sys_doc_select = await sys_doc_service.get_select(
@@ -128,6 +129,7 @@ async def get_pagination_sys_doc(db: CurrentSession,
         doc_type=doc_type,
         source=source,
         content=content, 
+        rangeValue=rangeValue,
     )
     page_data = await paging_data(db, sys_doc_select, GetSysDocPage)
     return response_base.success(data=page_data)

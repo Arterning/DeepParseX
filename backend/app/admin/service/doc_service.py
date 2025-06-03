@@ -153,8 +153,20 @@ class SysDocService:
 
     @staticmethod
     async def get_select(*, title: str = None, name: str = None, doc_type: str = None,
-                          content: str = None, source: str = None, ids: list[int] = None) -> Select:
-        return await sys_doc_dao.get_list(name=name,title=title, source=source, doc_type=doc_type, content=content, ids=ids)
+                          content: str = None, source: str = None, ids: list[int] = None, 
+                          rangeValue: list[str]) -> Select:
+        start_time = rangeValue[0]
+        end_time = rangeValue[1]
+        return await sys_doc_dao.get_list(
+            name=name,
+            title=title, 
+            source=source, 
+            doc_type=doc_type, 
+            content=content, 
+            ids=ids,
+            start_time=start_time, 
+            end_time=end_time,
+        )
 
     def highlight_text(original: str, keywords: List[str], start_tag='<b>', end_tag='</b>') -> str:
         sorted_keywords = sorted(keywords, key=len, reverse=True)

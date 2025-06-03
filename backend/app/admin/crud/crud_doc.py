@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import json
 from typing import Sequence
-
+from datetime import datetime, timedelta
 from sqlalchemy import bindparam, select, Select, text, desc, and_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -157,7 +157,9 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
 
     async def get_list(self, name: str = None, doc_type: str = None,
                        title: str = None, source: str = None,
-                        content: str = None, ids: list[int] = None) -> Select:
+                        content: str = None, ids: list[int] = None,
+                        start_time: str = None, end_time :str = None,
+                        ) -> Select:
         """
         获取 SysDoc 列表
         :return:
@@ -165,7 +167,7 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
         where_list = []
         stmt = select(self.model).order_by(desc(self.model.created_time))
         if title is not None and title != '':
-            where_list.append(self.model.name.like(f'%{title}%'))
+            where_list.append(self.model.title.like(f'%{title}%'))
         if name is not None and name != '':
             where_list.append(self.model.name.like(f'%{name}%'))
         if doc_type is not None:
@@ -182,6 +184,13 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
         #     where_list.append(self.model.email_subject.like(f'%{email_subject}%'))
         # if email_time is not None and email_time != '':
         #     where_list.append(self.model.email_time.like(f'%{email_time}%'))
+        if start_time:
+            start_dt = datetime.strptime(start_time, '%Y-%m-%d')
+            where_list.append(self.model.doc_time >= start_dt)
+        if end_time:
+             # 将字符串转换为datetime对象，并设置时间为当天23:59:59
+            end_dt = datetime.strptime(end_time, '%Y-%m-%d') + timedelta(hours=23, minutes=59, seconds=59)
+            where_list.append(self.model.doc_time <= end_dt)
         if ids is not None:
             where_list.append(self.model.id.in_(ids))
         if where_list:
