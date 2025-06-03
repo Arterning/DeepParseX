@@ -30,6 +30,11 @@ def is_text_file(file_suffix: str) -> bool:
 def is_email_file(file_suffix: str) -> bool:
     return file_suffix in ['.eml']
 
+def is_docx_file(file_suffix: str) -> bool:
+    return file_suffix in ['.docx', '.doc']
+
+def is_pptx_file(file_suffix: str) -> bool:
+    return file_suffix in ['.pptx', '.ppt']
 
 
 def get_file_suffix(filename: str):
@@ -47,6 +52,8 @@ file_type_handlers = {
     '文本': is_text_file,
     '邮件': is_email_file,
     'PDF': is_pdf_file,
+    '文档': is_docx_file,
+    'PPT': is_pptx_file,
     '压缩包': is_zip_file
 }
 def get_file_type(file_suffix: str):

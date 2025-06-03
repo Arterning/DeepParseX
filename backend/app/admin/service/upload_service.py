@@ -36,7 +36,18 @@ from zipfile import ZipFile
 from bs4 import BeautifulSoup
 from backend.app.admin.model import SysDoc
 from backend.utils.oss_client import minio_client
-from backend.utils.upload_utils import get_file_suffix, get_file_type, is_text_file, is_picture_file, is_excel_file, is_email_file, is_pdf_file, is_zip_file
+from backend.utils.upload_utils import (
+    get_file_suffix, 
+    get_file_type, 
+    is_text_file, 
+    is_picture_file, 
+    is_excel_file, 
+    is_email_file, 
+    is_pdf_file,
+    is_docx_file,
+    is_pptx_file,
+    is_zip_file
+    )
 
 bucket_name = settings.BUCKET_NAME
 
@@ -101,6 +112,12 @@ class UploadService:
 
         return doc
 
+    @staticmethod
+    async def request_content(title, file_bytes: bytes):
+        loop = asyncio.get_running_loop()
+        response = await loop.run_in_executor(None, process_file, title, file_bytes)
+        content = response['content']
+        return content
 
     @staticmethod
     async def read_file_content(doc: SysDoc):
@@ -124,17 +141,19 @@ class UploadService:
 
         if is_picture_file(doc.file_suffix):
             content = "图片文件无法直接读取内容，请查看附件。"
-            loop = asyncio.get_running_loop()
-            response = await loop.run_in_executor(None, process_file, doc.title, file_bytes)
-            content = response['content']
+            content = await upload_service.request_content(title=doc.title, file_bytes=file_bytes)
         
         
         if is_pdf_file(doc.file_suffix):
             content = "PDF文件无法直接读取内容，请查看附件。"
-            loop = asyncio.get_running_loop()
-            response = await loop.run_in_executor(None, process_file, doc.title, file_bytes)
-            content = response['content']
+            content = await upload_service.request_content(title=doc.title, file_bytes=file_bytes)
         
+        if is_docx_file(doc.file_suffix):
+            content = await upload_service.request_content(title=doc.title, file_bytes=file_bytes)
+
+        if is_pptx_file(doc.file_suffix):
+            content = await upload_service.request_content(title=doc.title, file_bytes=file_bytes)
+
         obj_dict = {
             'content': content,
             'desc': desc,
