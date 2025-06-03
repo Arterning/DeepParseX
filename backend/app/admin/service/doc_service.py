@@ -10,6 +10,7 @@ from backend.app.admin.crud.crud_doc import sys_doc_dao
 from backend.app.admin.crud.crud_doc_data import sys_doc_data_dao
 from backend.app.admin.crud.crud_doc_chunk import sys_doc_chunk_dao
 from backend.app.admin.crud.crud_doc_embedding import sys_doc_embedding_dao
+from backend.app.admin.crud.crud_tag import tag_dao
 from backend.app.admin.model import SysDoc
 from backend.app.admin.model import SubjectPredictObject
 from backend.app.admin.model import SysDocData,SysDocChunk
@@ -274,10 +275,14 @@ class SysDocService:
     @staticmethod
     async def create(*, obj: CreateSysDocParam) -> SysDoc:
         async with async_db_session.begin() as db:
-            # sys_doc = await sys_doc_dao.get_by_name(db, obj.name)
-            # if sys_doc:
-            #     raise errors.ForbiddenError(msg='文件已存在')
             doc = await sys_doc_dao.create(db, obj)
+            for i in list(doc.tags):
+                doc.tags.remove(i)
+            tag_list = []
+            for tag_name in obj.tags:
+                    tag = await tag_dao.get_or_create_by_name(db, tag_name)
+                    tag_list.append(tag)
+            doc.tags.extend(tag_list)
             return doc
 
 
@@ -326,7 +331,16 @@ class SysDocService:
     @staticmethod
     async def update(*, pk: int, obj: UpdateSysDocParam) -> int:
         async with async_db_session.begin() as db:
-            return await sys_doc_dao.update(db, pk, obj)
+            count = await sys_doc_dao.update(db, pk, obj)
+            doc = await sys_doc_dao.get(db, pk)
+            for i in list(doc.tags):
+                doc.tags.remove(i)
+            tag_list = []
+            for tag_name in obj.tags:
+                    tag = await tag_dao.get_or_create_by_name(db, tag_name)
+                    tag_list.append(tag)
+            doc.tags.extend(tag_list)
+            return count
 
 
     @staticmethod

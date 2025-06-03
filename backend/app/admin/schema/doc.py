@@ -5,6 +5,7 @@ from pydantic import ConfigDict
 
 from backend.common.schema import SchemaBase
 from backend.app.admin.schema.mail_msg import GetMailMsgDetails
+from backend.app.admin.schema.tag import GetTagListDetails
 
 class SysDocSchemaBase(SchemaBase):
     title: str
@@ -33,6 +34,7 @@ class GetSysDocPage(SysDocSchemaBase):
 
 class CreateSysDocParam(SysDocSchemaBase):
     uuid: str | None = None
+    tags: list[str] | None = []
     pass
 
 
@@ -44,6 +46,7 @@ class UpdateSysDocParam(SchemaBase):
     desc: str | None = None
     error_msg: str | None = None
     status: int | None = None
+    tags: list[str] | None = []
 
 
 
@@ -73,6 +76,7 @@ class GetDocDetail(SysDocSchemaBase):
     updated_time: datetime | None = None
     doc_data: list[dict]
     doc_spos: list[GetDocSPO]
+    tags: list[GetTagListDetails]
     graph_data: dict
     email_msg: GetMailMsgDetails | None = None
     error_msg: str | None = None

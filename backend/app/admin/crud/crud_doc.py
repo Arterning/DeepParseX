@@ -27,6 +27,7 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
             .options(selectinload(self.model.doc_data))
             .options(selectinload(self.model.email_msg))
             .options(selectinload(self.model.doc_spos))
+            .options(selectinload(self.model.tags))
             .where(*where)
         )
         return doc.scalars().first()
@@ -230,7 +231,10 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
         :param obj_in:
         :return:
         """
-        return await self.create_model(db, obj_in)
+        dict_obj = obj_in.model_dump(exclude={'tags'})
+        doc = self.model(**dict_obj)
+        db.add(doc)
+        return doc
 
     async def update_tokens(self, db: AsyncSession, doc: SysDoc, title_tokens: str, content_tokens: str, doc_tokens: str):
         update_sql = """
@@ -262,7 +266,8 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
         :param obj_in:
         :return:
         """
-        return await self.update_model(db, pk, obj_in)
+        dict_obj = obj_in.model_dump(exclude={'tags'})
+        return await self.update_model(db, pk, dict_obj)
     
 
 

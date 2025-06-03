@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from backend.utils.timezone import timezone
 from backend.common.model import Base, id_key
-
+from backend.app.admin.model.sys_tag_doc import sys_tag_doc
 
 class SysDoc(Base):
     """文件"""
@@ -55,3 +55,7 @@ class SysDoc(Base):
     doc_chunk: Mapped[list['SysDocChunk']] = relationship(init=False, back_populates='doc')
     doc_desc: Mapped[list['SysDocEmbedding']] = relationship(init=False, back_populates='doc')
     doc_spos: Mapped[list['SubjectPredictObject']] = relationship(init=False, back_populates='doc')
+
+    tags: Mapped[list['Tag']] = relationship(
+        init=False, secondary=sys_tag_doc, back_populates='docs'
+    )

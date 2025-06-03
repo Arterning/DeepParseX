@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from typing import Sequence
 
-from sqlalchemy import delete, Select
+from sqlalchemy import delete, Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
 
@@ -69,5 +69,31 @@ class CRUDTag(CRUDPlus[Tag]):
         """
         return  await self.delete_model_by_column(db, allow_multiple=True, id__in=pk)
 
+    async def get_by_name(self, db: AsyncSession, name: str) -> Tag | None:
+        """
+        通过 name 获取 Tag
+
+        :param db:
+        :param name:
+        :return:
+        """
+        query = await db.execute(select(self.model).where(self.model.name == name))
+        return query.scalars().first()
+
+    async def get_or_create_by_name(self, db: AsyncSession, name: str) -> Tag | None:
+        """
+        通过 name 获取 Tag 或创建
+
+        :param db:
+        :param name:
+        :return:
+        """
+        tag = await self.get_by_name(db, name)
+        if tag:
+            return tag
+        param = CreateTagParam(name=name)
+        tag = self.model(**param.model_dump())
+        db.add(tag)
+        return tag
 
 tag_dao: CRUDTag = CRUDTag(Tag)
