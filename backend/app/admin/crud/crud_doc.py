@@ -155,32 +155,33 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
         return similar_docs
 
 
-    async def get_list(self, name: str = None, type: str = None,
-                       email_from: str = None, email_subject: str = None,
-                       email_time: str = None, email_to: str = None,
-                        tokens: str = None, likeq: str = None, ids: list[int] = None) -> Select:
+    async def get_list(self, name: str = None, doc_type: str = None,
+                       title: str = None, source: str = None,
+                        content: str = None, ids: list[int] = None) -> Select:
         """
         获取 SysDoc 列表
         :return:
         """
         where_list = []
         stmt = select(self.model).order_by(desc(self.model.created_time))
+        if title is not None and title != '':
+            where_list.append(self.model.name.like(f'%{title}%'))
         if name is not None and name != '':
             where_list.append(self.model.name.like(f'%{name}%'))
-        if type is not None:
-            where_list.append(self.model.type == type)
-        if tokens is not None and tokens != '':
-            where_list.append(self.model.tokens.match(tokens))
-        if likeq is not None and likeq != '':
-            where_list.append(self.model.content.like(f'%{likeq}%'))
-        if email_from is not None and email_from != '':
-            where_list.append(self.model.email_from.like(f'%{email_from}%'))
-        if email_to is not None and email_to != '':
-            where_list.append(self.model.email_to.like(f'%{email_to}%'))
-        if email_subject is not None and email_subject != '':
-            where_list.append(self.model.email_subject.like(f'%{email_subject}%'))
-        if email_time is not None and email_time != '':
-            where_list.append(self.model.email_time.like(f'%{email_time}%'))
+        if doc_type is not None:
+            where_list.append(self.model.type == doc_type)
+        # if tokens is not None and tokens != '':
+        #     where_list.append(self.model.tokens.match(tokens))
+        if content is not None and content != '':
+            where_list.append(self.model.content.like(f'%{content}%'))
+        if source is not None and source != '':
+            where_list.append(self.model.source.like(f'%{source}%'))
+        # if email_to is not None and email_to != '':
+        #     where_list.append(self.model.email_to.like(f'%{email_to}%'))
+        # if email_subject is not None and email_subject != '':
+        #     where_list.append(self.model.email_subject.like(f'%{email_subject}%'))
+        # if email_time is not None and email_time != '':
+        #     where_list.append(self.model.email_time.like(f'%{email_time}%'))
         if ids is not None:
             where_list.append(self.model.id.in_(ids))
         if where_list:

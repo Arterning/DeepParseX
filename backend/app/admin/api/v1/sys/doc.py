@@ -116,17 +116,19 @@ async def get_sys_doc(pk: Annotated[int, Path(...)]) -> ResponseModel:
 )
 async def get_pagination_sys_doc(db: CurrentSession, 
                                  name: Annotated[str | None, Query()] = None,
-                                 tokens: Annotated[str | None, Query()] = None,
-                                 likeq: Annotated[str | None, Query()] = None,
-                                 email_from: Annotated[str | None, Query()] = None,
-                                 email_subject: Annotated[str | None, Query()] = None,
-                                 email_time: Annotated[str | None, Query()] = None,
-                                 email_to: Annotated[str | None, Query()] = None,
-                                 type: Annotated[str | None, Query()] = None,) -> ResponseModel:
+                                 title: Annotated[str | None, Query()] = None,
+                                 doc_type: Annotated[str | None, Query()] = None,
+                                 content: Annotated[str | None, Query()] = None,
+                                 source: Annotated[str | None, Query()] = None,
+                                ) -> ResponseModel:
     # ids = await sys_doc_service.token_search(tokens=tokens)
-    sys_doc_select = await sys_doc_service.get_select(name=name, type=type, tokens=tokens, likeq=likeq,
-                                                      email_from=email_from, email_subject=email_subject,
-                                                      email_time=email_time, email_to=email_to)
+    sys_doc_select = await sys_doc_service.get_select(
+        name=name,
+        title=title,
+        doc_type=doc_type,
+        source=source,
+        content=content, 
+    )
     page_data = await paging_data(db, sys_doc_select, GetSysDocPage)
     return response_base.success(data=page_data)
 
