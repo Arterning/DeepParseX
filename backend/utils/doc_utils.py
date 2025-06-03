@@ -4,24 +4,21 @@ from backend.common.log import log
 
 
 # 所有文件类型
-def process_file(file_path: str):
+def process_file(file_name: str, file_data: bytes):
     """
     向服务端发送文件路径，获取处理后的 OCR 结果。
     
     :param file_path: 文件的完整路径，需为图片文件。
     :return: 服务端返回的处理结果，JSON 格式。
     """
-    url = "http://172.17.0.1:8105/process_allkinds_filepath"
+    target_ip = "172.17.120.131"
+    url   = f"http://{  target_ip  }/file/predict"
     try:
-        # 将文件路径作为表单数据发送
-        data = {"filepath": file_path}
-        
-        # 发送 POST 请求
-        response = requests.post(url, data=data)
-        
-        # 检查响应状态
+        data = {"task" : "默认算法"}
+        mime_type =  'application/octet-stream'
+        files = {'file': (file_name, file_data, mime_type) } 
+        response = requests.post(url, data=data, files=files)
         if response.status_code == 200:
-            
             return response.json()
         else:
             print(f"请求失败，状态码：{response.status_code}")
@@ -29,7 +26,7 @@ def process_file(file_path: str):
             return None
     except Exception as e:
         log.error(f"[process_file]中出现错误：{str(e)}")
-        return None
+        raise e
 
         
 # 文本的摘要

@@ -47,12 +47,15 @@ async def upload_handle_file(self, **kwargs) -> int:
 
         # print("upload_handle_file ok")
 
-        obj = UpdateSysDocParam(status=1)
-        await sys_doc_service.update(pk=doc.id, obj=obj)
+        await sys_doc_service.base_update(pk=doc.id, obj={
+            'status': 1,
+        })
     except Exception as e:
         # raise self.retry(exc=exc)
-        obj = UpdateSysDocParam(status=2, error_msg=str(e))
-        await sys_doc_service.update(pk=doc.id, obj=obj)
+        await sys_doc_service.base_update(pk=doc.id, obj={
+            'status': 2,
+            'error_msg': str(e)
+        })
         result = {
             'stage': '处理失败',
             'progress': 1,

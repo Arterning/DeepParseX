@@ -327,7 +327,13 @@ class SysDocService:
     async def create_doc_bulk_embedding(*, obj_list: list[CreateSysDocEmbeddingParam]) -> list[CreateSysDocEmbeddingParam]:
         async with async_db_session.begin() as db:
             return await sys_doc_embedding_dao.create_bulk(db, obj_list)
-        
+
+    @staticmethod
+    async def base_update(pk: int, obj: dict) -> int:
+        async with async_db_session.begin() as db:
+            count = await sys_doc_dao.base_update(db, pk, obj)
+            return count
+
     @staticmethod
     async def update(*, pk: int, obj: UpdateSysDocParam) -> int:
         async with async_db_session.begin() as db:

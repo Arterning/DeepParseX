@@ -124,17 +124,22 @@ class UploadService:
 
         if is_picture_file(doc.file_suffix):
             content = "图片文件无法直接读取内容，请查看附件。"
+            loop = asyncio.get_running_loop()
+            response = await loop.run_in_executor(None, process_file, doc.title, file_bytes)
+            content = response['content']
         
         
         if is_pdf_file(doc.file_suffix):
             content = "PDF文件无法直接读取内容，请查看附件。"
-            # loop = asyncio.get_running_loop()
-            # api_res = await loop.run_in_executor(None, process_file, file_bytes)
-            # content = api_res['content']
-            # desc = api_res['abstract']
+            loop = asyncio.get_running_loop()
+            response = await loop.run_in_executor(None, process_file, doc.title, file_bytes)
+            content = response['content']
         
-        obj = UpdateSysDocParam(content=content, desc=desc)
-        await sys_doc_service.update(pk=doc.id, obj=obj)
+        obj_dict = {
+            'content': content,
+            'desc': desc,
+        }
+        await sys_doc_service.base_update(pk=doc.id, obj=obj_dict)
 
 
 
