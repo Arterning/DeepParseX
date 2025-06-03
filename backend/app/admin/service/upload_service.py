@@ -46,6 +46,7 @@ from backend.utils.upload_utils import (
     is_pdf_file,
     is_docx_file,
     is_pptx_file,
+    is_media_file,
     is_zip_file
     )
 
@@ -148,11 +149,9 @@ class UploadService:
             content = "PDF文件无法直接读取内容，请查看附件。"
             content = await upload_service.request_content(title=doc.title, file_bytes=file_bytes)
         
-        if is_docx_file(doc.file_suffix):
+        if is_docx_file(doc.file_suffix) or is_media_file(doc.file_suffix) or is_pptx_file(doc.file_suffix):
             content = await upload_service.request_content(title=doc.title, file_bytes=file_bytes)
 
-        if is_pptx_file(doc.file_suffix):
-            content = await upload_service.request_content(title=doc.title, file_bytes=file_bytes)
 
         obj_dict = {
             'content': content,
