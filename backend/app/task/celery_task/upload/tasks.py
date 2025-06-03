@@ -2,7 +2,9 @@
 # -*- coding: utf-8 -*-
 from sqlalchemy.exc import SQLAlchemyError
 
+from backend.app.admin.schema.doc import  UpdateSysDocParam
 from backend.app.admin.service.upload_service import upload_service
+from backend.app.admin.service.doc_service import sys_doc_service
 from backend.app.admin.service.doc_service import sys_doc_service
 from backend.app.task.celery import celery_app
 from backend.app.task.conf import task_settings
@@ -20,7 +22,7 @@ async def upload_handle_file(self, **kwargs) -> int:
     if not id:
         raise ValueError("id is required")
     try:
-        print("upload_handle_file")
+        # print("upload_handle_file")
 
         self.update_state(state='PROGRESS', meta={'stage': '准备文件内容', 'progress': 0})
 
@@ -43,9 +45,21 @@ async def upload_handle_file(self, **kwargs) -> int:
         #     self.update_state(state='PROGRESS', meta={'done': i, 'total': n})
         #     time.sleep(1)
 
-        print("upload_handle_file ok")
-    except SQLAlchemyError as exc:
-        raise self.retry(exc=exc)
+        # print("upload_handle_file ok")
+
+        obj = UpdateSysDocParam(status=1)
+        await sys_doc_service.update(pk=doc.id, obj=obj)
+    except Exception as e:
+        # raise self.retry(exc=exc)
+        obj = UpdateSysDocParam(status=2, error_msg=str(e))
+        await sys_doc_service.update(pk=doc.id, obj=obj)
+        result = {
+            'stage': '处理失败',
+            'progress': 1,
+            'error_msg': str(e),
+        }
+        return result
+    
     result = {
         'stage': '处理完成',
         'progress': 1,

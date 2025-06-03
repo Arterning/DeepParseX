@@ -42,6 +42,8 @@ class UpdateSysDocParam(SchemaBase):
     type: str | None = None
     content: str | None = None
     desc: str | None = None
+    error_msg: str | None = None
+    status: int | None = None
 
 
 

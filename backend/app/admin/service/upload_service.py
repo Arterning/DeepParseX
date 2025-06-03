@@ -91,6 +91,7 @@ class UploadService:
             file_suffix=file_suffix,
             doc_time=last_modified,
             size=size,
+            status=0,
             dept_id= user.dept_id if user else None,
             created_by= user.id if user else None,
             created_user= user.username if user else None,
