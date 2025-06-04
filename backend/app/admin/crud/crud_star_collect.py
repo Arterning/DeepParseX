@@ -19,7 +19,13 @@ class CRUDStarCollect(CRUDPlus[StarCollect]):
         :param pk:
         :return:
         """
-        return await self.select_model(db, pk)
+        where = [self.model.id == pk]
+        doc = await db.execute(
+            select(self.model)
+            .options(selectinload(self.model.docs))
+            .where(*where)
+        )
+        return doc.scalars().first()
 
     async def get_list(self) -> Select:
         """
