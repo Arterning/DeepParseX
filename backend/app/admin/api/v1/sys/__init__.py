@@ -20,6 +20,7 @@ from backend.app.admin.api.v1.sys.assets import router as assets_router
 from backend.app.admin.api.v1.sys.ip_addr import router as ip_addr_router
 from backend.app.admin.api.v1.sys.event import router as event_router
 from backend.app.admin.api.v1.sys.tag import router as tag_router
+from backend.app.admin.api.v1.sys.star_collect import router as star_collect_router
 from backend.app.admin.api.v1.sys.mail_box import router as mail_box_router
 from backend.app.admin.api.v1.sys.mail_msg import router as mail_msg_router
 from backend.app.admin.api.v1.sys.subject import router as subject_router
@@ -51,6 +52,7 @@ router.include_router(assets_router,prefix='/asset',tags=['资产'])
 router.include_router(ip_addr_router,prefix='/ip_addr',tags=['提取ip地址'])
 router.include_router(event_router,prefix='/events',tags=['事件'])
 router.include_router(tag_router,prefix='/tags',tags=['标签'])
+router.include_router(star_collect_router, prefix='/star_collect', tags=['收藏'])
 router.include_router(mail_box_router,prefix='/mailbox',tags=['邮箱'])
 router.include_router(mail_msg_router,prefix='/mailmsg',tags=['邮件'])
 router.include_router(subject_router,prefix='/subject',tags=['议题'])

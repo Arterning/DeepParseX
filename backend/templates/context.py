@@ -19,6 +19,32 @@ tag_context = {
     ]
 }
 
+star_collect_context = {
+    'app_name': 'admin',
+    'table_name_en': 'sys_star_collect',
+    'table_name_zh': '收藏',
+    'table_name_class': 'StarCollect',
+    'file_prefix': 'star_collect',
+    'schema_name': 'StarCollect',
+    'have_datetime_column': True,
+    'models': [
+        {
+            'name': 'name', 
+            'is_nullable': False,
+            'pd_type': 'str',
+            'type': 'String',
+            'comment': '收藏名称',
+        },
+        {
+            'name': 'description',
+            'is_nullable': True,
+            'pd_type': 'str',            
+            'type': 'String',
+            'comment': '收藏描述',
+        },
+    ]
+}
+
 
 person_context = {
     'app_name': 'admin',
