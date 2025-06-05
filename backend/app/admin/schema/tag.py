@@ -24,11 +24,18 @@ class UpdateTagParam(TagSchemaBase):
     pass
 
 
+class GetStarDocs(SchemaBase):
+    title: str
+    name: str | None = None
+    type: str | None = None
+    id: int
+    model_config = ConfigDict(from_attributes=True)
+
 class GetTagListDetails(TagSchemaBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    
+    docs: list[GetStarDocs] | None = []
     created_time: datetime
     updated_time: datetime | None = None
     

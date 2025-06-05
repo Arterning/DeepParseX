@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 from typing import Sequence
 
-from sqlalchemy import delete, Select, select
+from sqlalchemy import delete, Select, select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
-
+from sqlalchemy.orm import selectinload
 from backend.app.admin.model.sys_tag import Tag
 from backend.app.admin.schema.tag import CreateTagParam, UpdateTagParam
 
@@ -19,7 +19,13 @@ class CRUDTag(CRUDPlus[Tag]):
         :param pk:
         :return:
         """
-        return await self.select_model(db, pk)
+        where = [self.model.id == pk]
+        doc = await db.execute(
+            select(self.model)
+            .options(selectinload(self.model.docs))
+            .where(*where)
+        )
+        return doc.scalars().first()
 
     async def get_list(self) -> Select:
         """
@@ -27,7 +33,12 @@ class CRUDTag(CRUDPlus[Tag]):
 
         :return:
         """
-        return await self.select_order('created_time', 'desc')
+        se = (
+            select(self.model)
+                .options(selectinload(self.model.docs))
+                .order_by(desc(self.model.created_time))
+        )
+        return se
 
     async def get_all(self, db: AsyncSession) -> Sequence[Tag]:
         """

@@ -12,6 +12,7 @@ from backend.common.security.jwt import DependsJwtAuth
 from backend.common.security.permission import RequestPermission
 from backend.common.security.rbac import DependsRBAC
 from backend.database.db_pg import CurrentSession
+from backend.utils.serializers import select_as_dict
 
 router = APIRouter()
 
@@ -19,7 +20,8 @@ router = APIRouter()
 @router.get('/{pk}', summary='获取详情', dependencies=[DependsJwtAuth])
 async def get_tag(pk: Annotated[int, Path(...)]) -> ResponseModel:
     tag = await tag_service.get(pk=pk)
-    return response_base.success(data=tag)
+    data = GetTagListDetails(**select_as_dict(tag))
+    return response_base.success(data=data)
 
 
 @router.get(
