@@ -28,6 +28,7 @@ class GetStarDocs(SchemaBase):
     title: str
     name: str | None = None
     type: str | None = None
+    doc_time: datetime | None = None
     id: int
     model_config = ConfigDict(from_attributes=True)
 
