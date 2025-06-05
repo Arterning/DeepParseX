@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.exceptions import HTTPException
 
 from backend.core.conf import settings
-from backend.app.admin.schema.doc import CreateSysDocParam, GetSysDocListDetails, GetSysDocPage, UpdateSysDocParam, GetDocDetail
+from backend.app.admin.schema.doc import CreateSysDocParam, CollectDocParam, GetSysDocListDetails, GetSysDocPage, UpdateSysDocParam, GetDocDetail
 from backend.app.admin.service.doc_service import sys_doc_service
 from backend.common.pagination import DependsPagination, paging_data
 from backend.common.response.response_schema import ResponseModel, response_base
@@ -22,6 +22,25 @@ from backend.utils.oss_client import minio_client
 from minio.error import S3Error
 
 router = APIRouter()
+
+
+# collect_doc 收藏文件
+@router.post('/collect', summary='收藏文件',
+    dependencies=[DependsJwtAuth]
+)
+async def collect_doc(request: Request, obj: CollectDocParam) -> ResponseModel:
+    user_id = request.user.id
+    doc = await sys_doc_service.get(pk=obj.doc_id)
+    if not doc:
+        return response_base.fail(message='文件不存在')
+    
+    # 检查是否已收藏
+    # if await sys_doc_service.is_collected(user_id=user_id, doc_id=pk):
+    #     return response_base.fail(message='已收藏该文件')
+    
+    # 收藏文件
+    await sys_doc_service.collect_doc(collecton_id=obj.collection_id, doc_id=obj.doc_id)
+    return response_base.success(data='收藏成功')
 
 
 # 构建文件的知识图谱

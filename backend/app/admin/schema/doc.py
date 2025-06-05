@@ -80,3 +80,9 @@ class GetDocDetail(SysDocSchemaBase):
     graph_data: dict
     email_msg: GetMailMsgDetails | None = None
     error_msg: str | None = None
+
+
+class CollectDocParam(SchemaBase):
+    model_config = ConfigDict(from_attributes=True)
+    doc_id: int
+    collection_id: int

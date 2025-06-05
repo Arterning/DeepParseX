@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import re
 from typing import Sequence
-from sqlalchemy import Select
+from sqlalchemy import Select, select
 from typing import List
 
 from backend.app.admin.service.knowledge_graph.kg_service import kg_service
@@ -14,6 +14,7 @@ from backend.app.admin.crud.crud_tag import tag_dao
 from backend.app.admin.model import SysDoc
 from backend.app.admin.model import SubjectPredictObject
 from backend.app.admin.model import SysDocData,SysDocChunk
+from backend.app.admin.model.sys_star_doc import sys_star_doc
 from backend.app.admin.schema.doc import CreateSysDocParam, UpdateSysDocParam
 from backend.common.exception import errors
 from backend.database.db_pg import async_db_session
@@ -373,5 +374,23 @@ class SysDocService:
         async with async_db_session() as db:
             docs = await sys_doc_dao.get_hot_docs(db, user_id=user_id)
             return docs
+
+
+    @staticmethod
+    async def collect_doc(collecton_id: int, doc_id: int) -> None:
+        async with async_db_session() as db:
+            se = await db.execute(select(sys_star_doc)
+                                    .where(
+                                        sys_star_doc.c.star_id == collecton_id,
+                                        sys_star_doc.c.doc_id == doc_id
+                                    ))
+            existing_doc = se.scalars().first()
+            if existing_doc:
+                return
+
+            # Create a new row in sys_star_doc
+            insert_stmt = sys_star_doc.insert().values(star_id=collecton_id, doc_id=doc_id)
+            await db.execute(insert_stmt)
+            await db.commit()
 
 sys_doc_service = SysDocService()

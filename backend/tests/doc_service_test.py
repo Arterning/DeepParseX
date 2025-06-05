@@ -13,13 +13,18 @@ async def test_build_visualize_knowledge_graph():
     graph_data = sys_doc_service.build_visualize_knowledge_graph(triples=doc.doc_spos)
     print(graph_data)
 
+
+async def test_follow_doc():
+    res = await sys_doc_service.collect_doc(collecton_id=5, doc_id=58)
+    print(res)
+
 async def init() -> None:
     res = await sys_doc_service.build_graph(pk=3)
     print(res)
     
 
 if __name__ == '__main__':
-    run(init) 
+    run(test_follow_doc) 
 
 
 
