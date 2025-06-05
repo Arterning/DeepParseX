@@ -23,8 +23,12 @@ async def init() -> None:
     print(res)
     
 
+async def test_count_doc():
+    res = await sys_doc_service.get_count()
+    print(res)
+
 if __name__ == '__main__':
-    run(test_follow_doc) 
+    run(test_count_doc) 
 
 
 

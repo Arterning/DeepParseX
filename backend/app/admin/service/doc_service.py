@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import re
 from typing import Sequence
-from sqlalchemy import Select, select
+from sqlalchemy import Select, select, func
 from typing import List
 
 from backend.app.admin.service.knowledge_graph.kg_service import kg_service
@@ -392,5 +392,14 @@ class SysDocService:
             insert_stmt = sys_star_doc.insert().values(star_id=collecton_id, doc_id=doc_id)
             await db.execute(insert_stmt)
             await db.commit()
+
+
+    @staticmethod
+    async def get_count():
+        async with async_db_session() as db:
+            res = await sys_doc_dao.get_count(db)
+            return res
+
+
 
 sys_doc_service = SysDocService()

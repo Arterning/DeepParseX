@@ -3,7 +3,7 @@
 import json
 from typing import Sequence
 from datetime import datetime, timedelta
-from sqlalchemy import bindparam, select, Select, text, desc, and_, update
+from sqlalchemy import bindparam, select, Select, text, desc, and_, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy_crud_plus import CRUDPlus
@@ -294,5 +294,21 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
         )
         return docs.scalars()
 
+
+    async def get_count(self, db: AsyncSession):
+        query = await db.execute(select(func.count((self.model.id))))
+        all =  query.scalars().first()
+        query = select(
+            self.model.type,
+            func.count(self.model.id)
+        ).group_by(
+            self.model.type
+        )
+        result = await db.execute(query)
+        group = {row[0]: row[1] for row in result.fetchall()}
+        return {
+            'all': all,
+            'group': group,
+        }
 
 sys_doc_dao: CRUDSysDoc = CRUDSysDoc(SysDoc)

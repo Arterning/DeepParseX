@@ -11,6 +11,8 @@ from backend.app.admin.api.v1.sys.dict_type import router as dict_type_router
 from backend.app.admin.api.v1.sys.menu import router as menu_router
 from backend.app.admin.api.v1.sys.role import router as role_router
 from backend.app.admin.api.v1.sys.user import router as user_router
+
+from backend.app.admin.api.v1.sys.dashboard import router as dashboard_router
 from backend.app.admin.api.v1.sys.doc import router as doc_router
 from backend.app.admin.api.v1.sys.upload import router as upload_router
 from backend.app.admin.api.v1.sys.chat import router as chat_router
@@ -42,7 +44,7 @@ router.include_router(menu_router, prefix='/menus', tags=['系统目录'])
 router.include_router(role_router, prefix='/roles', tags=['系统角色'])
 router.include_router(user_router, prefix='/users', tags=['系统用户'])
 
-
+router.include_router(dashboard_router, prefix='/dashboard', tags=['首页面板'])
 router.include_router(doc_router, prefix='/docs', tags=['文件'])
 router.include_router(upload_router, prefix='/upload', tags=['上传文件'])
 router.include_router(chat_router, prefix='/chat', tags=['对话'])
