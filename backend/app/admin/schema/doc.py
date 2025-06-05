@@ -5,7 +5,6 @@ from pydantic import ConfigDict
 
 from backend.common.schema import SchemaBase
 from backend.app.admin.schema.mail_msg import GetMailMsgDetails
-from backend.app.admin.schema.tag import GetTagListDetails
 
 class SysDocSchemaBase(SchemaBase):
     title: str
@@ -68,6 +67,15 @@ class GetDocSPO(SchemaBase):
     predicate: str | None = None
     object: str | None = None
 
+
+class GetTagDetails(SchemaBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    created_time: datetime
+    updated_time: datetime | None = None
+
 class GetDocDetail(SysDocSchemaBase):
     model_config = ConfigDict(from_attributes=True)
 
@@ -76,7 +84,7 @@ class GetDocDetail(SysDocSchemaBase):
     updated_time: datetime | None = None
     doc_data: list[dict]
     doc_spos: list[GetDocSPO]
-    tags: list[GetTagListDetails]
+    tags: list[GetTagDetails] | None = []
     graph_data: dict
     email_msg: GetMailMsgDetails | None = None
     error_msg: str | None = None
