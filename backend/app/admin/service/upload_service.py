@@ -344,9 +344,25 @@ class UploadService:
     @staticmethod
     async def read_excel_data(doc: SysDoc, file_bytes: bytes):
 
+        # 用 mimetypes 和文件头判断格式
+        buffer = BytesIO(file_bytes)
+        file_start = buffer.read(8)
+        buffer.seek(0)
+
+        # 判断格式：前8字节可识别是 xls 还是 xlsx
+        is_xlsx = file_start.startswith(b'PK')  # zip格式，xlsx 本质上是压缩包
+        is_xls = file_start[:2] == b'\xD0\xCF'  # ole2格式，xls 特征头
+
+        if is_xlsx:
+            engine = "openpyxl"
+        elif is_xls:
+            engine = "xlrd"
+        else:
+            raise ValueError("不支持的 Excel 文件格式，请上传 .xls 或 .xlsx 文件")
+
 
         # 读取文件内容
-        df = pd.read_excel(BytesIO(file_bytes), nrows=10, header=None, engine='xlrd')
+        df = pd.read_excel(BytesIO(file_bytes), nrows=10, header=None, engine=engine)
         
 
         head = 0
@@ -354,7 +370,7 @@ class UploadService:
             if not row.isna().any():
                 head = i
                 break
-        df = pd.read_excel(BytesIO(file_bytes), header=head, engine='xlrd')
+        df = pd.read_excel(BytesIO(file_bytes), header=head, engine=engine)
 
         # 替换 NaN 为 None（可以避免 PostgreSQL 插入错误）
         df = df.where(pd.notnull(df), None)
