@@ -21,6 +21,7 @@ from backend.database.db_pg import async_db_session
 from backend.app.admin.schema.doc_data import CreateSysDocDataParam
 from backend.app.admin.schema.doc_chunk import CreateSysDocChunkParam
 from backend.app.admin.schema.doc_embdding import CreateSysDocEmbeddingParam
+from backend.utils.doc_utils import request_text_to_vector
 import asyncio
 import jieba
 
@@ -250,15 +251,24 @@ class SysDocService:
             return res
 
     @staticmethod
+    async def similar_search(query: str = None, page: int = None, size: int = None):
+        text_emb = request_text_to_vector(text=query)
+        query_vector = text_emb[0]["embs"]
+        async with async_db_session() as db:
+            res = await sys_doc_dao.search_by_vector(db, query_vector, page, size)
+            return res
+
+
+    @staticmethod
     async def search_by_vector(*, query_vector: list[float] = None, limit: int = 0):
         async with async_db_session() as db:
             res = await sys_doc_dao.search_by_vector(db, query_vector, limit)
             return res
 
     @staticmethod
-    async def search_chunk_vector(*, query_vector: list[float] = None, limit: int = 0):
+    async def search_chunk_vector(*, query_vector: list[float] = None, page: int = None, size: int = None):
         async with async_db_session() as db:
-            res = await sys_doc_chunk_dao.search_chunk_vector(db, query_vector, limit)
+            res = await sys_doc_chunk_dao.search_chunk_vector(db, query_vector, page, size)
             return res
 
     @staticmethod

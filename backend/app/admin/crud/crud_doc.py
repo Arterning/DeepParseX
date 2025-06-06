@@ -128,32 +128,56 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
                 "total": 0
             }
         
-    async def search_by_vector(self, db: AsyncSession, query_vector: list[float] = None, limit: int = 0):
+    async def search_by_vector(self, db: AsyncSession, query_vector: list[float] = None, page: int = None, size: int = None):
         # 构建向量搜索SQL
 
         # vector_str = f"[{', '.join(map(str, query_vector))}]"
 
         vector_str = json.dumps(query_vector)
 
+        # 初始化分页参数
+        if page is None:
+            page = 1
+        if size is None:
+            size = 10
+            
+        # 计算偏移量
+        offset = (page - 1) * size
+
         sql = f"""
-        SELECT id, name, title, content, embedding <-> :query_vector AS distance 
-        FROM sys_doc
-        WHERE embedding IS NOT NULL
-        ORDER BY embedding <-> :query_vector 
-        LIMIT :limit
+        SELECT id, doc_id,doc_name, chunk_text, chunk_embedding <-> :query_vector AS distance 
+        FROM sys_doc_chunk
+        WHERE chunk_embedding IS NOT NULL
+        ORDER BY chunk_embedding <-> :query_vector 
+        LIMIT :limit OFFSET :offset;
         """
         
         result = await db.execute(
             text(sql),
             {
                 "query_vector": vector_str,
-                "limit": limit
+                "limit": size, 
+                "offset": offset
             }
         )
         
-        similar_docs = result.fetchall()
+        rows = result.fetchall()
+
+        data = []
+        for row in rows:
+            data.append({
+                "id": row[1],
+                "title": row[2],
+                "content": row[3],
+                "distance": row[4]
+            })
         
-        return similar_docs
+        return {
+            "items": data,
+            "page": page,
+            "size": size,
+            "total": 10
+        }
 
 
     async def get_list(self, name: str = None, doc_type: str = None,

@@ -110,6 +110,24 @@ async def search(
     return response_base.success(data=docs)
 
 
+@router.get(
+    '/similar_search',
+    summary='（模糊条件）获取所有文件',
+    dependencies=[
+        DependsJwtAuth,
+        DependsPagination,
+    ],
+)
+async def similar_search(
+    query: Annotated[str | None, Query()] = None,
+    page: Annotated[int | None, Query()] = None,
+    size: Annotated[int | None, Query()] = None
+) -> ResponseModel:
+    data = await sys_doc_service.similar_search(query=query, page=page, size=size)
+    return response_base.success(data=data)
+
+
+
 @router.get('/{pk}', summary='获取文件详情', dependencies=[DependsJwtAuth])
 async def get_sys_doc(pk: Annotated[int, Path(...)]) -> ResponseModel:
     doc = await sys_doc_service.get(pk=pk)
