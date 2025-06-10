@@ -299,11 +299,14 @@ class SysDocService:
         content = doc.content
         title_tokens = ''
         content_tokens = ''
+        loop = asyncio.get_event_loop()
         if title:
-            a_seg_list = jieba.cut(title, cut_all=True)
+            a_seg_list = await loop.run_in_executor(None, jieba.cut, title)
+            # a_seg_list = jieba.cut(title, cut_all=True)
             title_tokens =  " ".join(a_seg_list) + " " + doc.type
         if content:
-            b_seg_list = jieba.cut_for_search(content)
+            b_seg_list = await loop.run_in_executor(None, jieba.cut_for_search, content)
+            # b_seg_list = jieba.cut_for_search(content)
             content_tokens = " ".join(b_seg_list)
         all_tokens = title_tokens + " " + content_tokens
         async with async_db_session() as db:
