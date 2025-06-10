@@ -10,6 +10,7 @@ from fastapi.exceptions import HTTPException
 from backend.core.conf import settings
 from backend.app.admin.schema.doc import CreateSysDocParam, CollectDocParam, GetSysDocListDetails, GetSysDocPage, UpdateSysDocParam, GetDocDetail
 from backend.app.admin.service.doc_service import sys_doc_service
+from backend.app.admin.service.upload_service import upload_service
 from backend.common.pagination import DependsPagination, paging_data
 from backend.common.response.response_schema import ResponseModel, response_base
 from backend.common.security.jwt import DependsJwtAuth
@@ -55,6 +56,15 @@ async def build_graph(pk: Annotated[int, Path(...)]) -> ResponseModel:
     triples = doc.doc_spos
     visualize_knowledge_graph = sys_doc_service.build_visualize_knowledge_graph(triples=triples)
     return response_base.success(data=visualize_knowledge_graph)
+
+
+# 提取内容
+@router.get('/extract_text/{pk}', summary='提取文本',
+    dependencies=[DependsJwtAuth]
+ )
+async def extract_text(pk: Annotated[int, Path(...)]) -> ResponseModel:
+    data = await upload_service.extract_text(pk=pk)
+    return response_base.success(data=data)
 
 
 @router.get('/recent_docs', summary='获取最新上传文件',

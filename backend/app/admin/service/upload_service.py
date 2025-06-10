@@ -54,6 +54,23 @@ bucket_name = settings.BUCKET_NAME
 
 class UploadService:
 
+    
+    # 提取内容
+    @staticmethod
+    async def extract_text(*, pk: int):
+        # 获取文档
+        doc = await sys_doc_service.get(pk=pk)
+        bucket_name = settings.BUCKET_NAME
+        obj_name = doc.file
+        response = minio_client.get_object(bucket_name, obj_name)
+        file_bytes = response.read()
+        content = await upload_service.request_content(title=doc.title, file_bytes=file_bytes)
+        await sys_doc_service.base_update(pk=doc.id, obj={
+            "content": content
+        })
+        return content
+
+
     @staticmethod
     def decode_content_with_chardet(content):
         # 使用 chardet 检测编码
