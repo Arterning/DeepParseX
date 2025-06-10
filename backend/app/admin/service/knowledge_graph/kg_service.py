@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import asyncio
 import json
 from backend.app.admin.service.knowledge_graph.text_utils import chunk_text
 from backend.app.admin.service.knowledge_graph.llm import call_llm, extract_json_from_text
@@ -278,8 +279,10 @@ def process_text_in_chunks(config: dict, full_text, debug=False):
 class KnowledgeGraphService:
 
     @staticmethod
-    def generate_knowledge_graph(input_text: str, config: dict, debug: bool = False) -> None:
-        result = process_text_in_chunks(config, input_text, debug)
+    async def generate_knowledge_graph(input_text: str, config: dict, debug: bool = False) -> None:
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, process_text_in_chunks, config, input_text, debug)
+        # result = process_text_in_chunks(config, input_text, debug)
         if result:
             print("Knowledge graph generation completed successfully.")
             return result

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import asyncio
 import requests
 from openai import OpenAI
 import time
@@ -12,18 +13,19 @@ class LLMService:
     @staticmethod
     async def get_llm_response(system_context: str, user_input: str):
         llm_model =  settings.LLM_MODEL
+        loop = asyncio.get_event_loop()
         if "deepseek" in llm_model:
             # 使用 DeepSeek API
-            response = await LLMService.get_deepseek_api_response(system_context, user_input)
+            response = await loop.run_in_executor(None, LLMService.get_deepseek_api_response, system_context, user_input)
             return response
         else:
             # 使用 VLLM API
-            response = LLMService.get_api_response(system_context, user_input)
+            response = await loop.run_in_executor(None, LLMService.get_api_response, system_context, user_input)
             return response
 
 
     @staticmethod
-    async def get_deepseek_api_response(system_context: str, user_input: str):
+    def get_deepseek_api_response(system_context: str, user_input: str):
         api_key = settings.LLM_API_KEY
         client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
 

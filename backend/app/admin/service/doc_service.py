@@ -62,7 +62,7 @@ class SysDocService:
         }
         
         # 生成知识图谱
-        spo_list = kg_service.generate_knowledge_graph(doc.content, config)
+        spo_list = await kg_service.generate_knowledge_graph(doc.content, config)
         if not spo_list:
             return []
             
@@ -259,16 +259,11 @@ class SysDocService:
             return res
 
 
-    @staticmethod
-    async def search_by_vector(*, query_vector: list[float] = None, limit: int = 0):
-        async with async_db_session() as db:
-            res = await sys_doc_dao.search_by_vector(db, query_vector, limit)
-            return res
 
     @staticmethod
-    async def search_chunk_vector(*, query_vector: list[float] = None, page: int = None, size: int = None):
+    async def search_chunk_vector(*, query_vector: list[float] = None, limit: int = None):
         async with async_db_session() as db:
-            res = await sys_doc_chunk_dao.search_chunk_vector(db, query_vector, page, size)
+            res = await sys_doc_chunk_dao.search_chunk_vector(db, query_vector, limit)
             return res
 
     @staticmethod

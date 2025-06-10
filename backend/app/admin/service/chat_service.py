@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import asyncio
 from backend.app.admin.schema.chat import ChatParam
 from backend.app.admin.service.doc_service import sys_doc_service
 from backend.app.admin.service.llm_service import llm_service
@@ -50,7 +51,8 @@ class ChatService:
             )
             response = await llm_service.get_llm_response(system_context, obj.question)
         else:
-            question_text_emb = request_text_to_vector(text=obj.question, max_length=max_length)
+            loop = asyncio.get_event_loop()
+            question_text_emb = await loop.run_in_executor(None, request_text_to_vector, obj.question)
             query_vector = question_text_emb[0]["embs"]
             similar_docs = await sys_doc_service.search_chunk_vector(query_vector=query_vector, limit=check_topk)
             context = "\n".join([doc.chunk_text for doc in similar_docs if doc.chunk_text])
