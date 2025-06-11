@@ -131,11 +131,17 @@ class UploadService:
         return doc
 
     @staticmethod
+    def sanitize_text(text: str) -> str:
+        # 移除空字节和其他非法字符
+        return text.replace('\x00', '').encode('utf-8', errors='ignore').decode('utf-8')
+
+    @staticmethod
     async def request_content(title, file_bytes: bytes):
         loop = asyncio.get_running_loop()
         response = await loop.run_in_executor(None, process_file, title, file_bytes)
-        content = response['content']
-        return content
+        raw_content = response['content']
+        clean_content = upload_service.sanitize_text(raw_content)
+        return clean_content
 
     @staticmethod
     async def read_file_content(doc: SysDoc):
