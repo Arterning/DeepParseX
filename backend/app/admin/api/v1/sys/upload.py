@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import asyncio
 from fastapi import APIRouter, Path, BackgroundTasks
 from datetime import datetime
 from typing import Annotated
@@ -56,7 +57,7 @@ async def run_parse_task(pk: int):
     await redis_client.set(
             redis_key, json.dumps({
                 'status': 'doing',
-                'stage': '准备文件内容', 
+                'stage': '识别文件', 
                 'progress': 1/5
             }), 
             ex = 60 * 5
@@ -69,7 +70,7 @@ async def run_parse_task(pk: int):
         await redis_client.set(
             redis_key, json.dumps({
                 'status': 'doing',
-                'stage': '读取文件内容', 
+                'stage': '读取内容', 
                 'progress': 2/5
             }), 
             ex = 60 * 5
@@ -80,7 +81,7 @@ async def run_parse_task(pk: int):
         await redis_client.set(
             redis_key, json.dumps({
                 'status': 'doing',
-                'stage': '创建分词索引', 
+                'stage': '创建索引', 
                 'progress': 3/5
             }), 
             ex = 60 * 5
@@ -143,5 +144,5 @@ async def get_upload_sse(pk: Annotated[str, Path(description='文件ID')]) -> St
                 break
             else:
                 yield f'data: {result}\n\n'
-                time.sleep(1)
+                await asyncio.sleep(1)
     return StreamingResponse(generate(), media_type='text/event-stream')
