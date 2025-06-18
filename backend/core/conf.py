@@ -183,6 +183,9 @@ class Settings(BaseSettings):
     LLM_API_KEY: str = ''
     LLM_API_URL: str = 'http://localhost:8000/v1/chat/completions'
 
+    # OCR
+    OCR_URL: str = 'http://localhost:8120/predict'
+
 
 @lru_cache
 def get_settings() -> Settings:

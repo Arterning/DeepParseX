@@ -1,5 +1,6 @@
 import requests
 import time
+from backend.core.conf import settings
 from backend.common.log import log
 
 
@@ -11,8 +12,7 @@ def process_file(file_name: str, file_data: bytes):
     :param file_path: 文件的完整路径，需为图片文件。
     :return: 服务端返回的处理结果，JSON 格式。
     """
-    target_ip = "172.17.120.131"
-    url   = f"http://{  target_ip  }/file/predict"
+    url = settings.OCR_URL
     try:
         data = {"task" : "默认算法"}
         mime_type =  'application/octet-stream'
