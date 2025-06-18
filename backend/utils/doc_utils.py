@@ -23,10 +23,13 @@ def process_file(file_name: str, file_data: bytes):
         else:
             print(f"请求失败，状态码：{response.status_code}")
             print(f"错误信息：{response.text}")
-            return None
+            return {
+                "content": response.text
+            }
     except Exception as e:
         log.error(f"[process_file]中出现错误：{str(e)}")
-        raise e
+        return str(e)
+        # raise e
 
         
 # 文本的摘要

@@ -19,6 +19,8 @@ class MailMsgSchemaBase(SchemaBase):
   receiver:str | None = None
   cc: str | None = None
 
+  doc_id: int | None = None
+
     
 
 

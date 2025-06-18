@@ -228,6 +228,7 @@ class UploadService:
         
         try:
             result_dict = upload_service.do_read_email(file_bytes)
+            result_dict["doc_id"] = doc.id
             email_body = await upload_service.save_email(result_dict=result_dict)
             return email_body
         except Exception as e:
@@ -236,6 +237,7 @@ class UploadService:
 
     @staticmethod
     async def save_email(result_dict :dict):
+        doc_id = result_dict.get("doc_id")
         subject = result_dict.get('subject', '')
         from_email = result_dict.get('from', '')
         to_email = result_dict.get('to', '')
@@ -243,6 +245,7 @@ class UploadService:
         time = result_dict.get('parsed_date', '')
         body = result_dict.get('body', '')
         msg_obj = CreateMailMsgParam(
+            doc_id=doc_id,
             name=subject,
             original=body,
             sender=from_email,
