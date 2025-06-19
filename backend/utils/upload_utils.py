@@ -25,7 +25,7 @@ def is_media_file(file_suffix: str) -> bool:
     return file_suffix in ['.mp4', '.mp3', '.flv', '.wav']
 
 def is_text_file(file_suffix: str) -> bool:
-    return file_suffix in ['.txt', '.host', '.config',
+    return file_suffix in ['.txt', '.host', '.config', '.md',
                                              '.c', '.cpp', '.java', '.py', 'js', '.ts', '.rb', '.go']
 def is_email_file(file_suffix: str) -> bool:
     return file_suffix in ['.eml']

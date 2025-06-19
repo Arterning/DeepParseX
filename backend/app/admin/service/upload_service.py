@@ -175,6 +175,10 @@ class UploadService:
         if is_docx_file(doc.file_suffix) or is_media_file(doc.file_suffix) or is_pptx_file(doc.file_suffix):
             content = await upload_service.request_content(title=doc.title, file_bytes=file_bytes)
 
+        # 其他文件方式的兜底方案
+        if content == '':
+            content = upload_service.decode_content_with_chardet(file_bytes)
+
 
         obj_dict = {
             'content': content,
