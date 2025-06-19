@@ -65,6 +65,7 @@ INSERT INTO public.sys_menu (id, title, name, level, sort, icon, path, menu_type
 INSERT INTO public.sys_menu (id, title, name, level, sort, icon, path, menu_type, component, perms, status, show, cache, remark, parent_id, created_time, updated_time) VALUES (51, '人物管理', 'Person', 0, 2, 'IconUser', 'person', 1, '/data/person/index.vue', null, 1, 1, 1, null, 69, '2025-02-24 02:34:52.604327 +00:00', '2025-04-28 06:46:36.198522 +00:00');
 INSERT INTO public.sys_menu (id, title, name, level, sort, icon, path, menu_type, component, perms, status, show, cache, remark, parent_id, created_time, updated_time) VALUES (63, '议题管理', 'Subject', 0, 2, 'IconXiguaColor', 'subject', 1, '/data/subject/index.vue', null, 1, 0, 1, null, 69, '2025-02-24 03:34:07.840691 +00:00', '2025-05-27 03:44:10.691050 +00:00');
 INSERT INTO public.sys_menu (id, title, name, level, sort, icon, path, menu_type, component, perms, status, show, cache, remark, parent_id, created_time, updated_time) VALUES (62, '黑料管理', 'Scandal', 0, 999, 'IconShareAlt', 'scandal', 1, '/data/scandal/index.vue', null, 1, 0, 1, null, 69, '2025-02-24 03:32:04.374704 +00:00', '2025-05-27 03:44:16.458479 +00:00');
+INSERT INTO public.sys_menu (id, title, name, level, sort, icon, path, menu_type, component, perms, status, show, cache, remark, parent_id, created_time, updated_time) VALUES (70, '我的收藏', 'Collection', 0, 2, 'IconStarFill', 'collection', 1, '/data/star/index.vue', null, 1, 1, 1, null, 31, '2025-06-04 09:06:36.642210 +00:00', null);
 
 
 INSERT INTO sys_role_menu (id, role_id, menu_id)
