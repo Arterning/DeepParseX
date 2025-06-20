@@ -88,6 +88,69 @@ async def preview_pdf(obj_name: str):
 
         # 获取文件的 MIME 类型
         media_type = response.getheader('Content-Type')
+
+        if media_type == 'application/msword':
+            import tempfile
+            import asyncio
+            import os
+            import subprocess
+
+            try:
+                # 创建临时文件
+                with tempfile.NamedTemporaryFile(suffix=".doc", delete=False) as temp_doc:
+                    
+                    temp_doc.write(response.read())
+                    temp_doc_path = temp_doc.name
+
+            
+                # 使用LibreOffice进行转换
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(
+                    None, 
+                    lambda: subprocess.run([
+                        "libreoffice",
+                        "--headless",
+                        "--convert-to", "pdf",
+                        "--outdir", os.path.dirname(temp_doc_path),
+                        temp_doc_path
+                    ], check=True)
+                )
+
+                temp_pdf_path = os.path.splitext(temp_doc_path)[0] + ".pdf"
+
+                # 读取PDF文件并创建生成器
+                def pdf_generator():
+                    try:
+                        
+                        with open(temp_pdf_path, "rb") as f:
+                            while True:
+                                chunk = f.read(9024)
+                                if not chunk:
+                                    break
+                                yield chunk
+                    finally:
+                        # 清理临时文件
+                        if os.path.exists(temp_doc_path):
+                            os.unlink(temp_doc_path)
+                        if os.path.exists(temp_pdf_path):
+                            os.unlink(temp_pdf_path)
+
+                # 返回PDF流
+                return StreamingResponse(
+                    pdf_generator(),
+                    media_type="application/pdf",
+                )
+            except Exception as e:
+                # 确保资源被释放
+                if 'response' in locals():
+                    response.close()
+                    response.release_conn()
+                if 'temp_doc_path' in locals() and os.path.exists(temp_doc_path):
+                    os.unlink(temp_doc_path)
+                if 'temp_pdf_path' in locals() and os.path.exists(temp_pdf_path):
+                    os.unlink(temp_pdf_path)
+                raise e
+        
         
         async def file_generator(response):
             while True:
@@ -97,9 +160,12 @@ async def preview_pdf(obj_name: str):
                 yield chunk
             response.close()
             response.release_conn()
+        
         return StreamingResponse(file_generator(response), media_type=media_type)
     except S3Error as e:
         raise HTTPException(status_code=404, detail="File not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"服务器错误: {str(e)}")
 
 
 

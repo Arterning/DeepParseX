@@ -252,7 +252,8 @@ class SysDocService:
 
     @staticmethod
     async def similar_search(query: str = None, page: int = None, size: int = None):
-        text_emb = request_text_to_vector(text=query)
+        loop = asyncio.get_running_loop()
+        text_emb = await loop.run_in_executor(None, request_text_to_vector, query)
         query_vector = text_emb[0]["embs"]
         async with async_db_session() as db:
             res = await sys_doc_dao.search_by_vector(db, query_vector, page, size)
