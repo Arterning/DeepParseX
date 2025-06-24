@@ -112,11 +112,14 @@ def request_text_to_vector_bge(text, max_length=512):
         log.error(f"Error occurred: {str(e)}")
         raise e 
     
-def request_text_to_vector(text, model="bge-large-zh-v1.5", max_length=512):
-    if model == "bge-large-zh-v1.5":
+def request_text_to_vector(text, max_length=512):
+    EMBEDDING_MODEL = settings.EMBEDDING_MODEL
+    if EMBEDDING_MODEL == "bge-large-zh-v1.5":
         return request_text_to_vector_bge(text, max_length=max_length)
-    else :
+    if EMBEDDING_MODEL == "bge":
         return request_text_to_vector_api(text, max_length=max_length)
+    
+    return request_text_to_vector_api(text, max_length=max_length)
         
 
 def request_text_to_vector_api(text, max_length=512):

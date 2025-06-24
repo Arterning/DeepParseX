@@ -186,6 +186,9 @@ class Settings(BaseSettings):
     # OCR
     OCR_URL: str = 'http://localhost:8120/predict'
 
+    # EMBEDDING
+    EMBEDDING_MODEL: str = 'bge'
+
 
 @lru_cache
 def get_settings() -> Settings:
