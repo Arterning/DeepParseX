@@ -1,10 +1,21 @@
-import requests
 import time
+import requests
 from backend.core.conf import settings
 from backend.common.log import log
 
+# EMBEDDING
+def request_text_to_vector(text, max_length=512):
+    EMBEDDING_MODEL = settings.EMBEDDING_MODEL
 
-# 所有文件类型
+    if EMBEDDING_MODEL == "v1":
+        return v1_embedding(text, max_length=max_length)
+    
+    if EMBEDDING_MODEL == "v2":
+        return v2_embedding(text, max_length=max_length)
+    
+    return v2_embedding(text, max_length=max_length)
+
+# OCR
 def process_file(file_name: str, file_data: bytes):
     """
     向服务端发送文件路径，获取处理后的 OCR 结果。
@@ -32,45 +43,7 @@ def process_file(file_name: str, file_data: bytes):
         # raise e
 
         
-# 文本的摘要
-def get_llm_abstract( content ):
-
-    question = "请生成以下文本的简洁的摘要，突出核心内容。请你必须使用中文描述，不超过500字："
-    template = f"{question}\n{content}"
-
-    llm_respone = get_llm_response(content= template )
-    return llm_respone
-
-
-
-# excel请求
-def get_llm_response( content, max_retries=3, delay=0.5):
-    for attempt in range(1, max_retries + 1):
-        try:
-            response = requests.post(
-                'http://172.17.0.1:8103/v1/chat/completions',
-                json={
-                    'model': 'Qwen2.5-7B-Instruct',
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": content,
-                        }
-                    ],
-                }
-            )
-            # 尝试获取响应，如果没有异常则返回内容
-            reply = response.json()['choices'][0]['message']['content']
-            return reply
-        except Exception as e:
-            print(f"Attempt {attempt} failed: {e}")
-            if attempt < max_retries:
-                time.sleep(delay)  # 等待一段时间后重试
-            else:
-                print("All attempts failed, returning None.")
-                return None
-    
-
+# 分隔字符串
 def split_string_by_length(input_string: str, chunk_size: int = 500) -> list[str]:
     """
     将输入字符串按照指定长度切分为多个子字符串。
@@ -85,8 +58,8 @@ def split_string_by_length(input_string: str, chunk_size: int = 500) -> list[str
     return [input_string[i:i + chunk_size] for i in range(0, len(input_string), chunk_size)]
 
 
-def request_text_to_vector_bge(text, max_length=512):
-    url = "http://192.168.200.229:8002/embeddings"
+def v1_embedding(text, max_length=512):
+    url = settings.EMBEDDING_URL
     texts = split_string_by_length(text, chunk_size=max_length)
     payload = {
         "texts": texts,
@@ -112,22 +85,15 @@ def request_text_to_vector_bge(text, max_length=512):
         log.error(f"Error occurred: {str(e)}")
         raise e 
     
-def request_text_to_vector(text, max_length=512):
-    EMBEDDING_MODEL = settings.EMBEDDING_MODEL
-    if EMBEDDING_MODEL == "bge-large-zh-v1.5":
-        return request_text_to_vector_bge(text, max_length=max_length)
-    if EMBEDDING_MODEL == "bge":
-        return request_text_to_vector_api(text, max_length=max_length)
-    
-    return request_text_to_vector_api(text, max_length=max_length)
-        
 
-def request_text_to_vector_api(text, max_length=512):
-    url = "http://172.17.0.1:8104/text_to_vector"
+def v2_embedding(text, max_length=512):
+    url = settings.EMBEDDING_URL
     
     # 准备请求体
-    payload = {"text": text,
-               "max_length":max_length}
+    payload = {
+        "text": text,
+        "max_length":max_length
+    }
 
     # 发送 POST 请求
     try:

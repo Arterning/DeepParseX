@@ -188,6 +188,7 @@ class Settings(BaseSettings):
 
     # EMBEDDING
     EMBEDDING_MODEL: str = 'bge'
+    EMBEDDING_URL: str = 'http://localhost:8104/text_to_vector'
 
 
 @lru_cache
