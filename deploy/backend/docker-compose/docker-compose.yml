@@ -46,6 +46,7 @@ services:
       - |
         wait-for-it -s fba_pg:5432 -s fba_redis:6379 -t 300
         mkdir -p /var/log/supervisor/
+        rm -f /fba/backend/gunicorn.pid
         supervisord -c /fba/deploy/backend/supervisor.conf
         supervisorctl restart fastapi_server
 
@@ -162,29 +163,29 @@ services:
     networks:
       - fba_network
 
-  fba_celery:
-    build:
-      context: ../../../
-      dockerfile: backend/celery.dockerfile
-    image: fba_celery:latest
-    ports:
-      - "8555:8555"
-    container_name: fba_celery
-    restart: always
-    depends_on:
-      - fba_rabbitmq
-    networks:
-      - fba_network
-    command:
-      - bash
-      - -c
-      - |
-        wait-for-it -s fba_rabbitmq:5672 -t 300
-        mkdir -p /var/log/supervisor/
-        supervisord -c /fba/deploy/backend/supervisor.conf
-        supervisorctl restart celery_worker
-        supervisorctl restart celery_beat
-        supervisorctl restart celery_flower
+  # fba_celery:
+  #   build:
+  #     context: ../../../
+  #     dockerfile: backend/celery.dockerfile
+  #   image: fba_celery:latest
+  #   ports:
+  #     - "8555:8555"
+  #   container_name: fba_celery
+  #   restart: always
+  #   depends_on:
+  #     - fba_rabbitmq
+  #   networks:
+  #     - fba_network
+  #   command:
+  #     - bash
+  #     - -c
+  #     - |
+  #       wait-for-it -s fba_rabbitmq:5672 -t 300
+  #       mkdir -p /var/log/supervisor/
+  #       supervisord -c /fba/deploy/backend/supervisor.conf
+  #       supervisorctl restart celery_worker
+  #       supervisorctl restart celery_beat
+  #       supervisorctl restart celery_flower
 
 
   # quay.io/minio/minio:RELEASE.2023-11-01T01-57-10Z-cpuv1
