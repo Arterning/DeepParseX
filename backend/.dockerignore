@@ -4,3 +4,4 @@ venv/
 .pdm-python
 .env
 uploads
+log

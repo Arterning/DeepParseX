@@ -2,7 +2,8 @@ FROM python:3.10-slim
 
 WORKDIR /fba
 
-COPY . .
+COPY backend /fba/backend
+COPY deploy /fba/deploy
 
 RUN mv backend/.env.docker /fba/backend/.env
 
