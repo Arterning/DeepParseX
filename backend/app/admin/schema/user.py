@@ -17,7 +17,7 @@ class AuthSchemaBase(SchemaBase):
 
 
 class AuthLoginParam(AuthSchemaBase):
-    captcha: str
+    captcha: str | None = None
 
 
 class RegisterUserParam(AuthSchemaBase):
