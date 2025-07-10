@@ -26,7 +26,7 @@ router = APIRouter()
 
 
 # collect_doc 收藏文件
-@router.post('/collect', summary='收藏文件',
+@router.post('/collect', summary='收藏/取消收藏文件',
     dependencies=[DependsJwtAuth]
 )
 async def collect_doc(request: Request, obj: CollectDocParam) -> ResponseModel:
@@ -35,13 +35,8 @@ async def collect_doc(request: Request, obj: CollectDocParam) -> ResponseModel:
     if not doc:
         return response_base.fail(message='文件不存在')
     
-    # 检查是否已收藏
-    # if await sys_doc_service.is_collected(user_id=user_id, doc_id=pk):
-    #     return response_base.fail(message='已收藏该文件')
-    
-    # 收藏文件
-    await sys_doc_service.collect_doc(collecton_id=obj.collection_id, doc_id=obj.doc_id)
-    return response_base.success(data='收藏成功')
+    await sys_doc_service.collect_doc(user_id=user_id, collecton_id=obj.collection_id, doc_id=obj.doc_id)
+    return response_base.success(data='操作成功')
 
 
 # 构建文件的知识图谱
@@ -227,7 +222,8 @@ async def get_sys_doc(pk: Annotated[int, Path(...)]) -> ResponseModel:
         DependsPagination,
     ],
 )
-async def get_pagination_sys_doc(db: CurrentSession, 
+async def get_pagination_sys_doc(request: Request,
+                                 db: CurrentSession,
                                  name: Annotated[str | None, Query()] = None,
                                  title: Annotated[str | None, Query()] = None,
                                  doc_type: Annotated[str | None, Query()] = None,
@@ -245,6 +241,15 @@ async def get_pagination_sys_doc(db: CurrentSession,
         rangeValue=rangeValue,
     )
     page_data = await paging_data(db, sys_doc_select, GetSysDocPage)
+
+    # Add is_collected flag
+    doc_ids = [item.get("id") for item in page_data['items']]
+    if doc_ids:
+        user_id = request.user.id
+        collected_doc_ids = await sys_doc_service.get_collected_doc_ids(user_id, doc_ids)
+        for item in page_data['items']:
+            item["is_collected"] = item.get("id") in collected_doc_ids
+
     return response_base.success(data=page_data)
 
 

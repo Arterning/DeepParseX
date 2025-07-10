@@ -29,6 +29,7 @@ class GetSysDocPage(SysDocSchemaBase):
     id: int
     model_config = ConfigDict(from_attributes=True)
     created_time: datetime
+    is_collected: bool = False
 
 
 class CreateSysDocParam(SysDocSchemaBase):

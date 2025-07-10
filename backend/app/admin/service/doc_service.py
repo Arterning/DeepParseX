@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import re
 from typing import Sequence
-from sqlalchemy import Select, select, func
+from sqlalchemy import Select, select, func, delete
 from typing import List
 
 from backend.app.admin.service.knowledge_graph.kg_service import kg_service
@@ -386,21 +386,45 @@ class SysDocService:
 
 
     @staticmethod
-    async def collect_doc(collecton_id: int, doc_id: int) -> None:
-        async with async_db_session() as db:
-            se = await db.execute(select(sys_star_doc)
-                                    .where(
-                                        sys_star_doc.c.star_id == collecton_id,
-                                        sys_star_doc.c.doc_id == doc_id
-                                    ))
-            existing_doc = se.scalars().first()
-            if existing_doc:
-                return
+    async def collect_doc(user_id: int, collecton_id: int, doc_id: int) -> None:
+        async with async_db_session.begin() as db:
+            # from sqlalchemy import delete
+            # Check if already collected by the user in the specified collection
+            query = select(sys_star_doc).where(
+                sys_star_doc.c.created_by == user_id,
+                sys_star_doc.c.star_id == collecton_id,
+                sys_star_doc.c.doc_id == doc_id
+            )
+            existing = await db.execute(query)
+            if existing.first():
+                # Un-collect
+                delete_stmt = delete(sys_star_doc).where(
+                    sys_star_doc.c.created_by == user_id,
+                    sys_star_doc.c.star_id == collecton_id,
+                    sys_star_doc.c.doc_id == doc_id
+                )
+                await db.execute(delete_stmt)
+            else:
+                # Collect
+                insert_stmt = sys_star_doc.insert().values(
+                    star_id=collecton_id, 
+                    doc_id=doc_id, 
+                    created_by=user_id
+                )
+                await db.execute(insert_stmt)
 
-            # Create a new row in sys_star_doc
-            insert_stmt = sys_star_doc.insert().values(star_id=collecton_id, doc_id=doc_id)
-            await db.execute(insert_stmt)
-            await db.commit()
+
+    @staticmethod
+    async def get_collected_doc_ids(user_id: int, doc_ids: list[int]) -> set[int]:
+        if not doc_ids:
+            return set()
+        async with async_db_session() as db:
+            query = select(sys_star_doc.c.doc_id).where(
+                sys_star_doc.c.created_by == user_id,
+                sys_star_doc.c.doc_id.in_(doc_ids)
+            )
+            result = await db.execute(query)
+            return set(result.scalars().all())
 
 
     @staticmethod

@@ -10,4 +10,5 @@ sys_star_doc = Table(
     Column('id', BIGINT, primary_key=True, unique=True, index=True, autoincrement=True, comment='主键ID'),
     Column('star_id', BIGINT, ForeignKey('sys_star_collect.id', ondelete='CASCADE'), primary_key=True, comment='收藏夹ID'),
     Column('doc_id', BIGINT, ForeignKey('sys_doc.id', ondelete='CASCADE'), primary_key=True, comment='文档ID'),
+    Column('created_by', BIGINT, comment='创建人ID'),
 )
