@@ -94,4 +94,4 @@ class GetDocDetail(SysDocSchemaBase):
 class CollectDocParam(SchemaBase):
     model_config = ConfigDict(from_attributes=True)
     doc_id: int
-    collection_id: int
+    collection_id: int | None = None

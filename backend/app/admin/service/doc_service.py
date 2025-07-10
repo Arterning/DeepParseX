@@ -390,20 +390,36 @@ class SysDocService:
         async with async_db_session.begin() as db:
             # from sqlalchemy import delete
             # Check if already collected by the user in the specified collection
-            query = select(sys_star_doc).where(
-                sys_star_doc.c.created_by == user_id,
-                sys_star_doc.c.star_id == collecton_id,
-                sys_star_doc.c.doc_id == doc_id
-            )
-            existing = await db.execute(query)
-            if existing.first():
-                # Un-collect
-                delete_stmt = delete(sys_star_doc).where(
+            if collecton_id is None:
+                # If no collection ID is provided, check if the user has collected this doc
+                query = select(sys_star_doc).where(
+                    sys_star_doc.c.created_by == user_id,
+                    sys_star_doc.c.doc_id == doc_id
+                )
+            else:
+                # If a collection ID is provided, check if the user has collected this doc in that collection
+                query = select(sys_star_doc).where(
                     sys_star_doc.c.created_by == user_id,
                     sys_star_doc.c.star_id == collecton_id,
                     sys_star_doc.c.doc_id == doc_id
                 )
-                await db.execute(delete_stmt)
+            existing = await db.execute(query)
+            if existing.first():
+                # Un-collect
+                if collecton_id:
+                    delete_stmt = delete(sys_star_doc).where(
+                        sys_star_doc.c.created_by == user_id,
+                        sys_star_doc.c.star_id == collecton_id,
+                        sys_star_doc.c.doc_id == doc_id
+                    )
+                    await db.execute(delete_stmt)
+                else:
+                    # If no collection ID is provided, delete all stars for this user and doc
+                    delete_stmt = delete(sys_star_doc).where(
+                        sys_star_doc.c.created_by == user_id,
+                        sys_star_doc.c.doc_id == doc_id
+                    )
+                    await db.execute(delete_stmt)
             else:
                 # Collect
                 insert_stmt = sys_star_doc.insert().values(
