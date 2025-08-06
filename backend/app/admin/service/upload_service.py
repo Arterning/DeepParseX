@@ -2,6 +2,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from datetime import datetime
 import chardet
 import uuid
 
@@ -246,7 +247,7 @@ class UploadService:
         from_email = result_dict.get('from', '')
         to_email = result_dict.get('to', '')
         cc = result_dict.get('cc', '')
-        time = result_dict.get('parsed_date', '')
+        time = result_dict.get('parsed_date', datetime.now())
         body = result_dict.get('body', '')
         msg_obj = CreateMailMsgParam(
             doc_id=doc_id,
