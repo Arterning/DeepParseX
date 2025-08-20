@@ -52,6 +52,7 @@ INSERT INTO public.sys_menu (id, title, name, level, sort, icon, path, menu_type
 INSERT INTO public.sys_menu (id, title, name, level, sort, icon, path, menu_type, component, perms, status, show, cache, remark, parent_id, created_time, updated_time) VALUES (52, '标签管理', 'Tag', 0, 0, 'IconTag', 'tag', 1, '/data/tag/index.vue', null, 1, 1, 1, null, 31, '2025-01-23 09:11:18.733064 +00:00', '2025-02-25 06:04:14.394907 +00:00');
 INSERT INTO public.sys_menu (id, title, name, level, sort, icon, path, menu_type, component, perms, status, show, cache, remark, parent_id, created_time, updated_time) VALUES (70, '我的收藏', 'Collection', 0, 2, 'IconStarFill', 'collection', 1, '/data/star/index.vue', null, 1, 1, 1, null, 31, '2025-06-04 09:06:36.642210 +00:00', null);
 
+INSERT INTO public.sys_menu (id, title, name, level, sort, icon, path, menu_type, component, perms, status, show, cache, remark, parent_id, created_time, updated_time) VALUES (60, '要素提取', 'Entity', 0, 2, 'IconCommon', 'entity', 1, '/data/entity/index.vue', null, 1, 1, 1, null, 43, '2025-02-24 02:17:56.565979 +00:00', '2025-08-20 07:17:19.009186 +00:00');
 
 
 INSERT INTO sys_role_menu (id, role_id, menu_id)
