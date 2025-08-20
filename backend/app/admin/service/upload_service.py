@@ -388,15 +388,25 @@ class UploadService:
         )
         await mail_msg_service.create(obj=msg_obj)
 
-        from_mail_obj = CreateMailBoxParam(
-            name=from_email,
-        )
-        await mail_box_service.create(obj=from_mail_obj)
+        if from_email:
+            from_box = await mail_box_service.get_by_name(name=from_email)
+            if from_box:
+                await mail_box_service.base_update(pk=from_box.id, obj={'email_num': from_box.email_num + 1})
+            else:
+                from_mail_obj = CreateMailBoxParam(
+                    name=from_email,
+                )
+                await mail_box_service.create(obj=from_mail_obj)
 
-        to_mail_obj = CreateMailBoxParam(
-            name=to_email,
-        )
-        await mail_box_service.create(obj=to_mail_obj)
+        if to_email:
+            to_box = await mail_box_service.get_by_name(name=to_email)
+            if to_box:
+                await mail_box_service.base_update(pk=to_box.id, obj={'email_num': to_box.email_num + 1})
+            else:
+                to_mail_obj = CreateMailBoxParam(
+                    name=to_email,
+                )
+                await mail_box_service.create(obj=to_mail_obj)
         return body
 
 
