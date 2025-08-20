@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query
@@ -32,8 +33,25 @@ async def get_mail_msg(pk: Annotated[int, Path(...)]) -> ResponseModel:
         DependsPagination,
     ],
 )
-async def get_pagination_mail_msg(db: CurrentSession) -> ResponseModel:
-    mail_msg_select = await mail_msg_service.get_select()
+async def get_pagination_mail_msg(
+    db: CurrentSession,
+    name: str | None = Query(None, description='邮件标题'),
+    subject: str | None = Query(None, description='邮件主题'),
+    time: datetime | None = Query(None, description='时间'),
+    category: str | None = Query(None, description='分类'),
+    sender: str | None = Query(None, description='发送者邮箱'),
+    receiver: str | None = Query(None, description='接收者邮箱'),
+    cc: str | None = Query(None, description='抄送者'),
+) -> ResponseModel:
+    mail_msg_select = await mail_msg_service.get_select(
+        name=name,
+        subject=subject,
+        time=time,
+        category=category,
+        sender=sender,
+        receiver=receiver,
+        cc=cc,
+    )
     page_data = await paging_data(db, mail_msg_select, GetMailMsgListDetails)
     return response_base.success(data=page_data)
 

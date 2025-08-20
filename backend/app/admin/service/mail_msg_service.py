@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from datetime import datetime
 from typing import Sequence
 
 from backend.app.admin.crud.crud_mail_msg import mail_msg_dao
@@ -20,8 +21,25 @@ class MailMsgService:
             return mail_msg
     
     @staticmethod
-    async def get_select() -> Select:
-        return await mail_msg_dao.get_list()
+    async def get_select(
+        *,
+        name: str | None = None,
+        subject: str | None = None,
+        time: datetime | None = None,
+        category: str | None = None,
+        sender: str | None = None,
+        receiver: str | None = None,
+        cc: str | None = None,
+    ) -> Select:
+        return await mail_msg_dao.get_list(
+            name=name,
+            subject=subject,
+            time=time,
+            category=category,
+            sender=sender,
+            receiver=receiver,
+            cc=cc,
+        )
 
     @staticmethod
     async def get_all() -> Sequence[MailMsg]:

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from datetime import datetime
 from typing import Sequence
 
-from sqlalchemy import delete, Select
+from sqlalchemy import Select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
 
@@ -21,13 +22,37 @@ class CRUDMailMsg(CRUDPlus[MailMsg]):
         """
         return await self.select_model(db, pk)
 
-    async def get_list(self) -> Select:
+    async def get_list(
+        self,
+        name: str | None = None,
+        subject: str | None = None,
+        time: datetime | None = None,
+        category: str | None = None,
+        sender: str | None = None,
+        receiver: str | None = None,
+        cc: str | None = None,
+    ) -> Select:
         """
         获取邮件列表
 
         :return:
         """
-        return await self.select_order('created_time', 'desc')
+        select_stmt = await self.select_order('created_time', 'desc')
+        if name:
+            select_stmt = select_stmt.where(self.model.name.like(f'%{name}%'))
+        if subject:
+            select_stmt = select_stmt.where(self.model.subject.like(f'%{subject}%'))
+        if time:
+            select_stmt = select_stmt.where(func.date(self.model.time) == time.date())
+        if category:
+            select_stmt = select_stmt.where(self.model.category.like(f'%{category}%'))
+        if sender:
+            select_stmt = select_stmt.where(self.model.sender.like(f'%{sender}%'))
+        if receiver:
+            select_stmt = select_stmt.where(self.model.receiver.like(f'%{receiver}%'))
+        if cc:
+            select_stmt = select_stmt.where(self.model.cc.like(f'%{cc}%'))
+        return select_stmt
 
     async def get_all(self, db: AsyncSession) -> Sequence[MailMsg]:
         """
