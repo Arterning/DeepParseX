@@ -9,6 +9,9 @@ import os
 def is_zip_file(file_suffix: str) -> bool:
     return file_suffix in ['.zip']
 
+def is_rar_file(file_suffix: str) -> bool:
+    return file_suffix in ['.rar']
+
 def is_excel_file(file_suffix: str) -> bool:
     return file_suffix in ['.xls', '.xlsx', '.csv']
 
@@ -54,7 +57,7 @@ file_type_handlers = {
     'PDF': is_pdf_file,
     '文档': is_docx_file,
     'PPT': is_pptx_file,
-    '压缩包': is_zip_file
+    '压缩包': lambda suffix: is_zip_file(suffix) or is_rar_file(suffix)
 }
 def get_file_type(file_suffix: str):
     for file_type, handler in file_type_handlers.items():
