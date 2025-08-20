@@ -43,7 +43,7 @@ class CRUDMailMsg(CRUDPlus[MailMsg]):
         if subject:
             select_stmt = select_stmt.where(self.model.subject.like(f'%{subject}%'))
         if time:
-            select_stmt = select_stmt.where(func.date(self.model.time) == time.date())
+            select_stmt = select_stmt.where(func.date(self.model.time) >= time.date())
         if category:
             select_stmt = select_stmt.where(self.model.category.like(f'%{category}%'))
         if sender:

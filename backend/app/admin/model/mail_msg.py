@@ -31,7 +31,7 @@ class MailMsg(Base):
     
     name: Mapped[str] = mapped_column(sa.String(500), default='', comment='邮件标题')
 
-    subject: Mapped[str] = mapped_column(sa.String(500), default='', comment='邮件主题')
+    subject: Mapped[str | None] = mapped_column(sa.String(500), default='', comment='邮件主题')
     
     original: Mapped[str] = mapped_column(TEXT, default='', comment='原文')
     
