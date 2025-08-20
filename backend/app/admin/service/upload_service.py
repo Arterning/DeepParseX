@@ -155,6 +155,69 @@ class UploadService:
         response = minio_client.get_object(bucket_name, doc.file)
         file_bytes = response.read()
 
+        if is_zip_file(doc.file_suffix):
+            zip_buffer = io.BytesIO(file_bytes)
+            with zipfile.ZipFile(zip_buffer, 'r') as zip_ref:
+                for file_info in zip_ref.infolist():
+                    if file_info.is_dir():
+                        continue
+
+                    try:
+                        filename = file_info.filename.encode('cp437').decode('gbk')
+                    except Exception:
+                        filename = file_info.filename
+                    
+                    if not filename or filename.startswith('__MACOSX'):
+                        continue
+
+                    file_content_bytes = zip_ref.read(file_info.name)
+
+                    unique_id = str(uuid.uuid4())
+                    file_suffix = get_file_suffix(filename)
+                    new_filename_minio = f"{unique_id}{file_suffix}"
+
+                    file_stream = io.BytesIO(file_content_bytes)
+                    object_size = len(file_stream.getbuffer())
+                    
+                    import mimetypes
+                    content_type, _ = mimetypes.guess_type(filename)
+                    if content_type is None:
+                        content_type = 'application/octet-stream'
+
+                    minio_client.put_object(bucket_name, new_filename_minio, file_stream, object_size, content_type)
+
+                    file_type = get_file_type(file_suffix)
+
+                    obj = CreateSysDocParam(
+                        title=filename, 
+                        name=filename, 
+                        type=file_type,
+                        file=new_filename_minio, 
+                        uuid=unique_id, 
+                        file_suffix=file_suffix,
+                        doc_time=datetime(*file_info.date_time) if file_info.date_time else None,
+                        size=file_info.file_size,
+                        status=0,
+                        belong=doc.id,
+                        dept_id=doc.dept_id,
+                        created_by=doc.created_by,
+                        created_user=doc.created_user,
+                    )
+                    
+                    new_doc = await sys_doc_service.create(obj=obj)
+                    
+                    # Process content for the new doc
+                    await upload_service.read_file_content(new_doc)
+            
+            # Update the zip file doc itself
+            content = f"这是一个压缩包，包含 {len(zip_ref.infolist())} 个文件。"
+            obj_dict = {
+                'content': content,
+                'status': 1, # Processed
+            }
+            await sys_doc_service.base_update(pk=doc.id, obj=obj_dict)
+            return
+
         if is_text_file(doc.file_suffix):
             content = upload_service.decode_content_with_chardet(file_bytes)
 
