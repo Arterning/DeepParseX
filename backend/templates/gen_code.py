@@ -10,7 +10,7 @@ sys.path.append('../')
 
 
 from jinja2 import Environment, FileSystemLoader
-from backend.templates.context import star_collect_context
+from backend.templates.context import spo_context
 
 
 def save_file(template, context, path):
@@ -38,7 +38,7 @@ api_template = env.get_template('api.jinja')
 schema_template = env.get_template('schema.jinja')
 
 
-context = star_collect_context
+context = spo_context
 base = "app/admin/"
 table_name_en = context["table_name_en"]
 file_prefix = context["file_prefix"]

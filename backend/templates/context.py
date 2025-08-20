@@ -211,3 +211,59 @@ social_account_post_context = {
         },
     ]
 }
+
+
+
+spo_context = {
+    'app_name': 'admin',
+    'table_name_en': 'sys_subject_predict_object',
+    'table_name_zh': '要素提取表',
+    'table_name_class': 'SubjectPredictObject',
+    'file_prefix': 'sys_subject_predict_object',
+    'schema_name': 'SubjectPredictObject',
+    'have_datetime_column': True,
+    'models': [
+        {
+            'name': 'subject',
+            'is_nullable': True,
+            'pd_type': 'str',
+            'type': 'String',
+            'comment': '主语',
+        },
+        {
+            'name': 'subject_type',
+            'is_nullable': True,
+            'pd_type': 'str',
+            'type': 'String',
+            'comment': '主语类型',
+        },
+        {
+            'name': 'predicate',
+            'is_nullable': True,
+            'pd_type': 'str',
+            'type': 'String',
+            'comment': '谓语',
+        },
+        {
+            'name': 'object',
+            'is_nullable': True,
+            'pd_type': 'str',
+            'type': 'String',
+            'comment': '宾语',
+        },
+        {
+            'name': 'object_type',
+            'is_nullable': True,
+            'pd_type': 'str',
+            'type': 'String',
+            'comment': '宾语类型',
+        },
+        {
+            'name': 'doc_id',
+            'is_nullable': True,
+            'pd_type': 'int',
+            'type': 'Integer',
+            'comment': '文件ID',
+        },
+    ]
+}
