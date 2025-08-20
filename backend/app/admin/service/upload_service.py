@@ -602,30 +602,5 @@ class UploadService:
         return zip_file
 
 
-    @staticmethod
-    async def read_zip(file: UploadFile = File(...)):
-        doc = await upload_service.save_file(file)
-        # file_location = upload_service.get_abs_path(location=doc.file)
-        # with upload_service.support_gbk(ZipFile(file_location, "r")) as zip_ref:
-        #     name_list = zip_ref.namelist()
-        #     for file_name in name_list:
-        #         with zip_ref.open(file_name) as single_file:
-        #             try:
-        #                 log.info(f"Start read {file_name}")
-        #                 # 创建BytesIO对象，模拟上传文件
-        #                 # file_bytes = BytesIO(file_content)
-        #                 # file_upload_file = UploadFile(
-        #                 #         file_bytes,
-        #                 #         filename=file_name,
-        #                 # )
-        #                 await sys_doc_service.update_doc_tokens(doc=doc)
-        #                 await upload_service.insert_text_embs(doc=doc)
-        #                 log.info(f"Success read {file_name}")
-        #             except Exception as e:
-        #                 traceback.print_exc()
-        #     os.remove(file_location)
-
-
-
 
 upload_service = UploadService()
