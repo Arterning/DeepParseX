@@ -360,7 +360,7 @@ class UploadService:
             return None
         
         try:
-            result_dict = upload_service.do_read_email(file_bytes)
+            result_dict = await upload_service.do_read_email(doc, file_bytes)
             result_dict["doc_id"] = doc.id
             email_body = await upload_service.save_email(result_dict=result_dict)
             return email_body
@@ -401,7 +401,7 @@ class UploadService:
 
 
     @staticmethod
-    def do_read_email(file_bytes: bytes):
+    async def do_read_email(doc: SysDoc, file_bytes: bytes):
         
         if not file_bytes:
             return None
@@ -450,13 +450,52 @@ class UploadService:
             if msg.is_multipart():
                 # 多部分邮件
                 for part in msg.walk():
-                    content_type = part.get_content_type()
                     content_disposition = str(part.get("Content-Disposition", ""))
                     
-                    # 跳过附件
                     if "attachment" in content_disposition:
+                        filename = part.get_filename()
+                        if filename:
+                            file_content_bytes = part.get_payload(decode=True)
+                            
+                            unique_id = str(uuid.uuid4())
+                            file_suffix = get_file_suffix(filename)
+                            new_filename_minio = f"{unique_id}{file_suffix}"
+
+                            file_stream = io.BytesIO(file_content_bytes)
+                            object_size = len(file_stream.getbuffer())
+                            
+                            import mimetypes
+                            content_type_mime, _ = mimetypes.guess_type(filename)
+                            if content_type_mime is None:
+                                content_type_mime = 'application/octet-stream'
+
+                            minio_client.put_object(bucket_name, new_filename_minio, file_stream, object_size, content_type_mime)
+
+                            file_type = get_file_type(file_suffix)
+
+                            obj = CreateSysDocParam(
+                                title=filename, 
+                                name=filename, 
+                                type=file_type,
+                                file=new_filename_minio, 
+                                uuid=unique_id, 
+                                file_suffix=file_suffix,
+                                doc_time=datetime.now(),
+                                size=len(file_content_bytes),
+                                status=0,
+                                belong=doc.id,
+                                dept_id=doc.dept_id,
+                                created_by=doc.created_by,
+                                created_user=doc.created_user,
+                            )
+                            
+                            new_doc = await sys_doc_service.create(obj=obj)
+                            
+                            # Process content for the new doc
+                            await upload_service.read_file_content(new_doc)
                         continue
                     
+                    content_type = part.get_content_type()
                     # 获取正文
                     if content_type == "text/plain" and not plain_text:
                         plain_text = part.get_payload(decode=True).decode(part.get_content_charset() or 'utf-8', errors='replace')
@@ -473,24 +512,7 @@ class UploadService:
             # 优先使用纯文本内容，如果没有则使用HTML内容
             email_data['body'] = plain_text or html_content or ''
             
-            # 处理附件
-            attachments = []
-            if msg.is_multipart():
-                for part in msg.walk():
-                    if part.get_content_maintype() == 'multipart':
-                        continue
-                    
-                    content_disposition = str(part.get("Content-Disposition", ""))
-                    if "attachment" in content_disposition:
-                        filename = part.get_filename()
-                        if filename:
-                            attachments.append({
-                                'filename': filename,
-                                'content_type': part.get_content_type(),
-                                'size': len(part.get_payload(decode=True))
-                            })
-            
-            email_data['attachments'] = attachments
+            email_data['attachments'] = []
             
             return email_data
         
