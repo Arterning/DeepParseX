@@ -112,6 +112,9 @@ async def run_parse_task(pk: int):
             ex = 60 * 5
         )
     except Exception as e:
+        log.error(e)
+        import traceback
+        traceback.print_exc()  # 打印完整的堆栈跟踪信息
         await redis_client.set(
             redis_key, json.dumps({
                 'status': 'error',

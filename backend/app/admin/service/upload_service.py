@@ -172,7 +172,7 @@ class UploadService:
                     if not filename or filename.startswith('__MACOSX'):
                         continue
 
-                    file_content_bytes = zip_ref.read(file_info.name)
+                    file_content_bytes = zip_ref.read(file_info.filename)
 
                     unique_id = str(uuid.uuid4())
                     file_suffix = get_file_suffix(filename)
