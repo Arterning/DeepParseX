@@ -480,7 +480,7 @@ class UploadService:
                                 file=new_filename_minio, 
                                 uuid=unique_id, 
                                 file_suffix=file_suffix,
-                                doc_time=datetime.now(),
+                                doc_time=datetime.datetime.now(),
                                 size=len(file_content_bytes),
                                 status=0,
                                 belong=doc.id,
@@ -493,6 +493,12 @@ class UploadService:
                             
                             # Process content for the new doc
                             await upload_service.read_file_content(new_doc)
+
+                            await sys_doc_service.create_doc_tokens(id=new_doc.id)
+
+                            await sys_doc_service.base_update(pk=new_doc.id, obj={
+                                'status': 1,
+                            })
                         continue
                     
                     content_type = part.get_content_type()
