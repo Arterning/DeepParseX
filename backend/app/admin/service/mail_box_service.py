@@ -30,6 +30,12 @@ class MailBoxService:
             return mail_boxs
 
     @staticmethod
+    async def get_by_name(*, name) -> None:
+        async with async_db_session.begin() as db:
+            return await mail_box_dao.get_by_name(db, name)
+            
+
+    @staticmethod
     async def create(*, obj: CreateMailBoxParam) -> None:
         async with async_db_session.begin() as db:
             found = await mail_box_dao.get_by_name(db, obj.name)
@@ -41,6 +47,12 @@ class MailBoxService:
     async def update(*, pk: int, obj: UpdateMailBoxParam) -> int:
         async with async_db_session.begin() as db:
             count = await mail_box_dao.update(db, pk, obj)
+            return count
+
+    @staticmethod
+    async def base_update(pk: int, obj: dict) -> int:
+        async with async_db_session.begin() as db:
+            count = await mail_box_dao.base_update(db, pk, obj)
             return count
 
     @staticmethod

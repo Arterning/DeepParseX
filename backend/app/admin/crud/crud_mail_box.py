@@ -71,6 +71,9 @@ class CRUDMailBox(CRUDPlus[MailBox]):
         """
         return await self.update_model(db, pk, obj_in)
 
+    async def base_update(self, db: AsyncSession, pk: int, obj_in: dict) -> int:
+        return await self.update_model(db, pk, obj_in)
+        
     async def delete(self, db: AsyncSession, pk: list[int]) -> int:
         """
         删除 MailBox
