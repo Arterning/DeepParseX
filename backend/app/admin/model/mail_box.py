@@ -27,6 +27,8 @@ class MailBox(Base):
     
     name: Mapped[str] = mapped_column(String(500), default='', comment='邮箱地址')
 
+    address: Mapped[str | None] = mapped_column(String(500), default='', comment='邮箱账号')
+
     country: Mapped[str] = mapped_column(String(500), default='', comment='国家/地区')
 
     labels: Mapped[str] = mapped_column(String(500), default='', comment='标签')

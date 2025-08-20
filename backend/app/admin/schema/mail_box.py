@@ -11,7 +11,10 @@ from backend.common.schema import SchemaBase
 class MailBoxSchemaBase(SchemaBase):
     
     name: str
+    address: str | None = None
     country: str | None = None
+    email_num: int | None = None
+    labels: str | None = None
     other_info: str | None = None
 
     
