@@ -30,6 +30,7 @@ from backend.app.admin.api.v1.sys.scandal import router as scandal_router
 from backend.app.admin.api.v1.sys.news import router as news_router
 from backend.app.admin.api.v1.sys.social_account import router as social_account_router
 from backend.app.admin.api.v1.sys.social_account_post import router as social_account_post_router
+from backend.app.admin.api.v1.sys.subject_predict_object import router as subject_predict_object_router
 
 
 router = APIRouter(prefix='/sys')
@@ -62,3 +63,4 @@ router.include_router(scandal_router, prefix='/scandal', tags=['黑料库'])
 router.include_router(news_router,prefix='/news',tags=['新闻'])
 router.include_router(social_account_router,prefix='/social_account',tags=['社交账号'])
 router.include_router(social_account_post_router,prefix='/social_post',tags=['社交帖子'])
+router.include_router(subject_predict_object_router,prefix='/spo',tags=['要素提取'])
