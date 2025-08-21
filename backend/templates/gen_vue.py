@@ -36,10 +36,10 @@ ts_vue_template = env.get_template('vue.jinja')
 
 # 定义要替换的变量
 context = {
-    'Entity': 'Scandal',
-    'path': 'scandal',
-    'entity': 'scandal',
-    'MenuName': '黑料管理',
+    'Entity': 'Entity',
+    'path': 'entity',
+    'entity': 'entity',
+    'MenuName': '',
 }
 
 entity = context["entity"]
