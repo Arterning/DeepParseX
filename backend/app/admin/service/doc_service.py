@@ -13,6 +13,8 @@ from backend.app.admin.crud.crud_doc_embedding import sys_doc_embedding_dao
 from backend.app.admin.crud.crud_tag import tag_dao
 from backend.app.admin.model import SysDoc
 from backend.app.admin.model import SubjectPredictObject
+from backend.app.admin.model.sys_entity import Entity
+from backend.app.admin.model.sys_entity_relationship import EntityRelation
 from backend.app.admin.model import SysDocData,SysDocChunk
 from backend.app.admin.model.sys_star_doc import sys_star_doc
 from backend.app.admin.schema.doc import CreateSysDocParam, UpdateSysDocParam
@@ -69,6 +71,28 @@ class SysDocService:
         # 构建SPO对象列表
         spo_objects = []
         async with async_db_session.begin() as db:
+            entity_cache = {}
+
+            async def get_or_create_entity(name: str, entity_type: str) -> Entity:
+                if name in entity_cache:
+                    return entity_cache[name]
+                
+                # Check if entity exists
+                stmt = select(Entity).where(Entity.name == name)
+                result = await db.execute(stmt)
+                entity = result.scalar_one_or_none()
+
+                if not entity:
+                    # Create entity
+                    entity_to_create = Entity(name=name, entity_type=entity_type)
+                    db.add(entity_to_create)
+                    await db.flush()
+                    await db.refresh(entity_to_create)
+                    entity = entity_to_create
+                
+                entity_cache[name] = entity
+                return entity
+
             for spo in spo_list:
                 # 创建SPO对象
                 spo_obj = SubjectPredictObject(
@@ -81,6 +105,36 @@ class SysDocService:
                 )
                 spo_objects.append(spo_obj)
                 db.add(spo_obj)
+
+                subject_name = spo.get("subject")
+                subject_type = spo.get("subject_type", "未知")
+                object_name = spo.get("object")
+                object_type = spo.get("object_type", "未知")
+                predicate = spo.get("predicate")
+
+                if not subject_name or not object_name or not predicate:
+                    continue
+
+                subject_entity = await get_or_create_entity(subject_name, subject_type)
+                object_entity = await get_or_create_entity(object_name, object_type)
+
+                # Create relationship
+                if subject_entity and object_entity:
+                    stmt = select(EntityRelation).where(
+                        EntityRelation.source_id == subject_entity.id,
+                        EntityRelation.target_id == object_entity.id,
+                        EntityRelation.relation_type == predicate
+                    )
+                    existing_relation = (await db.execute(stmt)).scalar_one_or_none()
+
+                    if not existing_relation:
+                        relation = EntityRelation(
+                            source_id=subject_entity.id,
+                            target_id=object_entity.id,
+                            relation_type=predicate,
+                            description=f"{subject_name} -[{predicate}]-> {object_name}"
+                        )
+                        db.add(relation)
                 
         return spo_list
 
