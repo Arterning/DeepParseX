@@ -8,7 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.common.model import Base, id_key
 
 
-class SysEntity(Base):
+class Entity(Base):
     """实体"""
 
     __tablename__ = 'sys_entity'

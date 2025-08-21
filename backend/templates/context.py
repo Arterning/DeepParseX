@@ -267,3 +267,37 @@ spo_context = {
         },
     ]
 }
+
+
+entity_context = {
+    'app_name': 'admin',
+    'table_name_en': 'sys_entity',
+    'table_name_zh': '实体',
+    'table_name_class': 'Entity',
+    'file_prefix': 'entity',
+    'schema_name': 'Entity',
+    'have_datetime_column': True,
+    'models': [
+        {
+            'name': 'name',
+            'is_nullable': False,
+            'pd_type': 'str',
+            'type': 'String',
+            'comment': '实体名称',
+        },
+        {
+            'name': 'entity_type',
+            'is_nullable': True,
+            'pd_type': 'str',
+            'type': 'String',
+            'comment': '实体类型',
+        },
+        {
+            'name': 'description',
+            'is_nullable': True,
+            'pd_type': 'str',
+            'type': 'String',
+            'comment': '实体类型',
+        },
+    ]
+}

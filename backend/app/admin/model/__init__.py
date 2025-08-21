@@ -30,7 +30,7 @@ from backend.app.admin.model.sys_person_relation import PersonRelation
 from backend.app.admin.model.sys_news import News
 from backend.app.admin.model.sys_subject import Subject
 from backend.app.admin.model.sys_scandal import Scandal
-from backend.app.admin.model.sys_entity import SysEntity
+from backend.app.admin.model.sys_entity import Entity
 from backend.app.admin.model.sys_star_collect import StarCollect
 from backend.app.admin.model.sys_entity_relationship import EntityRelation
 from backend.app.admin.model.sys_subject_predict_object import SubjectPredictObject
