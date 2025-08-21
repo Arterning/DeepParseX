@@ -79,12 +79,14 @@ class UploadService:
         # 使用 chardet 检测编码
         result = chardet.detect(content)
         encoding = result['encoding']
+
+        log.info(f"encoding: {encoding}")
         
         try:
             content_str = content.decode(encoding)
         except (UnicodeDecodeError, TypeError) as e:
-            print(f"解码失败，尝试使用检测到的编码: {encoding}")
-            content_str = content.decode(encoding, errors='ignore')
+            log.error(f"解码失败，尝试使用UTF-8")
+            content_str = content.decode('UTF-8', errors='ignore')
         
         return content_str
 
