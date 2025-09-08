@@ -31,7 +31,8 @@ except Exception as e:
     exit()
 
 # 创建 DuckDB 连接
-conn = duckdb.connect('my_database.db')
+conn = duckdb.connect(':memory:')
+# conn = duckdb.connect('my_database.db')
 
 # 从 Parquet 文件创建表
 conn.execute("CREATE TABLE orders AS SELECT * FROM read_parquet('temp_orders.parquet')")
