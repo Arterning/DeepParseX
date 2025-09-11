@@ -3,22 +3,6 @@ import json
 import re
 import requests
 from backend.core.conf import settings
-from openai import OpenAI
-
-def get_deepseek_api_response(system_context: str, user_input: str):
-        api_key = settings.LLM_API_KEY
-        client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
-
-        response = client.chat.completions.create(
-            model="deepseek-chat",
-            messages=[
-                {"role": "system", "content": system_context},
-                {"role": "user", "content": user_input},
-            ],
-            stream=False
-        )
-
-        return response.choices[0].message.content
 
 
 def call_llm(model, user_prompt, api_key, system_prompt=None, max_tokens=1000, temperature=0.2, base_url=None) -> str:
@@ -37,47 +21,45 @@ def call_llm(model, user_prompt, api_key, system_prompt=None, max_tokens=1000, t
     Returns:
         The model's response as a string
     """
-    headers = {
-        'Content-Type': 'application/json',
-        'Authorization': f"Bearer {api_key}"
-    }
-    
-    messages = []
-    
-    if system_prompt:
-        messages.append({
-            'role': 'system',
-            'content': system_prompt
-        })
-    
-    messages.append({
-        'role': 'user',
-        'content': [
-            {
-                'type': 'text',
-                'text': user_prompt
-            }
-        ]
-    })
     
     payload = {
         'model': model,
         'messages': messages,
         'max_tokens': max_tokens,
-        'temperature': temperature
+        'temperature': temperature,
+        "messages": [
+            {
+                "role": "system", 
+                "content": system_prompt
+            },
+            {
+                "role": "user",
+                "content": user_prompt,
+            }
+        ],
+    }
+
+    BASE_URL = settings.LLM_API_URL
+    model = settings.LLM_MODEL
+    api_key = settings.LLM_API_KEY
+
+    API_ENDPOINT = f"{BASE_URL}/v1/chat/completions"
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}"
     }
     
-    return get_deepseek_api_response(system_prompt, user_prompt)
-    # response = requests.post(
-    #     base_url,
-    #     headers=headers,
-    #     json=payload
-    # )
+    response = requests.post(
+        API_ENDPOINT,
+        headers=headers,
+        json=payload
+    )
     
-    # if response.status_code == 200:
-    #     return response.json()['choices'][0]['message']['content']
-    # else:
-    #     raise Exception(f"API request failed: {response.text}")
+    if response.status_code == 200:
+        return response.json()['choices'][0]['message']['content']
+    else:
+        raise Exception(f"API request failed: {response.text}")
 
 def extract_json_from_text(text):
     """
