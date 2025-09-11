@@ -24,7 +24,6 @@ def call_llm(model, user_prompt, api_key, system_prompt=None, max_tokens=1000, t
     
     payload = {
         'model': model,
-        'messages': messages,
         'max_tokens': max_tokens,
         'temperature': temperature,
         "messages": [
