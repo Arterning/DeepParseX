@@ -21,6 +21,10 @@ def call_llm(model, user_prompt, api_key, system_prompt=None, max_tokens=1000, t
     Returns:
         The model's response as a string
     """
+
+    BASE_URL = settings.LLM_API_URL
+    model = settings.LLM_MODEL
+    api_key = settings.LLM_API_KEY
     
     payload = {
         'model': model,
@@ -38,9 +42,6 @@ def call_llm(model, user_prompt, api_key, system_prompt=None, max_tokens=1000, t
         ],
     }
 
-    BASE_URL = settings.LLM_API_URL
-    model = settings.LLM_MODEL
-    api_key = settings.LLM_API_KEY
 
     API_ENDPOINT = f"{BASE_URL}/v1/chat/completions"
 
