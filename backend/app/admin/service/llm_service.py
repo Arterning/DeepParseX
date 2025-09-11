@@ -47,25 +47,36 @@ class LLMService:
     def get_api_response(system_context: str, user_input: str):
         url = settings.LLM_API_URL
         model = settings.LLM_MODEL
+        api_key = settings.LLM_API_KEY
+
+        API_ENDPOINT = f"{url}/v1/chat/completions"
+
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}"
+        }
+
+        data = {
+            'model': model,
+            'max_tokens': 1000,
+            'temperature': 0.3,
+            "stream": False,
+            "messages": [
+                {
+                    "role": "system", 
+                    "content": system_context
+                },
+                {
+                    "role": "user",
+                    "content": user_input,
+                }
+            ],
+        }
         for attempt in range(1, 3):
             try:
                 response = requests.post(
                     url,
-                    json={
-                        'model': model,
-                        'max_tokens': 1000,
-                        'temperature': 0.3,
-                        "messages": [
-                            {
-                                "role": "system", 
-                                "content": system_context
-                            },
-                            {
-                                "role": "user",
-                                "content": user_input,
-                            }
-                        ],
-                    }
+                    json=data
                 )
                 # 尝试获取响应，如果没有异常则返回内容
                 reply = response.json()['choices'][0]['message']['content']
