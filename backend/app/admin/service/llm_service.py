@@ -58,8 +58,7 @@ class LLMService:
 
         data = {
             'model': model,
-            'max_tokens': 1000,
-            'temperature': 0.3,
+            "temperature": 0.7
             "stream": False,
             "messages": [
                 {
@@ -75,7 +74,8 @@ class LLMService:
         for attempt in range(1, 3):
             try:
                 response = requests.post(
-                    url,
+                    API_ENDPOINT,
+                    headers=headers,
                     json=data
                 )
                 # 尝试获取响应，如果没有异常则返回内容
