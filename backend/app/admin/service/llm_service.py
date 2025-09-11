@@ -45,11 +45,11 @@ class LLMService:
 
     @staticmethod
     def get_api_response(system_context: str, user_input: str):
-        url = settings.LLM_API_URL
+        BASE_URL = settings.LLM_API_URL
         model = settings.LLM_MODEL
         api_key = settings.LLM_API_KEY
 
-        API_ENDPOINT = f"{url}/v1/chat/completions"
+        API_ENDPOINT = f"{BASE_URL}/v1/chat/completions"
 
         headers = {
             "Content-Type": "application/json",
@@ -58,7 +58,7 @@ class LLMService:
 
         data = {
             'model': model,
-            "temperature": 0.7
+            "temperature": 0.7,
             "stream": False,
             "messages": [
                 {
