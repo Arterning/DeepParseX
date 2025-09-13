@@ -3,7 +3,7 @@
 **🚀 项目简介**  
 **DeepParseX** 是一个强大的多模态文档解析与知识管理平台，支持 **PDF、Word、Excel、PPT、图片、视频、音频** 等多种文件格式的智能解析，自动提取关键信息，并构建 **检索增强生成（RAG）** 和 **知识图谱（Knowledge Graph）** 系统，实现结构化数据的智能检索与推理。
 
-前端实现：https://github.com/Arterning/DeepParseX-web
+前端实现：https://github.com/Arterning/DeepParseXWeb
 
 ---
 
@@ -35,8 +35,8 @@
 - **NLP/ML**：spaCy, HuggingFace Transformers, LangChain, LlamaIndex  
 - **向量存储**：FAISS, Milvus, Weaviate  
 - **知识图谱**：Neo4j, NetworkX, RDFLib  
-- **后端**：FastAPI, Docker  
-- **前端**：Next
+- **后端**：FastAPI, Docker，Minio  
+- **前端**：Vue
 
 ---
 
