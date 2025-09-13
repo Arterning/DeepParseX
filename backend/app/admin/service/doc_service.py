@@ -24,8 +24,15 @@ from backend.app.admin.schema.doc_data import CreateSysDocDataParam
 from backend.app.admin.schema.doc_chunk import CreateSysDocChunkParam
 from backend.app.admin.schema.doc_embdding import CreateSysDocEmbeddingParam
 from backend.utils.doc_utils import request_text_to_vector
+from backend.app.admin.service.llm_service import llm_service
+from backend.utils.oss_client import minio_client
+from backend.core.conf import settings
 import asyncio
 import jieba
+import duckdb
+import pandas as pd
+import pyarrow.parquet as pq
+from io import BytesIO
 
 class SysDocService:
 
@@ -502,6 +509,125 @@ class SysDocService:
         async with async_db_session() as db:
             res = await sys_doc_dao.get_count(db)
             return res
+
+    @staticmethod
+    async def analyze_data_with_ai(*, pk: int, question: str):
+        """使用AI分析文件数据
+        
+        Args:
+            pk (int): 文档ID
+            question (str): 用户问题
+            
+        Returns:
+            dict: 包含分析结果的字典
+        """
+        # 获取文档信息
+        doc = await sys_doc_service.get(pk=pk)
+        
+        # 检查文件类型是否支持数据分析
+        if not (doc.file_suffix in ['.parquet', '.csv', '.xlsx', '.xls']):
+            return {
+                "error": "文件类型不支持数据分析，仅支持 parquet、csv、xlsx、xls 文件"
+            }
+        
+        try:
+            # 从 MinIO 获取文件
+            bucket_name = settings.BUCKET_NAME
+            response = minio_client.get_object(bucket_name, doc.file)
+            file_bytes = response.read()
+            
+            # 根据文件类型加载数据到 pandas DataFrame
+            df = None
+            if doc.file_suffix == '.parquet':
+                buffer = BytesIO(file_bytes)
+                table = pq.read_table(buffer)
+                df = table.to_pandas()
+            elif doc.file_suffix == '.csv':
+                df = pd.read_csv(BytesIO(file_bytes))
+            elif doc.file_suffix in ['.xlsx', '.xls']:
+                engine = "openpyxl" if doc.file_suffix == '.xlsx' else "xlrd"
+                df = pd.read_excel(BytesIO(file_bytes), engine=engine)
+            
+            if df is None or df.empty:
+                return {
+                    "error": "无法读取文件数据或文件为空"
+                }
+            
+            # 生成数据概要信息
+            data_info = {
+                "行数": len(df),
+                "列数": len(df.columns),
+                "列名": list(df.columns),
+                "数据类型": {col: str(dtype) for col, dtype in df.dtypes.items()},
+                "前5行数据": df.head().to_dict('records')
+            }
+            
+            # 构建 AI 提示词
+            system_context = f"""你是一个数据分析专家。用户上传了一个名为"{doc.title}"的数据文件，包含以下信息：
+
+数据概要：
+- 行数：{data_info['行数']}
+- 列数：{data_info['列数']}
+- 列名：{', '.join(data_info['列名'])}
+- 数据类型：{data_info['数据类型']}
+
+前5行数据示例：
+{pd.DataFrame(data_info['前5行数据']).to_string()}
+
+请根据用户的问题生成相应的SQL查询语句。注意：
+1. 表名固定为 'data_table'
+2. 只返回SQL语句，不要包含其他解释
+3. SQL语句必须是DuckDB兼容的
+4. 确保SQL语句是安全的，不包含删除、更新等操作
+5. 如果问题不适合用SQL解决，请返回一个查询所有数据的SELECT语句"""
+
+            user_input = f"用户问题：{question}"
+            
+            # 调用AI生成SQL
+            sql_query = await llm_service.get_llm_response(system_context, user_input)
+            
+            if not sql_query:
+                return {
+                    "error": "AI生成SQL失败"
+                }
+            
+            # 清理SQL语句
+            sql_query = sql_query.strip()
+            if sql_query.startswith('```sql'):
+                sql_query = sql_query[6:]
+            if sql_query.endswith('```'):
+                sql_query = sql_query[:-3]
+            sql_query = sql_query.strip()
+            
+            # 使用DuckDB执行SQL查询
+            conn = duckdb.connect(':memory:')
+            
+            # 将DataFrame注册为表
+            conn.register('data_table', df)
+            
+            # 执行SQL查询
+            result = conn.execute(sql_query).fetchdf()
+            
+            # 关闭连接
+            conn.close()
+            
+            # 返回结果
+            return {
+                "question": question,
+                "sql_query": sql_query,
+                "data_info": data_info,
+                "result": {
+                    "columns": list(result.columns),
+                    "data": result.to_dict('records'),
+                    "row_count": len(result)
+                }
+            }
+            
+        except Exception as e:
+            log.error(f"数据分析出错: {str(e)}")
+            return {
+                "error": f"数据分析出错: {str(e)}"
+            }
 
 
 

@@ -39,6 +39,9 @@ def is_docx_file(file_suffix: str) -> bool:
 def is_pptx_file(file_suffix: str) -> bool:
     return file_suffix in ['.pptx', '.ppt']
 
+def is_parquet_file(file_suffix: str) -> bool:
+    return file_suffix in ['.parquet']
+
 
 def get_file_suffix(filename: str):
     """
@@ -49,7 +52,7 @@ def get_file_suffix(filename: str):
 
 
 file_type_handlers = {
-    '表格': is_excel_file,
+    '表格': lambda suffix: is_excel_file(suffix) or is_parquet_file(suffix),
     '图片': is_picture_file,
     '媒体': is_media_file,
     '文本': is_text_file,

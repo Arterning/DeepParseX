@@ -50,7 +50,8 @@ from backend.utils.upload_utils import (
     is_pptx_file,
     is_media_file,
     is_zip_file,
-    is_rar_file
+    is_rar_file,
+    is_parquet_file
     )
 
 bucket_name = settings.BUCKET_NAME
@@ -290,6 +291,9 @@ class UploadService:
 
         if is_excel_file(doc.file_suffix):
             content = await upload_service.read_excel_data(doc=doc, file_bytes=file_bytes)
+        
+        if is_parquet_file(doc.file_suffix):
+            content = await upload_service.read_parquet_data(doc=doc, file_bytes=file_bytes)
         
         if is_email_file(doc.file_suffix):
             content = await upload_service.read_email_data(doc=doc, file_bytes=file_bytes)
@@ -593,7 +597,54 @@ class UploadService:
             obj_list.append(param)
         await sys_doc_service.create_doc_data(obj_list=obj_list)
         return content
+
+    @staticmethod
+    async def read_parquet_data(doc: SysDoc, file_bytes: bytes):
+        import pyarrow.parquet as pq
+        from io import BytesIO
         
+        # 读取 parquet 文件
+        buffer = BytesIO(file_bytes)
+        table = pq.read_table(buffer)
+        df = table.to_pandas()
+        
+        # 限制行数以避免内容过大
+        if len(df) > 100:
+            df_sample = df.head(100)
+            content = f"Parquet文件包含 {len(df)} 行，{len(df.columns)} 列。以下是前100行的数据预览：\n\n"
+        else:
+            df_sample = df
+            content = f"Parquet文件包含 {len(df)} 行，{len(df.columns)} 列。完整数据如下：\n\n"
+        
+        # 添加列信息
+        content += "列信息：\n"
+        for col in df.columns:
+            content += f"- {col}: {str(df[col].dtype)}\n"
+        content += "\n"
+        
+        # 替换 NaN 为 None
+        df_sample = df_sample.where(pd.notnull(df_sample), None)
+        df_sample.replace([np.nan, np.inf, -np.inf], None, inplace=True)
+        
+        # 将 DataFrame 转换为字符串格式
+        for index, row in df_sample.iterrows():
+            row_data = {}
+            for col in df_sample.columns:
+                row_data[col] = row[col]
+            strings = upload_service.dict_to_string(row_data)
+            content += strings + '\n'
+        
+        # 将数据保存到数据库
+        doc_id = doc.id
+        obj_list = []
+        data_json = df_sample.to_dict(orient="records")
+        for parquet_data in data_json:
+            param = CreateSysDocDataParam(doc_id=doc_id, excel_data=parquet_data)
+            obj_list.append(param)
+        await sys_doc_service.create_doc_data(obj_list=obj_list)
+        
+        return content
+
 
 
     @staticmethod
