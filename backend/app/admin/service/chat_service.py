@@ -55,16 +55,8 @@ class ChatService:
             question_text_emb = await loop.run_in_executor(None, request_text_to_vector, obj.question)
             query_vector = question_text_emb[0]["embs"]
             similar_docs = await sys_doc_service.search_chunk_vector(query_vector=query_vector, limit=check_topk)
-            context = "\n".join([doc.chunk_text for doc in similar_docs if doc.chunk_text])
-            system_context = (
-                "上下文信息如下。\n"
-                "---\n"
-                f"{context}\n"
-                "---\n"
-                "请根据上下文信息而不是先验知识来回答以下的查询。并在回答中用 [编号] 标注引用的来源。"
-                "作为一个人工智能助手，你的回答要尽可能严谨。"
-            )
-
+            
+            context_list = []
             sources = {}  # 存储编号与超链接映射
             for idx, doc in enumerate(similar_docs):
                 if doc.chunk_text:
@@ -73,6 +65,20 @@ class ChatService:
                     link = f"[{idx + 1}] <a href=\"javascript:void(0)\" data-doc-id=\"{doc.doc_id}\" data-chunk-text=\"{escaped_chunk_text}\" data-doc-name=\"{doc.doc_name}\" onclick=\"openDrawer(this)\">{doc.doc_name}</a>"
                     # 存储编号与超链接的映射
                     sources[f"[{idx + 1}]"] = link
+                    source_entry = f"来源：[{idx + 1}] \n内容: {doc.chunk_text}"
+                    context_list.append(source_entry)
+
+                    
+            context = "\n".join(context_list)
+
+            system_context = (
+                "上下文信息如下。\n"
+                "---\n"
+                f"{context}\n"
+                "---\n"
+                "请根据上下文信息而不是先验知识来回答以下的查询。并在回答中用 [编号] 标注引用的来源。"
+                "作为一个人工智能助手，你的回答要尽可能严谨。"
+            )
 
         
             response = await llm_service.get_llm_response(system_context, obj.question)
