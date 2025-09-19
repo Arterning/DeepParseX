@@ -188,11 +188,14 @@ class MailBoxService:
             for email in all_emails_to_include:
                 layer = mailbox_layers.get(email, 0)  # 输入的邮箱如果没有关系也设为0层
 
-                # 统计该邮箱的总邮件数
-                email_count = 0
+                # 统计该邮箱的总邮件数（去重）
+                unique_emails = set()
                 for key, data in relationships.items():
                     if key[0] == email or key[1] == email:
-                        email_count += len(data['emails'])
+                        for email_obj in data['emails']:
+                            unique_emails.add(email_obj.id)
+
+                email_count = len(unique_emails)
 
                 nodes.append({
                     'id': email,
