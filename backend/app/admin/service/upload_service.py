@@ -375,14 +375,38 @@ class UploadService:
             raise e
 
     @staticmethod
+    def extract_email_address(email_string: str) -> str:
+        """
+        从 "名称 <邮箱地址>" 格式中提取真正的邮箱地址
+        如果没有尖括号，则返回原字符串（去除首尾空格）
+        """
+        if not email_string:
+            return email_string
+
+        import re
+        # 使用正则表达式提取尖括号中的邮箱地址
+        match = re.search(r'<([^<>]+)>', email_string)
+        if match:
+            return match.group(1).strip()
+        else:
+            # 如果没有尖括号，返回去除首尾空格的原字符串
+            return email_string.strip()
+
+    @staticmethod
     async def save_email(result_dict :dict):
         doc_id = result_dict.get("doc_id")
         subject = result_dict.get('subject', '')
-        from_email = result_dict.get('from', '')
-        to_email = result_dict.get('to', '')
-        cc = result_dict.get('cc', '')
+        from_email_raw = result_dict.get('from', '')
+        to_email_raw = result_dict.get('to', '')
+        cc_raw = result_dict.get('cc', '')
         time = result_dict.get('parsed_date', datetime.now())
         body = result_dict.get('body', '')
+
+        # 提取真正的邮箱地址
+        from_email = upload_service.extract_email_address(from_email_raw)
+        to_email = upload_service.extract_email_address(to_email_raw)
+        cc = upload_service.extract_email_address(cc_raw)
+
         msg_obj = CreateMailMsgParam(
             doc_id=doc_id,
             name=subject,
