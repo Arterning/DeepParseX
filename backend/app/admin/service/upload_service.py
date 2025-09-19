@@ -393,6 +393,26 @@ class UploadService:
             return email_string.strip()
 
     @staticmethod
+    def extract_multiple_emails(email_string: str) -> str:
+        """
+        处理多个邮箱地址（逗号分隔），提取每个邮箱的真实地址
+        返回逗号分隔的邮箱地址字符串
+        """
+        if not email_string:
+            return email_string
+
+        # 按逗号分割
+        email_parts = email_string.split(',')
+        extracted_emails = []
+
+        for part in email_parts:
+            extracted_email = upload_service.extract_email_address(part.strip())
+            if extracted_email:
+                extracted_emails.append(extracted_email)
+
+        return ', '.join(extracted_emails)
+
+    @staticmethod
     async def save_email(result_dict :dict):
         doc_id = result_dict.get("doc_id")
         subject = result_dict.get('subject', '')
@@ -404,8 +424,8 @@ class UploadService:
 
         # 提取真正的邮箱地址
         from_email = upload_service.extract_email_address(from_email_raw)
-        to_email = upload_service.extract_email_address(to_email_raw)
-        cc = upload_service.extract_email_address(cc_raw)
+        to_email = upload_service.extract_multiple_emails(to_email_raw)  # To字段也可能有多个
+        cc = upload_service.extract_multiple_emails(cc_raw)
 
         msg_obj = CreateMailMsgParam(
             doc_id=doc_id,
@@ -428,15 +448,31 @@ class UploadService:
                 )
                 await mail_box_service.create(obj=from_mail_obj)
 
+        # 处理To字段的多个邮箱地址
         if to_email:
-            to_box = await mail_box_service.get_by_name(name=to_email)
-            if to_box:
-                await mail_box_service.base_update(pk=to_box.id, obj={'email_num': to_box.email_num + 1})
-            else:
-                to_mail_obj = CreateMailBoxParam(
-                    name=to_email,
-                )
-                await mail_box_service.create(obj=to_mail_obj)
+            to_emails = [email.strip() for email in to_email.split(',') if email.strip()]
+            for email_addr in to_emails:
+                to_box = await mail_box_service.get_by_name(name=email_addr)
+                if to_box:
+                    await mail_box_service.base_update(pk=to_box.id, obj={'email_num': to_box.email_num + 1})
+                else:
+                    to_mail_obj = CreateMailBoxParam(
+                        name=email_addr,
+                    )
+                    await mail_box_service.create(obj=to_mail_obj)
+
+        # 处理CC字段的多个邮箱地址
+        if cc:
+            cc_emails = [email.strip() for email in cc.split(',') if email.strip()]
+            for email_addr in cc_emails:
+                cc_box = await mail_box_service.get_by_name(name=email_addr)
+                if cc_box:
+                    await mail_box_service.base_update(pk=cc_box.id, obj={'email_num': cc_box.email_num + 1})
+                else:
+                    cc_mail_obj = CreateMailBoxParam(
+                        name=email_addr,
+                    )
+                    await mail_box_service.create(obj=cc_mail_obj)
         return body
 
 
