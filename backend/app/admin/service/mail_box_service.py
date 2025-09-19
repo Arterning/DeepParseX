@@ -105,6 +105,7 @@ class MailBoxService:
 
             # 按层级扩展邮箱关系
             current_layer_emails = set(mailboxes)
+            processed_email_ids = set()  # 跨层去重，避免同一封邮件被重复统计
 
             for layer in range(max_layers):
                 if not current_layer_emails:
@@ -136,6 +137,10 @@ class MailBoxService:
                 # 处理查询到的邮件
                 next_layer_emails = set()
                 for email_obj in emails:
+                    # 跳过已处理的邮件，避免重复统计关系
+                    if email_obj.id in processed_email_ids:
+                        continue
+                    processed_email_ids.add(email_obj.id)
                     # 解析收件人列表（可能有多个，逗号分隔）
                     receiver_list = [r.strip() for r in email_obj.receiver.split(',') if r.strip()] if email_obj.receiver else []
 
