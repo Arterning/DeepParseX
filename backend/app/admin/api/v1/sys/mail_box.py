@@ -33,8 +33,8 @@ async def get_mail_box(pk: Annotated[int, Path(...)]) -> ResponseModel:
         DependsPagination,
     ],
 )
-async def get_pagination_mail_box(db: CurrentSession) -> ResponseModel:
-    mail_box_select = await mail_box_service.get_select()
+async def get_pagination_mail_box(db: CurrentSession, name: Annotated[str | None, Query()] = None,) -> ResponseModel:
+    mail_box_select = await mail_box_service.get_select(name=name)
     page_data = await paging_data(db, mail_box_select, GetMailBoxListDetails)
     return response_base.success(data=page_data)
 

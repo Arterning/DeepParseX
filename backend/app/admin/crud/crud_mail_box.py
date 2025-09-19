@@ -33,13 +33,16 @@ class CRUDMailBox(CRUDPlus[MailBox]):
         """
         return await self.select_model(db, pk)
 
-    async def get_list(self) -> Select:
+    async def get_list(self, name: str) -> Select:
         """
         获取邮箱列表
 
         :return:
         """
-        return await self.select_order('created_time', 'desc')
+        filters = {}
+        if name is not None:
+            filters.update(name__like=f'%{name}%')
+        return await self.select_order('created_time', 'desc', **filters)
 
     async def get_all(self, db: AsyncSession) -> Sequence[MailBox]:
         """

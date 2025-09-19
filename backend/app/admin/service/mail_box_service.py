@@ -24,8 +24,8 @@ class MailBoxService:
             return mail_box
     
     @staticmethod
-    async def get_select() -> Select:
-        return await mail_box_dao.get_list()
+    async def get_select(*, name: str) -> Select:
+        return await mail_box_dao.get_list(name=name)
 
     @staticmethod
     async def get_all() -> Sequence[MailBox]:
