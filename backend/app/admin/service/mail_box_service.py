@@ -136,11 +136,18 @@ class MailBoxService:
                 # 处理查询到的邮件
                 next_layer_emails = set()
                 for email_obj in emails:
-                    # 解析抄送列表
+                    # 解析收件人列表（可能有多个，逗号分隔）
+                    receiver_list = [r.strip() for r in email_obj.receiver.split(',') if r.strip()] if email_obj.receiver else []
+
+                    # 解析抄送列表（可能有多个，逗号分隔）
                     cc_list = [cc.strip() for cc in email_obj.cc.split(',') if cc.strip()] if email_obj.cc else []
 
                     # 收集所有相关邮箱
-                    all_related_emails = [email_obj.sender, email_obj.receiver] + cc_list
+                    all_related_emails = []
+                    if email_obj.sender:
+                        all_related_emails.append(email_obj.sender)
+                    all_related_emails.extend(receiver_list)
+                    all_related_emails.extend(cc_list)
 
                     # 为下一层收集新的邮箱
                     for related_email in all_related_emails:
@@ -148,23 +155,25 @@ class MailBoxService:
                             mailbox_layers[related_email] = layer + 1
                             next_layer_emails.add(related_email)
 
-                    # 统计关系
-                    # 发送关系
-                    if email_obj.sender and email_obj.receiver:
-                        key = (email_obj.sender, email_obj.receiver, 'send')
-                        relationships[key]['send_count'] += 1
-                        relationships[key]['emails'].append(email_obj)
-                        if not relationships[key]['latest_time'] or email_obj.time > relationships[key]['latest_time']:
-                            relationships[key]['latest_time'] = email_obj.time
+                    # 统计关系 - 发送关系（发送者到每个收件人）
+                    if email_obj.sender and receiver_list:
+                        for receiver in receiver_list:
+                            if receiver:
+                                key = (email_obj.sender, receiver, 'send')
+                                relationships[key]['send_count'] += 1
+                                relationships[key]['emails'].append(email_obj)
+                                if not relationships[key]['latest_time'] or email_obj.time > relationships[key]['latest_time']:
+                                    relationships[key]['latest_time'] = email_obj.time
 
-                    # 抄送关系
+                    # 统计关系 - 抄送关系（发送者到每个抄送人）
                     if email_obj.sender and cc_list:
                         for cc_email in cc_list:
-                            key = (email_obj.sender, cc_email, 'cc')
-                            relationships[key]['cc_count'] += 1
-                            relationships[key]['emails'].append(email_obj)
-                            if not relationships[key]['latest_time'] or email_obj.time > relationships[key]['latest_time']:
-                                relationships[key]['latest_time'] = email_obj.time
+                            if cc_email:
+                                key = (email_obj.sender, cc_email, 'cc')
+                                relationships[key]['cc_count'] += 1
+                                relationships[key]['emails'].append(email_obj)
+                                if not relationships[key]['latest_time'] or email_obj.time > relationships[key]['latest_time']:
+                                    relationships[key]['latest_time'] = email_obj.time
 
                 current_layer_emails = next_layer_emails
 
@@ -204,10 +213,15 @@ class MailBoxService:
                     elif relation_type == 'cc':
                         email_count = data['cc_count']
 
-                    if data['latest_time']:
-                        # 线性时间衰减：越近的时间权重越高
-                        days_diff = (reference_time - data['latest_time']).days
-                        time_weight = max(0, 1 - days_diff / 365)  # 一年后权重降为0
+                    # 计算权重
+                    if email_count > 0:
+                        if data['latest_time']:
+                            # 线性时间衰减：越近的时间权重越高
+                            days_diff = (reference_time - data['latest_time']).days
+                            time_weight = max(0, 1 - days_diff / 365)  # 一年后权重降为0
+                        else:
+                            # 如果没有时间信息，给一个默认权重
+                            time_weight = 0.5
 
                         # 抄送关系权重降低50%
                         base_weight = email_count * time_weight
@@ -216,7 +230,8 @@ class MailBoxService:
 
                         weight = base_weight
 
-                    if weight > 0:  # 只添加有权重的边
+                    # 只添加有邮件数量的边（即使权重为0也要显示关系）
+                    if email_count > 0:
                         edges.append({
                             'source': source,
                             'target': target,
