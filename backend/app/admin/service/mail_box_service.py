@@ -193,12 +193,23 @@ class MailBoxService:
             for email in all_emails_to_include:
                 layer = mailbox_layers.get(email, 0)  # 输入的邮箱如果没有关系也设为0层
 
-                # 统计该邮箱的总邮件数（去重）
+                # 统计该邮箱的总邮件数（去重）并构建邮件详细信息列表
                 unique_emails = set()
+                node_emails = []
+                seen_email_ids = set()
+
                 for key, data in relationships.items():
                     if key[0] == email or key[1] == email:
                         for email_obj in data['emails']:
                             unique_emails.add(email_obj.id)
+                            # 为节点构建去重的邮件详细信息列表
+                            if email_obj.id not in seen_email_ids:
+                                seen_email_ids.add(email_obj.id)
+                                node_emails.append({
+                                    'id': email_obj.id,
+                                    'subject': email_obj.subject,
+                                    'time': email_obj.time.isoformat() if email_obj.time else None
+                                })
 
                 email_count = len(unique_emails)
 
@@ -206,7 +217,8 @@ class MailBoxService:
                     'id': email,
                     'label': email,
                     'email_count': email_count,
-                    'layer': layer
+                    'layer': layer,
+                    'emails': node_emails
                 })
 
             # 构建边
@@ -240,13 +252,26 @@ class MailBoxService:
 
                     # 只添加有邮件数量的边（即使权重为0也要显示关系）
                     if email_count > 0:
+                        # 构建该边对应的邮件详细信息列表（去重）
+                        edge_emails = []
+                        seen_email_ids = set()
+                        for email_obj in data['emails']:
+                            if email_obj.id not in seen_email_ids:
+                                seen_email_ids.add(email_obj.id)
+                                edge_emails.append({
+                                    'id': email_obj.id,
+                                    'subject': email_obj.subject,
+                                    'time': email_obj.time.isoformat() if email_obj.time else None
+                                })
+
                         edges.append({
                             'source': source,
                             'target': target,
                             'weight': round(weight, 2),
                             'email_count': email_count,
                             'latest_time': data['latest_time'].isoformat() if data['latest_time'] else None,
-                            'relation_type': relation_type
+                            'relation_type': relation_type,
+                            'emails': edge_emails
                         })
 
             return {
