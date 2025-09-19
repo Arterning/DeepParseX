@@ -15,6 +15,8 @@ class UploadTaskSchemaBase(SchemaBase):
     
     status: str
 
+    option: dict | None = None
+
     
 
 

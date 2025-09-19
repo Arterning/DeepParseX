@@ -9,8 +9,8 @@ from backend.common.schema import SchemaBase
 
 
 class MailMsgSchemaBase(SchemaBase):
-    
   name: str 
+  subject: str | None = None
   original: str | None = None
   content: str | None = None
   time: datetime | None = None
@@ -18,7 +18,6 @@ class MailMsgSchemaBase(SchemaBase):
   sender: str | None = None
   receiver:str | None = None
   cc: str | None = None
-
   doc_id: int | None = None
 
     

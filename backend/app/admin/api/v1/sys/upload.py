@@ -7,6 +7,11 @@ from typing import Annotated
 from backend.common.response.response_schema import response_base
 from backend.app.admin.service.upload_service import upload_service
 from backend.app.admin.service.doc_service import sys_doc_service
+from backend.app.admin.service.upload_task_service import upload_task_service
+from backend.app.admin.schema.upload_task import CreateUploadTaskParam, UpdateUploadTaskParam
+from backend.app.admin.model.sys_upload_task import UploadTask
+from backend.database.db_pg import async_db_session
+from sqlalchemy import select
 import time
 import json
 from fastapi.responses import StreamingResponse
@@ -34,6 +39,12 @@ async def upload_file(
     # print("request", request.user)
     user = request.user
     doc = await upload_service.save_file(file, meta, user)
+    task_obj = CreateUploadTaskParam(
+        name=file.filename,
+        status='pending',
+        option={'doc_id': doc.id}
+    )
+    await upload_task_service.create(obj=task_obj)
     resp = {
         "id": doc.id
     }
@@ -103,6 +114,13 @@ async def run_parse_task(pk: int):
             'status': 1,
         })
 
+        async with async_db_session() as db:
+            stmt = select(UploadTask).where(UploadTask.option['doc_id'].astext == str(doc.id))
+            result = await db.execute(stmt)
+            task = result.scalar_one_or_none()
+            if task:
+                await upload_task_service.update(pk=task.id, obj=UpdateUploadTaskParam(name=task.name, status='done'))
+
         await redis_client.set(
             redis_key, json.dumps({
                 'status': 'done',
@@ -115,6 +133,12 @@ async def run_parse_task(pk: int):
         log.error(e)
         import traceback
         traceback.print_exc()  # 打印完整的堆栈跟踪信息
+        async with async_db_session() as db:
+            stmt = select(UploadTask).where(UploadTask.option['doc_id'].astext == str(doc.id))
+            result = await db.execute(stmt)
+            task = result.scalar_one_or_none()
+            if task:
+                await upload_task_service.update(pk=task.id, obj=UpdateUploadTaskParam(name=task.name, status='error'))
         await redis_client.set(
             redis_key, json.dumps({
                 'status': 'error',

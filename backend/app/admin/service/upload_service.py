@@ -430,6 +430,7 @@ class UploadService:
         msg_obj = CreateMailMsgParam(
             doc_id=doc_id,
             name=subject,
+            subject=subject,
             original=body,
             sender=from_email,
             receiver=to_email,
