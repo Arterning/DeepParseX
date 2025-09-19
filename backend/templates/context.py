@@ -301,3 +301,31 @@ entity_context = {
         },
     ]
 }
+
+
+# 定义要替换的变量
+upload_task_context = {
+    'app_name': 'admin',
+    'table_name_en': 'sys_upload_task',
+    'table_name_zh': '上传任务',
+    'table_name_class': 'UploadTask',
+    'file_prefix': 'upload_task',
+    'schema_name': 'UploadTask',
+    'have_datetime_column': True,
+    'models': [
+        {
+            'name': 'name',
+            'is_nullable': False,
+            'pd_type': 'str',
+            'type': 'String',
+            'comment': '任务名称',
+        },
+        {
+            'name': 'status',
+            'is_nullable': False,
+            'pd_type': 'str',
+            'type': 'String',
+            'comment': '任务状态',
+        }
+    ]
+}
