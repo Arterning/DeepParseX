@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from typing import Annotated
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Depends, Path, Query, Body
 
 from backend.app.admin.schema.mail_box import CreateMailBoxParam, GetMailBoxDetails, GetMailBoxListDetails, UpdateMailBoxParam
 from backend.app.admin.service.mail_box_service import mail_box_service
@@ -79,3 +80,35 @@ async def delete_mail_box(pk: Annotated[list[int], Query(...)]) -> ResponseModel
     if count > 0:
         return response_base.success()
     return response_base.fail()
+
+
+@router.post(
+    '/analyze-relationships',
+    summary='分析邮箱关系',
+    dependencies=[DependsJwtAuth],
+)
+async def analyze_mailbox_relationships(
+    mailboxes: Annotated[list[str], Body(...)],
+    start_time: Annotated[datetime | None, Body()] = None,
+    end_time: Annotated[datetime | None, Body()] = None,
+    max_layers: Annotated[int, Body()] = 3,
+    reference_time: Annotated[datetime | None, Body()] = None
+) -> ResponseModel:
+    """
+    分析邮箱之间的关系
+
+    :param mailboxes: 邮箱地址列表
+    :param start_time: 开始时间
+    :param end_time: 结束时间
+    :param max_layers: 最大分析层级，默认3层
+    :param reference_time: 时间权重计算的基准时间，默认为查询时间
+    :return: 包含nodes和edges的图结构
+    """
+    result = await mail_box_service.analyze_mailbox_relationships(
+        mailboxes=mailboxes,
+        start_time=start_time,
+        end_time=end_time,
+        max_layers=max_layers,
+        reference_time=reference_time
+    )
+    return response_base.success(data=result)
