@@ -36,9 +36,9 @@ ts_vue_template = env.get_template('vue.jinja')
 
 # 定义要替换的变量
 context = {
-    'Entity': 'Entity',
-    'path': 'entity',
-    'entity': 'entity',
+    'Entity': 'UploadTask',
+    'path': 'upload_task',
+    'entity': 'upload_task',
     'MenuName': '',
 }
 
