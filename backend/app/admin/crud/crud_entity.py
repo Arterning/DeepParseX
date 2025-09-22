@@ -35,7 +35,7 @@ class CRUDEntity(CRUDPlus[Entity]):
             whereclause.update(name__like=f'%{name}%')
         
         if entity_type:
-            whereclause.update(entity_type == entity_type)
+            whereclause.update(entity_type = entity_type)
         
         return await self.select_order('created_time', 'desc', **whereclause)
 
