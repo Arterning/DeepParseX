@@ -19,6 +19,7 @@ class SysDocDir(Base, UserMixin):
     level: Mapped[int] = mapped_column(default=0, comment='目录层级')
     sort: Mapped[int] = mapped_column(default=0, comment='排序')
     remark: Mapped[str | None] = mapped_column(TEXT, default=None, comment='备注')
+    del_flag: Mapped[bool] = mapped_column(default=False, comment='删除标志（0删除 1存在）')
 
     # 父级目录
     parent_id: Mapped[int | None] = mapped_column(
