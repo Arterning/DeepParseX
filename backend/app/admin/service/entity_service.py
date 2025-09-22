@@ -20,8 +20,8 @@ class EntityService:
             return entity
     
     @staticmethod
-    async def get_select() -> Select:
-        return await entity_dao.get_list()
+    async def get_select(name: str | None = None, entity_type: str | None = None) -> Select:
+        return await entity_dao.get_list(name=name, entity_type=entity_type)
 
     @staticmethod
     async def get_all() -> Sequence[Entity]:

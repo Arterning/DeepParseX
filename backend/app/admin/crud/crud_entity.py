@@ -21,13 +21,23 @@ class CRUDEntity(CRUDPlus[Entity]):
         """
         return await self.select_model(db, pk)
 
-    async def get_list(self) -> Select:
+    async def get_list(self, name: str | None = None, entity_type: str | None = None) -> Select:
         """
         获取实体列表
 
+        :param name: 实体名称（模糊匹配）
+        :param entity_type: 实体类型
         :return:
         """
-        return await self.select_order('created_time', 'desc')
+        whereclause = {}
+        
+        if name:
+            whereclause.update(name__like=f'%{name}%')
+        
+        if entity_type:
+            whereclause.update(entity_type == entity_type)
+        
+        return await self.select_order('created_time', 'desc', **whereclause)
 
     async def get_all(self, db: AsyncSession) -> Sequence[Entity]:
         """
