@@ -46,7 +46,12 @@ class CRUDUploadTask(CRUDPlus[UploadTask]):
         :param obj_in:
         :return:
         """
-        return await self.create_model(db, obj_in)
+        # return await self.create_model(db, obj_in)
+        dict_obj = obj_in.model_dump()
+        task = self.model(**dict_obj)
+        db.add(task)
+        return task
+        
 
     async def update(self, db: AsyncSession, pk: int, obj_in: UpdateUploadTaskParam) -> int:
         """
