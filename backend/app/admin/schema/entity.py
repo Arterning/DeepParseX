@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from datetime import datetime
+from typing import Dict, Any, Optional
 
 from pydantic import ConfigDict
 
@@ -12,6 +13,7 @@ class EntitySchemaBase(SchemaBase):
     name: str
     description: str | None = None
     entity_type: str | None = None
+    properties: Optional[Dict[str, Any]] = None
     
 
 
