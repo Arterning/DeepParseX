@@ -21,6 +21,7 @@ class SysDocSchemaBase(SchemaBase):
     source: str | None = None
     status: int | None = None
     dept_id: int | None = None
+    doc_dir_id: int | None = None
     created_by: int | None = None
     created_user: str | None = None
     

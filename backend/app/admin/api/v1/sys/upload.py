@@ -29,11 +29,13 @@ async def upload_file(
     file: UploadFile = File(...), 
     last_modified: Annotated[datetime| None, Form(...)] = None,
     size: Annotated[int | None, Form(...)] = None,
+    doc_dir_id: Annotated[int | None, Form(None)] = None,
     request: Request = None,
 ):
     meta = {
         "last_modified": last_modified,
         "size": size,
+        "doc_dir_id": doc_dir_id,
     }
     # print("meta", meta)
     # print("request", request.user)
