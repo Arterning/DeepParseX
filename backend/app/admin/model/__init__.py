@@ -25,3 +25,4 @@ from backend.app.admin.model.sys_entity import Entity
 from backend.app.admin.model.sys_star_collect import StarCollect
 from backend.app.admin.model.sys_entity_relationship import EntityRelation
 from backend.app.admin.model.sys_subject_predict_object import SubjectPredictObject
+from backend.app.admin.model.sys_upload_task import UploadTask
