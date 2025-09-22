@@ -45,11 +45,15 @@ class SysDoc(Base):
     dept_id: Mapped[int | None] = mapped_column(
         ForeignKey('sys_dept.id', ondelete='SET NULL'), default=None, comment='部门关联ID'
     )
+    doc_dir_id: Mapped[int | None] = mapped_column(
+        ForeignKey('sys_doc_dir.id', ondelete='SET NULL'), default=None, comment='目录关联ID'
+    )
     created_by: Mapped[int | None] = mapped_column(default=None, comment='创建人ID')
     created_user: Mapped[str | None] = mapped_column(TEXT, default=None, comment='创建人')
     updated_by: Mapped[int | None] = mapped_column(init=False, default=None, comment='修改人ID')
     updated_user: Mapped[str | None] = mapped_column(TEXT, default=None, comment='修改人')
 
+    doc_dir: Mapped['SysDocDir'] = relationship(init=False, back_populates='docs')
     email_msg: Mapped['MailMsg'] = relationship(init=False, back_populates='doc')
     doc_data: Mapped[list['SysDocData']] = relationship(init=False, back_populates='doc')
     doc_chunk: Mapped[list['SysDocChunk']] = relationship(init=False, back_populates='doc')
