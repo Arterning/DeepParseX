@@ -46,7 +46,11 @@ async def upload_file(
         status='pending',
         option={'doc_id': doc.id}
     )
-    await upload_task_service.create(obj=task_obj)
+    task = await upload_task_service.create(obj=task_obj)
+    # 更新文档的upload_task_id
+    await sys_doc_service.base_update(pk=doc.id, obj={
+        'upload_task_id': task.id
+    })
     resp = {
         "id": doc.id
     }

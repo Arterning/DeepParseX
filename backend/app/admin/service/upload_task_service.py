@@ -30,9 +30,9 @@ class UploadTaskService:
             return upload_tasks
 
     @staticmethod
-    async def create(*, obj: CreateUploadTaskParam) -> None:
+    async def create(*, obj: CreateUploadTaskParam) -> UploadTask:
         async with async_db_session.begin() as db:
-            await upload_task_dao.create(db, obj)
+            return await upload_task_dao.create(db, obj)
 
     @staticmethod
     async def update(*, pk: int, obj: UpdateUploadTaskParam) -> int:

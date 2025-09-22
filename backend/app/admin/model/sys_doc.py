@@ -10,6 +10,7 @@ from sqlalchemy.dialects.postgresql import TIMESTAMP
 from backend.utils.timezone import timezone
 from backend.common.model import Base, id_key
 from backend.app.admin.model.sys_tag_doc import sys_tag_doc
+from backend.app.admin.model.sys_upload_task import UploadTask
 
 class SysDoc(Base):
     """文件"""
@@ -47,6 +48,10 @@ class SysDoc(Base):
     )
     doc_dir_id: Mapped[int | None] = mapped_column(
         ForeignKey('sys_doc_dir.id', ondelete='SET NULL'), default=None, comment='目录关联ID'
+    )
+    
+    upload_task_id: Mapped[int | None] = mapped_column(
+        ForeignKey('sys_upload_task.id', ondelete='SET NULL'), default=None, comment='上传任务ID'
     )
     created_by: Mapped[int | None] = mapped_column(default=None, comment='创建人ID')
     created_user: Mapped[str | None] = mapped_column(TEXT, default=None, comment='创建人')

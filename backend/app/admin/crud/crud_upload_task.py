@@ -38,7 +38,7 @@ class CRUDUploadTask(CRUDPlus[UploadTask]):
         """
         return await self.select_models(db)
 
-    async def create(self, db: AsyncSession, obj_in: CreateUploadTaskParam) -> None:
+    async def create(self, db: AsyncSession, obj_in: CreateUploadTaskParam) -> UploadTask:
         """
         创建 UploadTask
 
@@ -46,7 +46,7 @@ class CRUDUploadTask(CRUDPlus[UploadTask]):
         :param obj_in:
         :return:
         """
-        await self.create_model(db, obj_in)
+        return await self.create_model(db, obj_in)
 
     async def update(self, db: AsyncSession, pk: int, obj_in: UpdateUploadTaskParam) -> int:
         """
