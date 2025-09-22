@@ -15,7 +15,7 @@ class SysDocDir(Base, UserMixin):
     __tablename__ = 'sys_doc_dir'
 
     id: Mapped[id_key] = mapped_column(init=False)
-    name: Mapped[str] = mapped_column(String(255), comment='目录名称')
+    name: Mapped[str] = mapped_column(String(255), default='', comment='目录名称')
     level: Mapped[int] = mapped_column(default=0, comment='目录层级')
     sort: Mapped[int] = mapped_column(default=0, comment='排序')
     remark: Mapped[str | None] = mapped_column(TEXT, default=None, comment='备注')

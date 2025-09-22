@@ -37,9 +37,9 @@ class MailBox(Base):
 
     other_info: Mapped[str] = mapped_column(TEXT, default='', comment='其它信息')
 
-    person_id: Mapped[int | None] = mapped_column(
-        ForeignKey('sys_person.id', ondelete='SET NULL'), default=None, comment='所属人物ID'
-    )
-    person: Mapped[Union['Person', None]] = relationship(init=False, back_populates='mail_boxes')
+    # person_id: Mapped[int | None] = mapped_column(
+    #     ForeignKey('sys_person.id', ondelete='SET NULL'), default=None, comment='所属人物ID'
+    # )
+    # person: Mapped[Union['Person', None]] = relationship(init=False, back_populates='mail_boxes')
 
     
