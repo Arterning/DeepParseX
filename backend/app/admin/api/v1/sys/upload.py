@@ -29,7 +29,7 @@ async def upload_file(
     file: UploadFile = File(...), 
     last_modified: Annotated[datetime| None, Form(...)] = None,
     size: Annotated[int | None, Form(...)] = None,
-    doc_dir_id: Annotated[int | None, Form(None)] = None,
+    doc_dir_id: Annotated[int | None, Form(...)] = None,
     request: Request = None,
 ):
     meta = {
