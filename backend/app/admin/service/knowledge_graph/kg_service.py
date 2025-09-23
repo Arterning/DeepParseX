@@ -55,9 +55,9 @@ def process_with_llm(config, input_text, debug=False):
     # Process with LLM
     metadata = {}
     
-    print("call llm begin...")
+    print("call llm begin...", flush=True)
     response = call_llm(model, user_prompt, api_key, system_prompt, max_tokens, temperature, base_url)
-    print("llm call complete.")
+    print("llm call complete.", flush=True)
 
     # Print raw response only if debug mode is on
     if debug:
@@ -240,9 +240,9 @@ def process_text_in_chunks(config: dict, full_text, debug=False):
     
     # 在实体标准化之后，添加实体类型识别
     if all_results:
-        print("\n" + "="*50)
-        print("PHASE 4: ENTITY TYPE CLASSIFICATION")
-        print("="*50)
+        print("\n" + "="*50, flush=True)
+        print("PHASE 4: ENTITY TYPE CLASSIFICATION", flush=True)
+        print("="*50, flush=True)
         
         # 收集所有唯一的主语和宾语
         unique_entities = set()
@@ -271,9 +271,9 @@ def process_text_in_chunks(config: dict, full_text, debug=False):
         for entity_type in entity_types.values():
             type_counts[entity_type] = type_counts.get(entity_type, 0) + 1
         
-        print("\n实体类型统计：")
+        print("\n实体类型统计：", flush=True)
         for type_name, count in type_counts.items():
-            print(f"- {type_name}: {count} 个")
+            print(f"- {type_name}: {count} 个", flush=True)
     
     return all_results
 
