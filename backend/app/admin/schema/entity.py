@@ -29,6 +29,7 @@ class GetEntityListDetails(EntitySchemaBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    relationships: Optional[Any] = None  # 关系数据
     
     created_time: datetime
     updated_time: datetime | None = None
