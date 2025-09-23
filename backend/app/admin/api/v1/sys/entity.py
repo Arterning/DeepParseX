@@ -23,7 +23,7 @@ async def get_entity(pk: Annotated[int, Path(...)]) -> ResponseModel:
     # 获取实体的关系数据
     relationships = await entity_service.get_entity_relationships(entity_id=pk)
     # 构建返回数据
-    data = GetEntityListDetails(**select_as_dict(entity), relationships=relationships)
+    data = GetEntityDetails(**select_as_dict(entity), relationships=relationships)
     return response_base.success(data=data)
 
 

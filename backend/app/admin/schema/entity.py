@@ -35,10 +35,7 @@ class EntityDocs(SchemaBase):
 
 class GetEntityListDetails(EntitySchemaBase):
     model_config = ConfigDict(from_attributes=True)
-
     id: int
-    relationships: Optional[Any] = None  # 关系数据
-    docs: Optional[List[EntityDocs]] = None  # 关联的文档列表
     
     created_time: datetime
     updated_time: datetime | None = None
@@ -47,6 +44,8 @@ class GetEntityDetails(EntitySchemaBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    relationships: Optional[Any] = None  # 关系数据
+    docs: Optional[List[EntityDocs]] = None  # 关联的文档列表
     
     created_time: datetime
     updated_time: datetime | None = None
