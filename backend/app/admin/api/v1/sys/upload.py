@@ -29,6 +29,7 @@ async def upload_file(
     file: UploadFile = File(...), 
     last_modified: Annotated[datetime| None, Form(...)] = None,
     size: Annotated[int | None, Form(...)] = None,
+    task_name: Annotated[str | None, Form(...)] = None,
     doc_dir_id: Annotated[int | None, Form(...)] = None,
     request: Request = None,
 ):
@@ -42,7 +43,7 @@ async def upload_file(
     user = request.user
     doc = await upload_service.save_file(file, meta, user)
     task_obj = CreateUploadTaskParam(
-        name=file.filename,
+        name=task_name,
         status='pending',
         option={'doc_id': doc.id}
     )
