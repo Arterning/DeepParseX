@@ -29,8 +29,6 @@ async def upload_file(
     file: UploadFile = File(...), 
     last_modified: Annotated[datetime| None, Form(...)] = None,
     size: Annotated[int | None, Form(...)] = None,
-    task_name: Annotated[str | None, Form(...)] = None,
-    doc_dir_id: Annotated[int | None, Form(...)] = None,
     request: Request = None,
 ):
     meta = {
@@ -42,16 +40,6 @@ async def upload_file(
     # print("request", request.user)
     user = request.user
     doc = await upload_service.save_file(file, meta, user)
-    task_obj = CreateUploadTaskParam(
-        name=task_name,
-        status='pending',
-        option={'doc_id': doc.id}
-    )
-    task = await upload_task_service.create(obj=task_obj)
-    # 更新文档的upload_task_id
-    await sys_doc_service.base_update(pk=doc.id, obj={
-        'upload_task_id': task.id
-    })
     resp = {
         "id": doc.id
     }
@@ -61,8 +49,21 @@ async def upload_file(
 @router.post("/parse/{pk}", summary='解析文件', dependencies=[DependsJwtAuth])
 async def parse(
     pk: Annotated[int, Path(...)],
-    background_tasks: BackgroundTasks
+    background_tasks: BackgroundTasks,
+    name: Annotated[str | None, Form(...)] = None,
+    doc_dir_id: Annotated[int | None, Form(...)] = None,
 ):
+    # 创建上传任务
+    task_obj = CreateUploadTaskParam(
+        name=name,
+        status='pending',
+        option={'doc_id': pk}
+    )
+    task = await upload_task_service.create(obj=task_obj)
+    # 更新文档的upload_task_id
+    await sys_doc_service.base_update(pk=pk, obj={
+        'upload_task_id': task.id
+    })
     
     background_tasks.add_task(run_parse_task, pk=pk)
     return response_base.success(data="任务已提交，正在处理")
