@@ -3,7 +3,8 @@
 import asyncio
 from fastapi import APIRouter, Path, BackgroundTasks
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Optional
+from pydantic import BaseModel
 from backend.common.response.response_schema import response_base
 from backend.app.admin.service.upload_service import upload_service
 from backend.app.admin.service.doc_service import sys_doc_service
@@ -20,6 +21,12 @@ from backend.common.log import log
 from backend.common.security.jwt import DependsJwtAuth
 from backend.database.db_redis import redis_client
 import os
+
+
+# 定义接收JSON参数的模型
+class ParseParams(BaseModel):
+    name: Optional[str] = None
+    doc_dir_id: Optional[int] = None
 
 router = APIRouter()
 
@@ -50,9 +57,10 @@ async def upload_file(
 async def parse(
     pk: Annotated[int, Path(...)],
     background_tasks: BackgroundTasks,
-    name: Annotated[str | None, Form(...)] = None,
-    doc_dir_id: Annotated[int | None, Form(...)] = None,
+    params: ParseParams
 ):
+    name = params.name
+    doc_dir_id = params.doc_dir_id
     # 创建上传任务
     task_obj = CreateUploadTaskParam(
         name=name,
@@ -62,7 +70,8 @@ async def parse(
     task = await upload_task_service.create(obj=task_obj)
     # 更新文档的upload_task_id
     await sys_doc_service.base_update(pk=pk, obj={
-        'upload_task_id': task.id
+        'upload_task_id': task.id,
+        'doc_dir_id': doc_dir_id,
     })
     
     background_tasks.add_task(run_parse_task, pk=pk)
