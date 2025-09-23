@@ -69,7 +69,6 @@ class SysDocService:
                 "enabled": False
             }
         }
-        print("bbbbbbbbbbb")
         
         # 生成知识图谱
         spo_list = await kg_service.generate_knowledge_graph(doc.content, config)

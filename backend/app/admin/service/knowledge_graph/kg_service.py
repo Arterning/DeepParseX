@@ -54,8 +54,11 @@ def process_with_llm(config, input_text, debug=False):
     
     # Process with LLM
     metadata = {}
-    response = call_llm(model, user_prompt, api_key, system_prompt, max_tokens, temperature, base_url)
     
+    print("call llm begin...")
+    response = call_llm(model, user_prompt, api_key, system_prompt, max_tokens, temperature, base_url)
+    print("llm call complete.")
+
     # Print raw response only if debug mode is on
     if debug:
         print("Raw LLM response:")
@@ -167,10 +170,10 @@ def process_text_in_chunks(config: dict, full_text, debug=False):
     # Split text into chunks
     text_chunks = chunk_text(full_text, chunk_size, overlap)
     
-    print("=" * 50)
-    print("PHASE 1: INITIAL TRIPLE EXTRACTION")
-    print("=" * 50)
-    print(f"Processing text in {len(text_chunks)} chunks (size: {chunk_size} words, overlap: {overlap} words)")
+    print("=" * 50, flush=True)
+    print("PHASE 1: INITIAL TRIPLE EXTRACTION", flush=True)
+    print("=" * 50, flush=True)
+    print(f"Processing text in {len(text_chunks)} chunks (size: {chunk_size} words, overlap: {overlap} words)", flush=True)
     
     # Process each chunk
     all_results = []
