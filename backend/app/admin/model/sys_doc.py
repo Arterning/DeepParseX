@@ -10,6 +10,7 @@ from sqlalchemy.dialects.postgresql import TIMESTAMP
 from backend.utils.timezone import timezone
 from backend.common.model import Base, id_key
 from backend.app.admin.model.sys_tag_doc import sys_tag_doc
+from backend.app.admin.model.sys_entity_doc import sys_entity_doc
 from backend.app.admin.model.sys_upload_task import UploadTask
 
 class SysDoc(Base):
@@ -67,4 +68,8 @@ class SysDoc(Base):
 
     tags: Mapped[list['Tag']] = relationship(
         init=False, secondary=sys_tag_doc, back_populates='docs'
+    )
+
+    entities: Mapped[list['Entity']] = relationship(
+        init=False, secondary=sys_entity_doc, back_populates='docs'
     )

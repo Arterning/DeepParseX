@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import TEXT, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.common.model import Base, id_key
+from backend.app.admin.model.sys_entity_doc import sys_entity_doc
 
 
 class Entity(Base):
@@ -18,3 +19,7 @@ class Entity(Base):
     description: Mapped[str | None] = mapped_column(TEXT, default=None, comment='实体描述')
     entity_type: Mapped[str | None] = mapped_column(String(255), default=None, comment='实体类型')
     properties: Mapped[Dict[str, Any] | None] = mapped_column(JSON, default=None, comment='实体属性')
+
+    docs: Mapped[list['SysDoc']] = relationship(
+        init=False, secondary=sys_entity_doc, back_populates='entities'
+    )
