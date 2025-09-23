@@ -78,6 +78,13 @@ class GetTagDetails(SchemaBase):
     created_time: datetime
     updated_time: datetime | None = None
 
+class GetDocEntity(SchemaBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    description: str | None = None
+    entity_type: str | None = None
+
 class GetDocDetail(SysDocSchemaBase):
     model_config = ConfigDict(from_attributes=True)
 
@@ -88,6 +95,7 @@ class GetDocDetail(SysDocSchemaBase):
     doc_spos: list[GetDocSPO]
     tags: list[GetTagDetails] | None = []
     graph_data: dict
+    entities: list[GetDocEntity]
     email_msg: GetMailMsgDetails | None = None
     error_msg: str | None = None
 

@@ -1,4 +1,4 @@
-import time
+import numpy as np
 import requests
 from backend.core.conf import settings
 from backend.common.log import log
@@ -7,13 +7,25 @@ from backend.common.log import log
 def request_text_to_vector(text, max_length=512):
     EMBEDDING_MODEL = settings.EMBEDDING_MODEL
 
-    if EMBEDDING_MODEL == "v1":
-        return v1_embedding(text, max_length=max_length)
+    # return random
+    np_vector = np.random.rand(1024)   
+
+    list_vector = np_vector.tolist()
+
+    return [
+        {
+            "text":text,
+            "embs": list_vector,
+        }
+    ]
+
+    # if EMBEDDING_MODEL == "v1":
+    #     return v1_embedding(text, max_length=max_length)
     
-    if EMBEDDING_MODEL == "v2":
-        return v2_embedding(text, max_length=max_length)
+    # if EMBEDDING_MODEL == "v2":
+    #     return v2_embedding(text, max_length=max_length)
     
-    return v2_embedding(text, max_length=max_length)
+    # return v2_embedding(text, max_length=max_length)
 
 # OCR
 def process_file(file_name: str, file_data: bytes):

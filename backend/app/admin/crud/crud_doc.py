@@ -28,6 +28,7 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
             .options(selectinload(self.model.email_msg))
             .options(selectinload(self.model.doc_spos))
             .options(selectinload(self.model.tags))
+            .options(selectinload(self.model.entities))
             .where(*where)
         )
         return doc.scalars().first()
