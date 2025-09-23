@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from pydantic import ConfigDict
 
@@ -24,12 +24,21 @@ class CreateEntityParam(EntitySchemaBase):
 class UpdateEntityParam(EntitySchemaBase):
     pass
 
+class EntityDocs(SchemaBase):
+    id: int
+    model_config = ConfigDict(from_attributes=True)
+    title: str
+    name: str | None = None
+    type: str | None = None
+    doc_time: datetime | None = None
+
 
 class GetEntityListDetails(EntitySchemaBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     relationships: Optional[Any] = None  # 关系数据
+    docs: Optional[List[EntityDocs]] = None  # 关联的文档列表
     
     created_time: datetime
     updated_time: datetime | None = None

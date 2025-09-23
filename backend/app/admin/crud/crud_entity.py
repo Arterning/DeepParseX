@@ -2,9 +2,10 @@
 # -*- coding: utf-8 -*-
 from typing import Sequence
 
-from sqlalchemy import delete, Select
+from sqlalchemy import delete, Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
+from sqlalchemy.orm import selectinload
 
 from backend.app.admin.model.sys_entity import Entity
 from backend.app.admin.schema.entity import CreateEntityParam, UpdateEntityParam
@@ -13,13 +14,19 @@ from backend.app.admin.schema.entity import CreateEntityParam, UpdateEntityParam
 class CRUDEntity(CRUDPlus[Entity]):
     async def get(self, db: AsyncSession, pk: int) -> Entity | None:
         """
-        获取 Entity
+        获取 Entity 及其关联的文档
 
         :param db:
         :param pk:
         :return:
         """
-        return await self.select_model(db, pk)
+        where = [self.model.id == pk]
+        result = await db.execute(
+            select(self.model)
+            .options(selectinload(self.model.docs))
+            .where(*where)
+        )
+        return result.scalars().first()
 
     async def get_list(self, name: str | None = None, entity_type: str | None = None) -> Select:
         """
