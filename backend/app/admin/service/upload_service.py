@@ -116,7 +116,6 @@ class UploadService:
         file_type = get_file_type(file_suffix)
         last_modified = meta.get('last_modified', None)
         size = meta.get('size', None)
-        doc_dir_id = meta.get('doc_dir_id', None)
 
         obj = CreateSysDocParam(
             title=file.filename, 
@@ -129,7 +128,6 @@ class UploadService:
             size=size,
             status=0,
             dept_id= user.dept_id if user else None,
-            doc_dir_id=doc_dir_id,
             created_by= user.id if user else None,
             created_user= user.username if user else None,
         )

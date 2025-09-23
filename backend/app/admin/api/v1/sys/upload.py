@@ -41,7 +41,6 @@ async def upload_file(
     meta = {
         "last_modified": last_modified,
         "size": size,
-        "doc_dir_id": doc_dir_id,
     }
     # print("meta", meta)
     # print("request", request.user)
