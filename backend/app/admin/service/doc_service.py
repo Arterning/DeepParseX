@@ -77,11 +77,27 @@ class SysDocService:
             
         # 构建SPO对象列表
         spo_objects = []
+        # 存储此文档相关的所有实体ID
+        doc_entities = set()
+        
         async with async_db_session.begin() as db:
             entity_cache = {}
+            # 导入sys_entity_doc表以用于直接插入记录
+            from backend.app.admin.model.sys_entity_doc import sys_entity_doc
 
             async def get_or_create_entity(name: str, entity_type: str) -> Entity:
                 if name in entity_cache:
+                    # 检查实体是否已经与文档关联
+                    if entity_cache[name].id not in doc_entities:
+                        doc_entities.add(entity_cache[name].id)
+                        # 向sys_entity_doc表中插入记录，建立实体和文档的关系
+                        await db.execute(
+                            sys_entity_doc.insert().values(
+                                entity_id=entity_cache[name].id,
+                                doc_id=pk
+                            )
+                        )
+                        await db.flush()
                     return entity_cache[name]
                 
                 # Check if entity exists
@@ -96,6 +112,17 @@ class SysDocService:
                     await db.flush()
                     await db.refresh(entity_to_create)
                     entity = entity_to_create
+                
+                # 记录实体ID并向sys_entity_doc表中插入记录
+                if entity.id not in doc_entities:
+                    doc_entities.add(entity.id)
+                    await db.execute(
+                        sys_entity_doc.insert().values(
+                            entity_id=entity.id,
+                            doc_id=pk
+                        )
+                    )
+                    await db.flush()
                 
                 entity_cache[name] = entity
                 return entity
