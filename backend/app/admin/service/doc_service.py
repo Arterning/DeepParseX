@@ -59,16 +59,17 @@ class SysDocService:
                 "temperature": 0.7
             },
             "chunking": {
-                "chunk_size": 500,
+                "chunk_size": 1000,
                 "overlap": 50
             },
             "standardization": {
-                "enabled": True
+                "enabled": False
             },
             "inference": {
                 "enabled": False
             }
         }
+        print("bbbbbbbbbbb")
         
         # 生成知识图谱
         spo_list = await kg_service.generate_knowledge_graph(doc.content, config)
@@ -651,7 +652,7 @@ class SysDocService:
             }
             
         except Exception as e:
-            log.error(f"数据分析出错: {str(e)}")
+            print(f"数据分析出错: {str(e)}")
             return {
                 "error": f"数据分析出错: {str(e)}"
             }
