@@ -20,8 +20,13 @@ router = APIRouter()
 @router.get('/{pk}', summary='获取详情', dependencies=[DependsJwtAuth])
 async def get_entity(pk: Annotated[int, Path(...)]) -> ResponseModel:
     entity = await entity_service.get(pk=pk)
+    # 获取实体的关系数据
+    relationships = await entity_service.get_entity_relationships(entity_id=pk)
+    # 构建返回数据
     data = GetEntityListDetails(**select_as_dict(entity))
-    return response_base.success(data=data)
+    data_dict = select_as_dict(data)
+    data_dict['relationships'] = relationships
+    return response_base.success(data=data_dict)
 
 
 @router.get(
