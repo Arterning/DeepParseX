@@ -114,6 +114,7 @@ def process_with_llm(config, input_text, debug=False):
         print("\n\nERROR ### Could not extract valid JSON from response: ", response, "\n\n")
         return None
 
+# 获取实体的类型
 def get_entity_types(entities, config):
     """
     获取实体的类型
@@ -125,8 +126,18 @@ def get_entity_types(entities, config):
     Returns:
         dict: 实体类型字典，key为实体，value为类型
     """
-    system_prompt = """你是一个实体类型分类专家。你需要判断给定实体的类型。
-类型只能是以下几种：人物、事件、组织、概念、地点。
+    # 基础实体类型
+    base_types = "人物、事件、组织、地点"
+    
+    # 如果config中提供了额外的实体类型，则拼接到基础类型后面
+    entity_types = config.get("entity_types", [])
+    if entity_types and isinstance(entity_types, list) and len(entity_types) > 0:
+        all_types = base_types + "、" + "、".join(entity_types)
+    else:
+        all_types = base_types
+    
+    system_prompt = f"""你是一个实体类型分类专家。你需要判断给定实体的类型。
+类型只能是以下几种：{all_types}。
 请以JSON格式返回，key为实体，value为类型。"""
     
     # 将实体列表转换为字符串
