@@ -18,6 +18,7 @@ class MailMsgSchemaBase(SchemaBase):
   sender: str | None = None
   receiver:str | None = None
   cc: str | None = None
+  bcc: str | None = None
   doc_id: int | None = None
 
     

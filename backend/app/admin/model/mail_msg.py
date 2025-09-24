@@ -51,6 +51,9 @@ class MailMsg(Base):
     # 抄送者
     cc: Mapped[str] = mapped_column(TEXT, default='', comment='抄送者')
 
+    # 密送者
+    bcc: Mapped[str] = mapped_column(TEXT, default='', comment='密送者')
+
     # 附件
     attachments: Mapped[list['MailAttachment']] = relationship(init=False, back_populates='mail_msg')
 

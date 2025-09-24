@@ -42,6 +42,7 @@ async def get_pagination_mail_msg(
     sender: str | None = Query(None, description='发送者邮箱'),
     receiver: str | None = Query(None, description='接收者邮箱'),
     cc: str | None = Query(None, description='抄送者'),
+    bcc: str | None = Query(None, description='密送者'),
 ) -> ResponseModel:
     mail_msg_select = await mail_msg_service.get_select(
         name=name,

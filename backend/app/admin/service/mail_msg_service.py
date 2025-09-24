@@ -30,6 +30,7 @@ class MailMsgService:
         sender: str | None = None,
         receiver: str | None = None,
         cc: str | None = None,
+        bcc: str | None = None,
     ) -> Select:
         return await mail_msg_dao.get_list(
             name=name,
@@ -39,6 +40,7 @@ class MailMsgService:
             sender=sender,
             receiver=receiver,
             cc=cc,
+            bcc=bcc,
         )
 
     @staticmethod

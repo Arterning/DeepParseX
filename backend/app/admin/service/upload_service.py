@@ -423,6 +423,7 @@ class UploadService:
         from_email_raw = result_dict.get('from', '')
         to_email_raw = result_dict.get('to', '')
         cc_raw = result_dict.get('cc', '')
+        bcc_raw = result_dict.get('bcc', '')
         time = result_dict.get('parsed_date', datetime.now())
         body = result_dict.get('body', '')
 
@@ -430,6 +431,7 @@ class UploadService:
         from_email = upload_service.extract_email_address(from_email_raw)
         to_email = upload_service.extract_multiple_emails(to_email_raw)  # To字段也可能有多个
         cc = upload_service.extract_multiple_emails(cc_raw)
+        bcc = upload_service.extract_multiple_emails(bcc_raw)  # Bcc字段也可能有多个
 
         msg_obj = CreateMailMsgParam(
             doc_id=doc_id,
@@ -439,6 +441,7 @@ class UploadService:
             sender=from_email,
             receiver=to_email,
             cc=cc,
+            bcc=bcc,
             time=time,
         )
         await mail_msg_service.create(obj=msg_obj)
@@ -478,6 +481,19 @@ class UploadService:
                         name=email_addr,
                     )
                     await mail_box_service.create(obj=cc_mail_obj)
+
+        # 处理Bcc字段的多个邮箱地址
+        if bcc:
+            bcc_emails = [email.strip() for email in bcc.split(',') if email.strip()]
+            for email_addr in bcc_emails:
+                bcc_box = await mail_box_service.get_by_name(name=email_addr)
+                if bcc_box:
+                    await mail_box_service.base_update(pk=bcc_box.id, obj={'email_num': bcc_box.email_num + 1})
+                else:
+                    bcc_mail_obj = CreateMailBoxParam(
+                        name=email_addr,
+                    )
+                    await mail_box_service.create(obj=bcc_mail_obj)
         return body
 
 
@@ -503,6 +519,7 @@ class UploadService:
                 'from': msg.get('From', ''),
                 'to': msg.get('To', ''),
                 'cc': msg.get('Cc', ''),
+                'bcc': msg.get('Bcc', ''),
                 'date': msg.get('Date', ''),
                 'content_type': msg.get_content_type(),
             }

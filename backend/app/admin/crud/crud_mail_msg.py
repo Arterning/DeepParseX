@@ -31,6 +31,7 @@ class CRUDMailMsg(CRUDPlus[MailMsg]):
         sender: str | None = None,
         receiver: str | None = None,
         cc: str | None = None,
+        bcc: str | None = None,
     ) -> Select:
         """
         获取邮件列表
@@ -52,6 +53,8 @@ class CRUDMailMsg(CRUDPlus[MailMsg]):
             select_stmt = select_stmt.where(self.model.receiver.like(f'%{receiver}%'))
         if cc:
             select_stmt = select_stmt.where(self.model.cc.like(f'%{cc}%'))
+        if bcc:
+            select_stmt = select_stmt.where(self.model.bcc.like(f'%{bcc}%'))
         return select_stmt
 
     async def get_all(self, db: AsyncSession) -> Sequence[MailMsg]:
