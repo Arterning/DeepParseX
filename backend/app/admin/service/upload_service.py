@@ -238,7 +238,11 @@ class UploadService:
                     if not filename or filename.startswith('__MACOSX'):
                         continue
 
-                    file_content_bytes = rar_ref.read(file_info.filename)
+                    try:
+                        file_content_bytes = rar_ref.read(file_info.filename)
+                    except rarfile.BadRarFile as e:
+                        log.error(f"Failed to read file {filename} from RAR archive: {e}")
+                        continue  # 跳过当前文件，继续处理下一个文件
 
                     unique_id = str(uuid.uuid4())
                     file_suffix = get_file_suffix(filename)
