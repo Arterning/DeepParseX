@@ -27,6 +27,7 @@ import os
 class ParseParams(BaseModel):
     name: Optional[str] = None
     doc_dir_id: Optional[int] = None
+    option: Optional[dict] = None
 
 router = APIRouter()
 
@@ -60,11 +61,14 @@ async def parse(
 ):
     name = params.name
     doc_dir_id = params.doc_dir_id
+    option = params.option
     # 创建上传任务
     task_obj = CreateUploadTaskParam(
         name=name,
         status='pending',
-        option={'doc_id': pk}
+        doc_id=pk,
+        doc_dir_id=doc_dir_id,
+        option=option
     )
     task = await upload_task_service.create(obj=task_obj)
     # 更新文档的upload_task_id

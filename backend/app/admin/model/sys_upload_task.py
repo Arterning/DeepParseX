@@ -24,3 +24,7 @@ class UploadTask(Base):
 
     option: Mapped[JSON | None] = mapped_column(JSON, default=None, comment='任务选项')
     
+    doc_id: Mapped[int | None] = mapped_column(default=None, index=True, comment='文件ID')
+    
+    doc_dir_id: Mapped[int | None] = mapped_column(default=None, index=True, comment='目录ID')
+    

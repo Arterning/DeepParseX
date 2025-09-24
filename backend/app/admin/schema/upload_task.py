@@ -16,6 +16,10 @@ class UploadTaskSchemaBase(SchemaBase):
     status: str
 
     option: dict | None = None
+    
+    doc_id: int | None = None
+    
+    doc_dir_id: int | None = None
 
     
 
