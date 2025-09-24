@@ -43,6 +43,18 @@ def process_with_llm(config, input_text, debug=False):
     # Use prompts from the prompts module
     system_prompt = MAIN_SYSTEM_PROMPT
     user_prompt = MAIN_USER_PROMPT
+    
+    # 动态修改提示词，添加实体类型
+    entity_types = config.get("entity_types")
+    if entity_types and isinstance(entity_types, list) and len(entity_types) > 0:
+        # 将实体类型列表转换为字符串，添加到提示词中
+        entity_types_str = "、".join(entity_types)
+        # 在"邮箱（完整地址）"之后添加实体类型
+        user_prompt = user_prompt.replace(
+            "实体仅含5类：人物（姓名/职位）、组织（公司/机构）、地点（城市/国家/建筑）、事件（会议/历史事件）、邮箱（完整地址）；",
+            f"实体仅含5类：人物（姓名/职位）、组织（公司/机构）、地点（城市/国家/建筑）、事件（会议/历史事件）、邮箱（完整地址）、{entity_types_str}；"
+        )
+    
     user_prompt += f"```\n{input_text}```\n" 
 
     # LLM configuration

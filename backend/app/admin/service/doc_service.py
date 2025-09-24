@@ -37,11 +37,12 @@ from io import BytesIO
 class SysDocService:
 
     @staticmethod
-    async def build_graph(*, pk: int):
+    async def build_graph(pk: int, entity_types: List[str] = None):
         """构建文件的知识图谱
         
         Args:
             pk (int): 文档ID
+            entity_types (List[str]): 需要提取的实体类型列表，如['人物', '组织']
             
         Returns:
             list[SubjectPredictObject]: 生成的知识图谱三元组列表
@@ -67,7 +68,8 @@ class SysDocService:
             },
             "inference": {
                 "enabled": False
-            }
+            },
+            "entity_types": entity_types  # 添加实体类型配置
         }
         
         # 生成知识图谱

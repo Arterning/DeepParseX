@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from typing import Annotated
+from typing import Annotated, List
 
-from fastapi import APIRouter, Depends, Path, Query, Request
+from fastapi import APIRouter, Depends, Path, Query, Request, Body
 from fastapi.responses import StreamingResponse
 from fastapi.exceptions import HTTPException
 
@@ -40,11 +40,15 @@ async def collect_doc(request: Request, obj: CollectDocParam) -> ResponseModel:
 
 
 # 构建文件的知识图谱
-@router.get('/build_graph/{pk}', summary='构建文件的知识图谱',
+@router.post('/build_graph/{pk}', summary='构建文件的知识图谱',
+    tags=['文档管理'],
     dependencies=[DependsJwtAuth]
  )
-async def build_graph(pk: Annotated[int, Path(...)]) -> ResponseModel:
-    await sys_doc_service.build_graph(pk=pk)
+async def build_graph(
+    pk: Annotated[int, Path(...)],
+    entity_types: Annotated[List[str], Body(..., description="需要提取的实体类型列表，如['人物', '组织']")]
+) -> ResponseModel:
+    await sys_doc_service.build_graph(pk=pk, entity_types=entity_types)
     doc = await sys_doc_service.get(pk=pk)
     if not doc.doc_spos:
         return response_base.fail()
