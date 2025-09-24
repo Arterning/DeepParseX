@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.exceptions import HTTPException
 
 from backend.core.conf import settings
-from backend.app.admin.schema.doc import CreateSysDocParam, CollectDocParam, GetSysDocListDetails, GetSysDocPage, UpdateSysDocParam, GetDocDetail
+from backend.app.admin.schema.doc import CreateSysDocParam, CollectDocParam, GetSysDocListDetails, GetSysDocPage, UpdateSysDocParam, GetDocDetail, ParseEntityParams
 from backend.app.admin.service.doc_service import sys_doc_service
 from backend.app.admin.service.upload_service import upload_service
 from backend.common.pagination import DependsPagination, paging_data
@@ -46,9 +46,9 @@ async def collect_doc(request: Request, obj: CollectDocParam) -> ResponseModel:
  )
 async def build_graph(
     pk: Annotated[int, Path(...)],
-    entity_types: Annotated[List[str], Body(..., description="需要提取的实体类型列表，如['人物', '组织']")]
+    obj: ParseEntityParams
 ) -> ResponseModel:
-    await sys_doc_service.build_graph(pk=pk, entity_types=entity_types)
+    await sys_doc_service.build_graph(pk=pk, entity_types=obj.entity_types)
     doc = await sys_doc_service.get(pk=pk)
     if not doc.doc_spos:
         return response_base.fail()

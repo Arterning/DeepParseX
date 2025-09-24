@@ -104,3 +104,9 @@ class CollectDocParam(SchemaBase):
     model_config = ConfigDict(from_attributes=True)
     doc_id: int
     collection_id: int | None = None
+
+
+
+class ParseEntityParams(SchemaBase):
+    model_config = ConfigDict(from_attributes=True)
+    entity_types: list[str] | None = None 
