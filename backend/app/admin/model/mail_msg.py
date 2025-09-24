@@ -61,5 +61,9 @@ class MailMsg(Base):
         ForeignKey('sys_doc.id', ondelete='CASCADE'), default=None, index=True, comment='文件ID'
     )
 
+    doc_dir_id: Mapped[int | None] = mapped_column(
+        ForeignKey('sys_doc_dir.id', ondelete='SET NULL'), default=None, index=True, comment='目录ID'
+    )
+
     doc: Mapped[Union['SysDoc', None]] = relationship(init=False, back_populates='email_msg')
     

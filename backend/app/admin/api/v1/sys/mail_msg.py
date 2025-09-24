@@ -43,6 +43,7 @@ async def get_pagination_mail_msg(
     receiver: str | None = Query(None, description='接收者邮箱'),
     cc: str | None = Query(None, description='抄送者'),
     bcc: str | None = Query(None, description='密送者'),
+    doc_dir_id: int | None = Query(None, description='目录ID'),
 ) -> ResponseModel:
     mail_msg_select = await mail_msg_service.get_select(
         name=name,
@@ -52,6 +53,8 @@ async def get_pagination_mail_msg(
         sender=sender,
         receiver=receiver,
         cc=cc,
+        bcc=bcc,
+        doc_dir_id=doc_dir_id,
     )
     page_data = await paging_data(db, mail_msg_select, GetMailMsgListDetails)
     return response_base.success(data=page_data)
