@@ -135,7 +135,7 @@ async def run_parse_task(pk: int):
         })
 
         async with async_db_session() as db:
-            stmt = select(UploadTask).where(UploadTask.option['doc_id'].astext == str(doc.id))
+            stmt = select(UploadTask).where(UploadTask.doc_id == doc.id)
             result = await db.execute(stmt)
             task = result.scalar_one_or_none()
             if task:
