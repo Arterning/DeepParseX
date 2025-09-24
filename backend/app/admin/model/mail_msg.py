@@ -29,30 +29,30 @@ class MailMsg(Base):
 
     id: Mapped[id_key] = mapped_column(init=False)
     
-    name: Mapped[str] = mapped_column(sa.String(500), default='', comment='邮件标题')
+    name: Mapped[str] = mapped_column(TEXT, default='', comment='邮件标题')
 
-    subject: Mapped[str | None] = mapped_column(sa.String(500), default='', comment='邮件主题')
+    subject: Mapped[str | None] = mapped_column(TEXT, default='', comment='邮件主题')
     
     original: Mapped[str] = mapped_column(TEXT, default='', comment='原文')
     
-    content: Mapped[str] = mapped_column(TEXT, default='', comment='翻译')
+    content: Mapped[str | None] = mapped_column(TEXT, default='', comment='翻译')
     
     time: Mapped[datetime | None] = mapped_column(default=None, comment='时间')
 
     # 分类
-    category: Mapped[str] = mapped_column(sa.String(500), default='', comment='分类')
+    category: Mapped[str | None] = mapped_column(TEXT, default='', comment='分类')
 
     # 发送者
-    sender: Mapped[str] = mapped_column(sa.String(500), default='', comment='发送者邮箱')
+    sender: Mapped[str] = mapped_column(TEXT, default='', comment='发送者邮箱')
 
     # 接收者
-    receiver: Mapped[str] = mapped_column(sa.String(500), default='', comment='接收者邮箱')
+    receiver: Mapped[str] = mapped_column(TEXT, default='', comment='接收者邮箱')
 
     # 抄送者
-    cc: Mapped[str] = mapped_column(TEXT, default='', comment='抄送者')
+    cc: Mapped[str | None] = mapped_column(TEXT, default='', comment='抄送者')
 
     # 密送者
-    bcc: Mapped[str] = mapped_column(TEXT, default='', comment='密送者')
+    bcc: Mapped[str | None] = mapped_column(TEXT, default='', comment='密送者')
 
     # 附件
     attachments: Mapped[list['MailAttachment']] = relationship(init=False, back_populates='mail_msg')

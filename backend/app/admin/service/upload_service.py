@@ -145,7 +145,9 @@ class UploadService:
     async def request_content(title, file_bytes: bytes):
         loop = asyncio.get_running_loop()
         response = await loop.run_in_executor(None, process_file, title, file_bytes)
-        raw_content = response['content']
+        if not response or 'content' not in response:
+            return '无法获取文件解析结果'
+        raw_content = response.get('content', '')
         clean_content = upload_service.sanitize_text(raw_content)
         return clean_content
 
@@ -375,8 +377,8 @@ class UploadService:
             email_body = await upload_service.save_email(result_dict=result_dict)
             return email_body
         except Exception as e:
-            print(f"读取文件时发生错误：{e}")
-            raise e
+            print(f"读取邮件时发生错误：{e}")
+            traceback.print_exc()
 
     @staticmethod
     def extract_email_address(email_string: str) -> str:
@@ -590,7 +592,12 @@ class UploadService:
                             new_doc = await sys_doc_service.create(obj=obj)
                             
                             # Process content for the new doc
-                            await upload_service.read_file_content(new_doc)
+                            try:
+                                await upload_service.read_file_content(new_doc)
+                            except Exception as e:
+                                print(f"处理附件 {filename} 时发生错误: {e}")
+                                traceback.print_exc()
+                                continue
 
                             await sys_doc_service.create_doc_tokens(id=new_doc.id)
 
