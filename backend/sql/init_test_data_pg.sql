@@ -54,6 +54,9 @@ INSERT INTO public.sys_menu (id, title, name, level, sort, icon, path, menu_type
 
 INSERT INTO public.sys_menu (id, title, name, level, sort, icon, path, menu_type, component, perms, status, show, cache, remark, parent_id, created_time, updated_time) VALUES (60, '要素提取', 'Entity', 0, 2, 'IconCommon', 'entity', 1, '/data/entity/index.vue', null, 1, 1, 1, null, 43, '2025-02-24 02:17:56.565979 +00:00', '2025-08-20 07:17:19.009186 +00:00');
 
+INSERT INTO public.sys_menu (id, title, name, level, sort, icon, path, menu_type, component, perms, status, show, cache, remark, parent_id, created_time, updated_time) VALUES (66, '邮件详情', 'MailMsgDetail', 0, 7, null, 'mailmsg-detail', 1, '/data/mailmsg-detail/index.vue', null, 1, 0, 1, null, 43, '2025-04-16 08:03:59.294626 +00:00', '2025-09-20 06:59:40.661819 +00:00');
+INSERT INTO public.sys_menu (id, title, name, level, sort, icon, path, menu_type, component, perms, status, show, cache, remark, parent_id, created_time, updated_time) VALUES (75, '邮件处理', 'Mail', 0, 3, 'IconEmail', 'mail', 1, '/data/mail/index.vue', null, 1, 1, 1, null, 43, '2025-09-25 01:21:09.669394 +00:00', '2025-09-25 01:21:42.216650 +00:00');
+INSERT INTO public.sys_menu (id, title, name, level, sort, icon, path, menu_type, component, perms, status, show, cache, remark, parent_id, created_time, updated_time) VALUES (74, '邮箱详情', 'MailBoxDetail', 0, 6, null, 'mailbox-detail', 1, '/data/mailbox-detail/index.vue', null, 1, 0, 1, null, 43, '2025-09-20 06:58:26.089310 +00:00', '2025-09-20 06:59:15.946532 +00:00');
 
 INSERT INTO sys_role_menu (id, role_id, menu_id)
 VALUES (1, 1, 7);
