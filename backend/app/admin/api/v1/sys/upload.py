@@ -31,6 +31,55 @@ class ParseParams(BaseModel):
 
 router = APIRouter()
 
+async def get_compressed_file_count(doc_id: int) -> int:
+    """获取压缩包中的文件数量"""
+    from backend.app.admin.service.doc_service import sys_doc_service
+    from backend.utils.upload_utils import get_file_suffix, is_zip_file, is_rar_file, is_7z_file
+    from backend.utils.oss_client import minio_client
+    from backend.core.conf import settings
+    import io
+    import zipfile
+    import rarfile
+    
+    # 首先获取文档信息
+    doc = await sys_doc_service.get(pk=doc_id)
+    file_suffix = get_file_suffix(doc.file)
+    
+    # 非压缩包文件返回1
+    if not (is_zip_file(file_suffix) or is_rar_file(file_suffix) or is_7z_file(file_suffix)):
+        return 1
+    
+    # 获取文件内容
+    try:
+        bucket_name = settings.BUCKET_NAME
+        response = minio_client.get_object(bucket_name, doc.file)
+        file_bytes = response.read()
+        
+        # 根据文件类型计算文件数量
+        if is_zip_file(file_suffix):
+            zip_buffer = io.BytesIO(file_bytes)
+            with zipfile.ZipFile(zip_buffer, 'r') as zip_ref:
+                # 过滤掉目录和系统文件
+                valid_files = [f for f in zip_ref.infolist() if not f.is_dir() and not f.filename.startswith('__MACOSX')]
+                return len(valid_files)
+        elif is_rar_file(file_suffix):
+            rar_buffer = io.BytesIO(file_bytes)
+            with rarfile.RarFile(rar_buffer, 'r') as rar_ref:
+                # 过滤掉目录和系统文件
+                valid_files = [f for f in rar_ref.infolist() if not f.is_dir() and not f.filename.startswith('__MACOSX')]
+                return len(valid_files)
+        elif is_7z_file(file_suffix):
+            # 对于7z文件，我们需要一个库来读取，这里返回默认值1
+            # 实际项目中可以使用py7zr库来读取7z文件
+            return 1
+    except Exception as e:
+        log.error(f"读取压缩包文件数量失败: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    # 出现异常时返回默认值1
+    return 1
+
 
 @router.post("/", summary='上传文件', dependencies=[DependsJwtAuth])
 async def upload_file(
@@ -64,6 +113,10 @@ async def parse(
     doc_dir_id = params.doc_dir_id
     option = params.option
     source = f"({request.user.dept.name}){request.user.username}"
+    
+    # 获取文件数量，对于压缩包文件会读取实际包含的文件数量
+    file_count = await get_compressed_file_count(pk)
+    
     # 创建上传任务
     task_obj = CreateUploadTaskParam(
         name=name,
@@ -72,7 +125,8 @@ async def parse(
         doc_dir_id=doc_dir_id,
         option=option,
         source=source,
-        create_user = request.user.id
+        create_user=request.user.id,
+        file_count=file_count
     )
     task = await upload_task_service.create(obj=task_obj)
     # 更新文档的upload_task_id

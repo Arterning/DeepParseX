@@ -12,6 +12,13 @@ def is_zip_file(file_suffix: str) -> bool:
 def is_rar_file(file_suffix: str) -> bool:
     return file_suffix in ['.rar']
 
+def is_7z_file(file_suffix: str) -> bool:
+    return file_suffix in ['.7z']
+
+def is_compressed_file(file_suffix: str) -> bool:
+    """判断是否为常见的压缩包文件"""
+    return is_zip_file(file_suffix) or is_rar_file(file_suffix) or is_7z_file(file_suffix)
+
 def is_excel_file(file_suffix: str) -> bool:
     return file_suffix in ['.xls', '.xlsx', '.csv']
 
