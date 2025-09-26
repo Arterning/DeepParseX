@@ -63,6 +63,7 @@ async def parse(
     name = params.name
     doc_dir_id = params.doc_dir_id
     option = params.option
+    source = f"({request.user.dept.name}){request.user.username}"
     # 创建上传任务
     task_obj = CreateUploadTaskParam(
         name=name,
@@ -70,7 +71,7 @@ async def parse(
         doc_id=pk,
         doc_dir_id=doc_dir_id,
         option=option,
-        source='api',
+        source=source,
         create_user = request.user.id
     )
     task = await upload_task_service.create(obj=task_obj)
