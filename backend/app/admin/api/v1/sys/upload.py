@@ -57,6 +57,7 @@ async def upload_file(
 async def parse(
     pk: Annotated[int, Path(...)],
     background_tasks: BackgroundTasks,
+    request: Request, 
     params: ParseParams
 ):
     name = params.name
@@ -68,7 +69,9 @@ async def parse(
         status='pending',
         doc_id=pk,
         doc_dir_id=doc_dir_id,
-        option=option
+        option=option,
+        source='api',
+        create_user = request.user.id
     )
     task = await upload_task_service.create(obj=task_obj)
     # 更新文档的upload_task_id

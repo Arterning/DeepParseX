@@ -21,6 +21,14 @@ class UploadTaskSchemaBase(SchemaBase):
     
     doc_dir_id: int | None = None
 
+    # 文件数量
+    file_count: int | None = None
+
+    # 创建用户
+    create_user: int | None = None
+
+    # 来源
+    source: str | None = None
     
 
 
