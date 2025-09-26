@@ -32,8 +32,14 @@ async def get_upload_task(pk: Annotated[int, Path(...)]) -> ResponseModel:
         DependsPagination,
     ],
 )
-async def get_pagination_upload_task(db: CurrentSession) -> ResponseModel:
-    upload_task_select = await upload_task_service.get_select()
+async def get_pagination_upload_task(
+    db: CurrentSession,
+    name: Annotated[str | None, Query()] = None,
+    status: Annotated[str | None, Query()] = None,
+    source: Annotated[str | None, Query()] = None,
+    rangeValue: Annotated[list[str] | None, Query()] = ['', ''],
+) -> ResponseModel:
+    upload_task_select = await upload_task_service.get_select(name=name, status=status, source=source, rangeValue=rangeValue)
     page_data = await paging_data(db, upload_task_select, GetUploadTaskListDetails)
     return response_base.success(data=page_data)
 

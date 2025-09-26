@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from typing import Sequence
+from datetime import datetime, timedelta
 
 from sqlalchemy import delete, Select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,13 +22,32 @@ class CRUDUploadTask(CRUDPlus[UploadTask]):
         """
         return await self.select_model(db, pk)
 
-    async def get_list(self) -> Select:
+    async def get_list(self, name: str | None = None, status: str | None = None, source: str | None = None, rangeValue: list[str] | None = None) -> Select:
         """
         获取上传任务列表
 
+        :param name: 任务名称（模糊搜索）
+        :param status: 任务状态
+        :param source: 任务来源
+        :param rangeValue: 时间范围，格式为 ['2023-01-01', '2023-01-02']
         :return:
         """
-        return await self.select_order('created_time', 'desc')
+        query = await self.select_order('created_time', 'desc')
+        start_time = rangeValue[0]
+        end_time = rangeValue[1]
+        if name:
+            query = query.where(UploadTask.name.like(f'%{name}%'))
+        if status:
+            query = query.where(UploadTask.status == status)
+        if source:
+            query = query.where(UploadTask.source == source)
+        if start_time:
+            start_dt = datetime.strptime(start_time, '%Y-%m-%d')
+            query = query.where(UploadTask.created_time >= start_dt)
+        if end_time:
+            end_dt = datetime.strptime(end_time, '%Y-%m-%d') + timedelta(hours=23, minutes=59, seconds=59)
+            query = query.where(UploadTask.created_time <= end_dt)
+        return query
 
     async def get_all(self, db: AsyncSession) -> Sequence[UploadTask]:
         """
