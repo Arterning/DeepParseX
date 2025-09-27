@@ -5,22 +5,13 @@ from datetime import datetime
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 from sqlalchemy import String, ForeignKey
-from sqlalchemy.dialects.postgresql import TEXT
+from sqlalchemy.dialects.postgresql import TEXT, JSON
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.common.model import Base, id_key
 
 
-# 简介：邮件的简介信息。
-# 原文：邮件的原文内容。
-# 内容：邮件的翻译内容。
-# 内容分类：邮件内容的分类，如工作邮件、广告邮件等。
-# 发送者：内容的发送邮箱。
-# 接收者：内容的接收邮箱。
-# 抄送者：抄送邮箱。
-# 时间：邮件发送时间。
-# 附件：附件的文件路径，点击后跳转至该文件的内容。
 
 class MailMsg(Base):
     """邮件"""
@@ -34,8 +25,10 @@ class MailMsg(Base):
     subject: Mapped[str | None] = mapped_column(TEXT, default='', comment='邮件主题')
     
     original: Mapped[str] = mapped_column(TEXT, default='', comment='原文')
+
+    zh_subject: Mapped[str | None] = mapped_column(TEXT, default='', comment='翻译主题')
     
-    content: Mapped[str | None] = mapped_column(TEXT, default='', comment='翻译')
+    zh_content: Mapped[str | None] = mapped_column(TEXT, default='', comment='翻译')
     
     time: Mapped[datetime | None] = mapped_column(default=None, comment='时间')
 
@@ -55,7 +48,7 @@ class MailMsg(Base):
     bcc: Mapped[str | None] = mapped_column(TEXT, default='', comment='密送者')
 
     # 附件
-    attachments: Mapped[list['MailAttachment']] = relationship(init=False, back_populates='mail_msg')
+    attachments: Mapped[JSON | None] = mapped_column(JSON, default=None, comment='附件')
 
     doc_id: Mapped[int | None] = mapped_column(
         ForeignKey('sys_doc.id', ondelete='CASCADE'), default=None, index=True, comment='文件ID'

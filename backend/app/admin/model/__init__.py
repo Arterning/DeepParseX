@@ -18,7 +18,6 @@ from backend.app.admin.model.sys_doc_embedding import SysDocEmbedding
 from backend.app.admin.model.sys_user import User
 from backend.app.admin.model.sys_user_social import UserSocial
 from backend.app.admin.model.sys_tag import Tag
-from backend.app.admin.model.mail_attachment import MailAttachment
 from backend.app.admin.model.mail_msg import MailMsg
 from backend.app.admin.model.mail_box import MailBox
 from backend.app.admin.model.sys_entity import Entity

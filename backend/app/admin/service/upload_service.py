@@ -437,6 +437,9 @@ class UploadService:
         cc = upload_service.extract_multiple_emails(cc_raw)
         bcc = upload_service.extract_multiple_emails(bcc_raw)  # Bcc字段也可能有多个
 
+        # 获取附件信息，如果没有则设为空列表
+        attachments = result_dict.get('attachments', [])
+        
         msg_obj = CreateMailMsgParam(
             doc_id=doc_id,
             doc_dir_id=doc_dir_id,
@@ -448,6 +451,7 @@ class UploadService:
             cc=cc,
             bcc=bcc,
             time=time,
+            attachments=attachments,
         )
         await mail_msg_service.create(obj=msg_obj)
 
@@ -527,6 +531,7 @@ class UploadService:
                 'bcc': msg.get('Bcc', ''),
                 'date': msg.get('Date', ''),
                 'content_type': msg.get_content_type(),
+                'attachments': [],
             }
             
             # 处理日期格式
@@ -594,6 +599,12 @@ class UploadService:
                             
                             new_doc = await sys_doc_service.create(obj=obj)
                             
+                            # 将附件信息添加到email_data['attachments']
+                            email_data['attachments'].append({
+                                'id': new_doc.id,
+                                'name': filename
+                            })
+                            
                             # Process content for the new doc
                             try:
                                 await upload_service.read_file_content(new_doc)
@@ -625,8 +636,6 @@ class UploadService:
             
             # 优先使用纯文本内容，如果没有则使用HTML内容
             email_data['body'] = plain_text or html_content or ''
-            
-            email_data['attachments'] = []
             
             return email_data
         
