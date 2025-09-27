@@ -40,7 +40,7 @@ class CRUDUploadTask(CRUDPlus[UploadTask]):
         if status:
             query = query.where(UploadTask.status == status)
         if source:
-            query = query.where(UploadTask.source == source)
+            query = query.where(UploadTask.source.like(f'%{source}%'))
         if start_time:
             start_dt = datetime.strptime(start_time, '%Y-%m-%d')
             query = query.where(UploadTask.created_time >= start_dt)
