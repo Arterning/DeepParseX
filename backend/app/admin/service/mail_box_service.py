@@ -1,8 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import networkx as nx
 from typing import Sequence
 from datetime import datetime, timedelta
 from collections import defaultdict, deque
+
+from backend.app.admin.utils.network_analysis import (
+    analyze_node_degrees,
+    analyze_centrality,
+    find_key_nodes,
+    build_networkx_graph
+)
 
 from backend.app.admin.crud.crud_mail_box import mail_box_dao
 from backend.app.admin.crud.crud_mail_msg import mail_msg_dao
@@ -274,10 +282,30 @@ class MailBoxService:
                             'emails': edge_emails
                         })
 
-            return {
+            # 构建NetworkX图并进行网络分析
+            G = build_networkx_graph(nodes, edges)
+            
+            # 执行各种网络分析
+            degrees = analyze_node_degrees(G)
+            centrality_results = analyze_centrality(G)
+            key_nodes_results = find_key_nodes(G)
+            
+            # 将分析结果添加到返回数据中
+            result = {
                 'nodes': nodes,
-                'edges': edges
+                'edges': edges,
+                'network_analysis': {
+                    'degrees': degrees,
+                    'centrality': centrality_results,
+                    'key_nodes': key_nodes_results,
+                    'is_directed': G.is_directed(),
+                    'number_of_nodes': G.number_of_nodes(),
+                    'number_of_edges': G.number_of_edges(),
+                    'number_of_connected_components': nx.number_connected_components(G.to_undirected())
+                }
             }
+            
+            return result
 
 
 mail_box_service = MailBoxService()
