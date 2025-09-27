@@ -89,7 +89,9 @@ def find_key_nodes(G):
     
     # 移除后对网络影响最大的节点
     print("\n移除节点对网络连通性的影响:")
-    original_components = nx.number_connected_components(G)
+    # 将有向图转换为无向图以计算连通组件
+    G_undirected = G.to_undirected()
+    original_components = nx.number_connected_components(G_undirected)
     
     # 只测试前5个节点
     top_nodes = sorted(degrees.items(), key=lambda x: x[1], reverse=True)[:5]
@@ -98,7 +100,9 @@ def find_key_nodes(G):
     for node, _ in top_nodes:  # 只测试前5个节点
         G_copy = G.copy()
         G_copy.remove_node(node)
-        new_components = nx.number_connected_components(G_copy)
+        # 计算移除节点后的连通组件数量
+        G_copy_undirected = G_copy.to_undirected()
+        new_components = nx.number_connected_components(G_copy_undirected)
         impact = new_components - original_components
         impact_results.append({
             'node': node,
