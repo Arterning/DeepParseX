@@ -12,7 +12,8 @@ class MailMsgSchemaBase(SchemaBase):
   name: str 
   subject: str | None = None
   original: str | None = None
-  content: str | None = None
+  zh_content: str | None = None
+  zh_subject: str | None = None
   time: datetime | None = None
   category: str | None = None
   sender: str | None = None
