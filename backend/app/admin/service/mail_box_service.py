@@ -131,7 +131,7 @@ class MailBoxService:
                 for email in current_layer_emails:
                     query_conditions.extend([
                         MailMsg.sender == email,
-                        MailMsg.receiver == email,
+                        MailMsg.receiver.like(f'%{email}%'),
                         MailMsg.cc.like(f'%{email}%')
                     ])
 
