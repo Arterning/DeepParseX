@@ -59,4 +59,6 @@ class MailMsg(Base):
     )
 
     doc: Mapped[Union['SysDoc', None]] = relationship(init=False, back_populates='email_msg')
+
+    doc_name: Mapped[str | None] = mapped_column(TEXT, default='', comment='文件名称')
     

@@ -21,6 +21,7 @@ class MailMsgSchemaBase(SchemaBase):
   cc: str | None = None
   bcc: str | None = None
   doc_id: int | None = None
+  doc_name: str | None = None
   doc_dir_id: int | None = None
   attachments: list[dict] | None = None
 
