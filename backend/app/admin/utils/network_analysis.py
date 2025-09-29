@@ -50,10 +50,27 @@ def analyze_centrality(G):
     # 特征向量中心性（Eigenvector Centrality）
     eigenvector_result = None
     try:
-        eigenvector_centrality = nx.eigenvector_centrality(G)
+        # 对于有向图，尝试使用numpy实现的特征向量中心性或增加迭代次数
+        if G.is_directed():
+            print("使用katz中心性作为有向图的替代指标...")
+            eigenvector_centrality = nx.katz_centrality(G)
+        else:
+            # 增加迭代次数和调整收敛容差
+            eigenvector_centrality = nx.eigenvector_centrality(G, max_iter=500, tol=1e-05)
+        
         top_eigenvector = max(eigenvector_centrality, key=eigenvector_centrality.get)
         print(f"特征向量中心性最高: {top_eigenvector} ({eigenvector_centrality[top_eigenvector]:.3f})")
         eigenvector_result = eigenvector_centrality
+    except nx.PowerIterationFailedConvergence:
+        print("特征向量中心性: 幂迭代未能收敛，尝试使用替代方法")
+        try:
+            # 尝试使用katz中心性作为替代
+            eigenvector_centrality = nx.katz_centrality(G)
+            top_eigenvector = max(eigenvector_centrality, key=eigenvector_centrality.get)
+            print(f"Katz中心性最高: {top_eigenvector} ({eigenvector_centrality[top_eigenvector]:.3f})")
+            eigenvector_result = eigenvector_centrality
+        except Exception as e:
+            print(f"特征向量中心性计算失败: {str(e)}")
     except nx.NetworkXError:
         print("特征向量中心性: 无法计算（可能是非连通图）")
     
