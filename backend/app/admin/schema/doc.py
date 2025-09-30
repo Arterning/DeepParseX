@@ -84,6 +84,7 @@ class GetDocEntity(SchemaBase):
     name: str
     description: str | None = None
     entity_type: str | None = None
+    properties: dict | None = None
 
 class GetDocDetail(SysDocSchemaBase):
     model_config = ConfigDict(from_attributes=True)
