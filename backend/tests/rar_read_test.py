@@ -45,8 +45,8 @@ async def read_rar_file(file_path: str) -> None:
                 
                 # 获取文件内容字节数
                 try:
-                    file_content_bytes = rar_ref.read(file_info.filename)
-                    file_size = len(file_content_bytes)
+                    # 直接使用file_info中的文件大小属性，避免实际读取文件内容
+                    file_size = file_info.file_size
                     # 计算压缩比
                     if file_info.compress_size > 0:
                         compression_ratio = f"{file_info.file_size / file_info.compress_size:.2f}x"
@@ -54,13 +54,15 @@ async def read_rar_file(file_path: str) -> None:
                         compression_ratio = "N/A"
                     
                     print(f"{filename:<30} {file_size:<10} {compression_ratio:<10}")
-                except rarfile.BadRarFile as e:
-                    print(f"读取文件 {filename} 失败: {e}")
+                except Exception as e:
+                    print(f"获取文件 {filename} 信息失败: {e}")
                     continue
         
         print("=" * 60)
         print("RAR文件读取完成")
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"读取RAR文件时发生错误: {e}")
 
 async def init() -> None:
