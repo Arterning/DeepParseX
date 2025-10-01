@@ -47,6 +47,9 @@ async def read_rar_file(file_path: str) -> None:
                 try:
                     # 直接使用file_info中的文件大小属性，避免实际读取文件内容
                     file_size = file_info.file_size
+
+                    # 如果没有安装unrar，会抛出异常
+                    file_content_bytes = rar_ref.read(file_info.filename)
                     # 计算压缩比
                     if file_info.compress_size > 0:
                         compression_ratio = f"{file_info.file_size / file_info.compress_size:.2f}x"
@@ -56,7 +59,7 @@ async def read_rar_file(file_path: str) -> None:
                     print(f"{filename:<30} {file_size:<10} {compression_ratio:<10}")
                 except Exception as e:
                     print(f"获取文件 {filename} 信息失败: {e}")
-                    continue
+                    raise e
         
         print("=" * 60)
         print("RAR文件读取完成")
