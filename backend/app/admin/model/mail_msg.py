@@ -38,14 +38,22 @@ class MailMsg(Base):
     # 发送者
     sender: Mapped[str] = mapped_column(TEXT, default='', comment='发送者邮箱')
 
+    from_row: Mapped[str | None] = mapped_column(TEXT, default='', comment='发送者')
+
     # 接收者
     receiver: Mapped[str] = mapped_column(TEXT, default='', comment='接收者邮箱')
+
+    to_row: Mapped[str | None] = mapped_column(TEXT, default='', comment='接收者')
 
     # 抄送者
     cc: Mapped[str | None] = mapped_column(TEXT, default='', comment='抄送者')
 
+    cc_row: Mapped[str | None] = mapped_column(TEXT, default='', comment='抄送者')
+
     # 密送者
     bcc: Mapped[str | None] = mapped_column(TEXT, default='', comment='密送者')
+
+    bcc_row: Mapped[str | None] = mapped_column(TEXT, default='', comment='密送者')
 
     # 附件
     attachments: Mapped[JSON | None] = mapped_column(JSON, default=None, comment='附件')
