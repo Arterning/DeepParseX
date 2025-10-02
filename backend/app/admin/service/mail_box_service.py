@@ -408,7 +408,9 @@ class MailBoxService:
                 'sina.com': '新浪',
                 'sohu.com': '搜狐',
                 'aliyun.com': '阿里云',
-                'foxmail.com': 'Foxmail'
+                'foxmail.com': 'Foxmail',
+                'dnc.org': 'DNC',
+                'rnc.org': 'RNC',
             }
             
             # 统计邮箱服务商分布
