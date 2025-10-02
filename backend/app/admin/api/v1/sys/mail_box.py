@@ -112,3 +112,44 @@ async def analyze_mailbox_relationships(
         reference_time=reference_time
     )
     return response_base.success(data=result)
+
+async def get_mailbox_ranking_api(
+    top_n: Annotated[int, Query(ge=1, le=100)] = 10,
+    start_time: Annotated[datetime | None, Query()] = None,
+    end_time: Annotated[datetime | None, Query()] = None
+) -> ResponseModel:
+    """
+    获取邮箱邮件数量排名前N的邮箱
+
+    :param top_n: 返回前N个邮箱，默认10个，范围1-100
+    :param start_time: 开始时间
+    :param end_time: 结束时间
+    :return: 邮箱邮件数量排名列表
+    """
+    result = await mail_box_service.get_mailbox_ranking(
+        top_n=top_n,
+        start_time=start_time,
+        end_time=end_time
+    )
+    return response_base.success(data=result)
+
+async def get_email_provider_distribution_api(
+    start_time: Annotated[datetime | None, Query()] = None,
+    end_time: Annotated[datetime | None, Query()] = None
+) -> ResponseModel:
+    """
+    获取邮箱类型分布统计
+
+    :param start_time: 开始时间
+    :param end_time: 结束时间
+    :return: 邮箱类型分布数据
+    """
+    result = await mail_box_service.get_email_provider_distribution(
+        start_time=start_time,
+        end_time=end_time
+    )
+    return response_base.success(data=result)
+
+# 设置路由
+router.get('/ranking', summary='获取邮箱邮件数量排名', dependencies=[DependsJwtAuth])(get_mailbox_ranking_api)
+router.get('/provider-distribution', summary='获取邮箱类型分布', dependencies=[DependsJwtAuth])(get_email_provider_distribution_api)

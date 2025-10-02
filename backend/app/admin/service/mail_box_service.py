@@ -308,4 +308,166 @@ class MailBoxService:
             return result
 
 
+    @staticmethod
+    async def get_mailbox_ranking(
+        *, 
+        top_n: int = 10,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None
+    ) -> list[dict]:
+        """
+        获取邮件数量排名前N的邮箱
+        
+        :param top_n: 返回前N个邮箱，默认10个
+        :param start_time: 开始时间
+        :param end_time: 结束时间
+        :return: 包含邮箱和对应邮件数量的列表
+        """
+        async with async_db_session() as db:
+            # 构建查询条件
+            time_conditions = []
+            if start_time:
+                time_conditions.append(MailMsg.time >= start_time)
+            if end_time:
+                time_conditions.append(MailMsg.time <= end_time)
+            
+            # 统计每个邮箱参与的邮件数量（去重）
+            mailbox_count = defaultdict(set)
+            
+            # 查询条件
+            query = select(MailMsg)
+            if time_conditions:
+                query = query.where(and_(*time_conditions))
+            
+            result = await db.execute(query)
+            emails = result.scalars().all()
+            
+            # 统计每个邮箱参与的邮件数量
+            for email_obj in emails:
+                # 处理发件人
+                if email_obj.sender:
+                    mailbox_count[email_obj.sender].add(email_obj.id)
+                
+                # 处理收件人
+                if email_obj.receiver:
+                    receivers = [r.strip() for r in email_obj.receiver.split(',') if r.strip()]
+                    for receiver in receivers:
+                        mailbox_count[receiver].add(email_obj.id)
+                
+                # 处理抄送人
+                if email_obj.cc:
+                    ccs = [cc.strip() for cc in email_obj.cc.split(',') if cc.strip()]
+                    for cc in ccs:
+                        mailbox_count[cc].add(email_obj.id)
+            
+            # 转换为列表并按邮件数量排序
+            ranking = []
+            for email, email_ids in mailbox_count.items():
+                ranking.append({
+                    'email': email,
+                    'count': len(email_ids)
+                })
+            
+            # 按邮件数量降序排序并返回前N个
+            ranking.sort(key=lambda x: x['count'], reverse=True)
+            return ranking[:top_n]
+    
+    @staticmethod
+    async def get_email_provider_distribution(
+        *, 
+        start_time: datetime | None = None,
+        end_time: datetime | None = None
+    ) -> list[dict]:
+        """
+        统计邮箱类型分布
+        
+        :param start_time: 开始时间
+        :param end_time: 结束时间
+        :return: 包含邮箱类型和对应数量的列表
+        """
+        async with async_db_session() as db:
+            # 构建查询条件
+            time_conditions = []
+            if start_time:
+                time_conditions.append(MailMsg.time >= start_time)
+            if end_time:
+                time_conditions.append(MailMsg.time <= end_time)
+            
+            # 定义主要邮箱服务商
+            major_providers = {
+                'gmail.com': 'Gmail',
+                'outlook.com': 'Outlook',
+                'hotmail.com': 'Outlook',
+                'live.com': 'Outlook',
+                'protonmail.com': 'Proton',
+                'proton.me': 'Proton',
+                'qq.com': 'QQ',
+                '163.com': '网易',
+                '126.com': '网易',
+                'yeah.net': '网易',
+                'sina.com': '新浪',
+                'sohu.com': '搜狐',
+                'aliyun.com': '阿里云',
+                'foxmail.com': 'Foxmail'
+            }
+            
+            # 统计邮箱服务商分布
+            provider_count = defaultdict(set)
+            
+            # 查询条件
+            query = select(MailMsg)
+            if time_conditions:
+                query = query.where(and_(*time_conditions))
+            
+            result = await db.execute(query)
+            emails = result.scalars().all()
+            
+            # 统计邮箱服务商分布
+            for email_obj in emails:
+                # 获取所有涉及的邮箱
+                all_emails = set()
+                
+                # 处理发件人
+                if email_obj.sender:
+                    all_emails.add(email_obj.sender)
+                
+                # 处理收件人
+                if email_obj.receiver:
+                    receivers = [r.strip() for r in email_obj.receiver.split(',') if r.strip()]
+                    all_emails.update(receivers)
+                
+                # 处理抄送人
+                if email_obj.cc:
+                    ccs = [cc.strip() for cc in email_obj.cc.split(',') if cc.strip()]
+                    all_emails.update(ccs)
+                
+                # 统计每个邮箱的服务商
+                for email in all_emails:
+                    try:
+                        # 提取域名
+                        domain = email.split('@')[1].lower()
+                        # 检查是否为主要服务商
+                        provider = 'Other'
+                        for key, value in major_providers.items():
+                            if key in domain:
+                                provider = value
+                                break
+                        # 记录该邮件涉及的服务商
+                        provider_count[provider].add(email_obj.id)
+                    except (IndexError, AttributeError):
+                        # 忽略无效邮箱格式
+                        continue
+            
+            # 转换为列表并按数量排序
+            distribution = []
+            for provider, email_ids in provider_count.items():
+                distribution.append({
+                    'name': provider,
+                    'value': len(email_ids)
+                })
+            
+            # 按数量降序排序
+            distribution.sort(key=lambda x: x['value'], reverse=True)
+            return distribution
+
 mail_box_service = MailBoxService()
