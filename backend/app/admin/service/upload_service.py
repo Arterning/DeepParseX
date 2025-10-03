@@ -409,14 +409,20 @@ class UploadService:
         if not email_string:
             return email_string
 
-        # 按逗号分割
-        email_parts = email_string.split(',')
+        import re
+        # 使用正则表达式匹配完整的邮箱地址格式
+        # 匹配: "名称" <邮箱地址> 或 名称 <邮箱地址> 或 邮箱地址
+        email_pattern = r'(?:"[^"]+"|\w[^<,]+?)?\s*<([^<>]+)>|([^,<]+@[^,<]+)'
+        matches = re.finditer(email_pattern, email_string)
+        
         extracted_emails = []
-
-        for part in email_parts:
-            extracted_email = upload_service.extract_email_address(part.strip())
-            if extracted_email:
-                extracted_emails.append(extracted_email)
+        for match in matches:
+            # 如果匹配到了尖括号中的邮箱地址，取第一个捕获组
+            if match.group(1):
+                extracted_emails.append(match.group(1).strip())
+            # 否则取第二个捕获组（直接的邮箱地址）
+            elif match.group(2):
+                extracted_emails.append(match.group(2).strip())
 
         return ', '.join(extracted_emails)
 
@@ -469,6 +475,7 @@ class UploadService:
             else:
                 from_mail_obj = CreateMailBoxParam(
                     name=from_email,
+                    address=from_email,
                 )
                 await mail_box_service.create(obj=from_mail_obj)
 
@@ -482,6 +489,7 @@ class UploadService:
                 else:
                     to_mail_obj = CreateMailBoxParam(
                         name=email_addr,
+                        address=email_addr,
                     )
                     await mail_box_service.create(obj=to_mail_obj)
 
@@ -495,6 +503,7 @@ class UploadService:
                 else:
                     cc_mail_obj = CreateMailBoxParam(
                         name=email_addr,
+                        address=email_addr,
                     )
                     await mail_box_service.create(obj=cc_mail_obj)
 
