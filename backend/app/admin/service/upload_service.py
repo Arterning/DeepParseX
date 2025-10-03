@@ -516,6 +516,7 @@ class UploadService:
                 from_mail_obj = CreateMailBoxParam(
                     user_name=from_name,  # 使用提取的名称
                     name=from_email,
+                    email_num=1,
                 )
                 await mail_box_service.create(obj=from_mail_obj)
 
@@ -528,6 +529,7 @@ class UploadService:
                 to_mail_obj = CreateMailBoxParam(
                     user_name=name,  # 使用提取的名称
                     name=email_addr,
+                    email_num=1,
                 )
                 await mail_box_service.create(obj=to_mail_obj)
 
@@ -540,6 +542,7 @@ class UploadService:
                 cc_mail_obj = CreateMailBoxParam(
                     user_name=name,  # 使用提取的名称
                     name=email_addr,
+                    email_num=1,
                 )
                 await mail_box_service.create(obj=cc_mail_obj)
 
@@ -552,6 +555,7 @@ class UploadService:
                 bcc_mail_obj = CreateMailBoxParam(
                     user_name=name,  # 使用提取的名称
                     name=email_addr,
+                    email_num=1,
                 )
                 await mail_box_service.create(obj=bcc_mail_obj)
         return body
