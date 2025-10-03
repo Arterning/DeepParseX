@@ -25,9 +25,9 @@ class MailBox(Base):
 
     id: Mapped[id_key] = mapped_column(init=False)
     
-    name: Mapped[str] = mapped_column(String(500), default='', comment='姓名')
+    name: Mapped[str] = mapped_column(String(500), default='', comment='邮箱账号')
 
-    address: Mapped[str | None] = mapped_column(String(500), default='', comment='邮箱账号')
+    user_name: Mapped[str | None] = mapped_column(String(500), default='', comment='姓名')
 
     country: Mapped[str] = mapped_column(String(500), default='', comment='国家/地区')
 

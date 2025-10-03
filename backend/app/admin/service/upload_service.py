@@ -383,22 +383,55 @@ class UploadService:
             traceback.print_exc()
 
     @staticmethod
-    def extract_email_address(email_string: str) -> str:
+    def extract_email_address(email_string: str) -> tuple[str, str]:
         """
-        从 "名称 <邮箱地址>" 格式中提取真正的邮箱地址
-        如果没有尖括号，则返回原字符串（去除首尾空格）
+        从 "名称 <邮箱地址>" 格式中提取名称和邮箱地址
+        返回元组(名称, 邮箱地址)
         """
         if not email_string:
-            return email_string
+            return (email_string.strip(), email_string.strip())
 
         import re
-        # 使用正则表达式提取尖括号中的邮箱地址
-        match = re.search(r'<([^<>]+)>', email_string)
+        # 使用正则表达式提取名称和邮箱地址
+        match = re.search(r'"?([^"]+)"?\s*<([^<>]+)>', email_string)
         if match:
-            return match.group(1).strip()
+            name = match.group(1).strip()
+            email = match.group(2).strip()
+            return (name, email)
         else:
-            # 如果没有尖括号，返回去除首尾空格的原字符串
-            return email_string.strip()
+            # 如果没有尖括号，返回去除首尾空格的原字符串作为名称和地址
+            return (email_string.strip(), email_string.strip())
+
+    @staticmethod
+    def extract_multiple_emails_with_names(email_string: str) -> list[tuple[str, str]]:
+        """
+        处理多个邮箱地址（逗号分隔），提取每个邮箱的名称和地址
+        返回列表[(名称, 邮箱地址), ...]
+        """
+        if not email_string:
+            return []
+
+        import re
+        # 使用正则表达式匹配完整的邮箱地址格式
+        # 匹配: "名称" <邮箱地址> 或 名称 <邮箱地址> 或 邮箱地址
+        email_pattern = r'(?:"([^"]+)"|([^<,]+?))?\s*<([^<>]+)>|([^,<]+@[^,<]+)'
+        matches = re.finditer(email_pattern, email_string)
+        
+        result = []
+        for match in matches:
+            if match.group(1):  # 匹配到了带引号的名称
+                name = match.group(1).strip()
+                email = match.group(3).strip()
+                result.append((name, email))
+            elif match.group(2):  # 匹配到了不带引号的名称
+                name = match.group(2).strip()
+                email = match.group(3).strip()
+                result.append((name, email))
+            elif match.group(4):  # 直接匹配到了邮箱地址
+                email = match.group(4).strip()
+                result.append((email, email))
+
+        return result
 
     @staticmethod
     def extract_multiple_emails(email_string: str) -> str:
@@ -439,11 +472,17 @@ class UploadService:
         time = result_dict.get('parsed_date', datetime.now())
         body = result_dict.get('body', '')
 
-        # 提取真正的邮箱地址
-        from_email = upload_service.extract_email_address(from_email_raw)
-        to_email = upload_service.extract_multiple_emails(to_email_raw)  # To字段也可能有多个
-        cc = upload_service.extract_multiple_emails(cc_raw)
-        bcc = upload_service.extract_multiple_emails(bcc_raw)  # Bcc字段也可能有多个
+        # 提取真正的邮箱地址和名称
+        from_name, from_email = upload_service.extract_email_address(from_email_raw)
+        # 处理多个收件人邮箱地址和名称
+        to_emails_with_names = upload_service.extract_multiple_emails_with_names(to_email_raw)
+        cc_emails_with_names = upload_service.extract_multiple_emails_with_names(cc_raw)
+        bcc_emails_with_names = upload_service.extract_multiple_emails_with_names(bcc_raw)
+        
+        # 用于msg_obj的字符串格式邮箱
+        to_email = ', '.join([email for _, email in to_emails_with_names])
+        cc = ', '.join([email for _, email in cc_emails_with_names])
+        bcc = ', '.join([email for _, email in bcc_emails_with_names])
 
         # 获取附件信息，如果没有则设为空列表
         attachments = result_dict.get('attachments', [])
@@ -468,57 +507,53 @@ class UploadService:
         )
         await mail_msg_service.create(obj=msg_obj)
 
+        # 处理发件人邮箱
         if from_email:
-            from_box = await mail_box_service.get_by_name(name=from_email)
+            from_box = await mail_box_service.get_by_name(name=from_email)  # 仍使用email作为唯一标识
             if from_box:
                 await mail_box_service.base_update(pk=from_box.id, obj={'email_num': from_box.email_num + 1})
             else:
                 from_mail_obj = CreateMailBoxParam(
+                    user_name=from_name,  # 使用提取的名称
                     name=from_email,
-                    address=from_email,
                 )
                 await mail_box_service.create(obj=from_mail_obj)
 
         # 处理To字段的多个邮箱地址
-        if to_email:
-            to_emails = [email.strip() for email in to_email.split(',') if email.strip()]
-            for email_addr in to_emails:
-                to_box = await mail_box_service.get_by_name(name=email_addr)
-                if to_box:
-                    await mail_box_service.base_update(pk=to_box.id, obj={'email_num': to_box.email_num + 1})
-                else:
-                    to_mail_obj = CreateMailBoxParam(
-                        name=email_addr,
-                        address=email_addr,
-                    )
-                    await mail_box_service.create(obj=to_mail_obj)
+        for name, email_addr in to_emails_with_names:
+            to_box = await mail_box_service.get_by_name(name=email_addr)  # 仍使用email作为唯一标识
+            if to_box:
+                await mail_box_service.base_update(pk=to_box.id, obj={'email_num': to_box.email_num + 1})
+            else:
+                to_mail_obj = CreateMailBoxParam(
+                    user_name=name,  # 使用提取的名称
+                    name=email_addr,
+                )
+                await mail_box_service.create(obj=to_mail_obj)
 
         # 处理CC字段的多个邮箱地址
-        if cc:
-            cc_emails = [email.strip() for email in cc.split(',') if email.strip()]
-            for email_addr in cc_emails:
-                cc_box = await mail_box_service.get_by_name(name=email_addr)
-                if cc_box:
-                    await mail_box_service.base_update(pk=cc_box.id, obj={'email_num': cc_box.email_num + 1})
-                else:
-                    cc_mail_obj = CreateMailBoxParam(
-                        name=email_addr,
-                        address=email_addr,
-                    )
-                    await mail_box_service.create(obj=cc_mail_obj)
+        for name, email_addr in cc_emails_with_names:
+            cc_box = await mail_box_service.get_by_name(name=email_addr)  # 仍使用email作为唯一标识
+            if cc_box:
+                await mail_box_service.base_update(pk=cc_box.id, obj={'email_num': cc_box.email_num + 1})
+            else:
+                cc_mail_obj = CreateMailBoxParam(
+                    user_name=name,  # 使用提取的名称
+                    name=email_addr,
+                )
+                await mail_box_service.create(obj=cc_mail_obj)
 
         # 处理Bcc字段的多个邮箱地址
-        if bcc:
-            bcc_emails = [email.strip() for email in bcc.split(',') if email.strip()]
-            for email_addr in bcc_emails:
-                bcc_box = await mail_box_service.get_by_name(name=email_addr)
-                if bcc_box:
-                    await mail_box_service.base_update(pk=bcc_box.id, obj={'email_num': bcc_box.email_num + 1})
-                else:
-                    bcc_mail_obj = CreateMailBoxParam(
-                        name=email_addr,
-                    )
-                    await mail_box_service.create(obj=bcc_mail_obj)
+        for name, email_addr in bcc_emails_with_names:
+            bcc_box = await mail_box_service.get_by_name(name=email_addr)  # 仍使用email作为唯一标识
+            if bcc_box:
+                await mail_box_service.base_update(pk=bcc_box.id, obj={'email_num': bcc_box.email_num + 1})
+            else:
+                bcc_mail_obj = CreateMailBoxParam(
+                    user_name=name,  # 使用提取的名称
+                    name=email_addr,
+                )
+                await mail_box_service.create(obj=bcc_mail_obj)
         return body
 
 
