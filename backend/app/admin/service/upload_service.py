@@ -460,6 +460,93 @@ class UploadService:
         return ', '.join(extracted_emails)
 
     @staticmethod
+    def extract_country(email_address: str) -> str:
+        """
+        从邮箱地址中推断所属的国家
+        根据邮箱域名的顶级域名或特定域名后缀判断国家
+        """
+        if not email_address or '@' not in email_address:
+            return "未知"
+        
+        # 提取域名部分
+        domain = email_address.split('@')[-1].lower()
+        
+        # 常见国家域名后缀映射表
+        country_map = {
+            # 亚洲
+            '.cn': '中国',
+            '.jp': '日本',
+            '.kr': '韩国',
+            '.sg': '新加坡',
+            '.hk': '中国香港',
+            '.tw': '中国台湾',
+            '.th': '泰国',
+            '.my': '马来西亚',
+            '.id': '印度尼西亚',
+            '.in': '印度',
+            '.pk': '巴基斯坦',
+            '.bd': '孟加拉国',
+            # 欧洲
+            '.uk': '英国',
+            '.fr': '法国',
+            '.de': '德国',
+            '.it': '意大利',
+            '.es': '西班牙',
+            '.ru': '俄罗斯',
+            '.pl': '波兰',
+            '.gr': '希腊',
+            '.nl': '荷兰',
+            '.se': '瑞典',
+            '.no': '挪威',
+            '.dk': '丹麦',
+            '.ch': '瑞士',
+            '.at': '奥地利',
+            # 北美
+            '.us': '美国',
+            '.ca': '加拿大',
+            # 南美
+            '.br': '巴西',
+            '.ar': '阿根廷',
+            '.mx': '墨西哥',
+            # 大洋洲
+            '.au': '澳大利亚',
+            '.nz': '新西兰',
+            # 非洲
+            '.za': '南非',
+            '.ng': '尼日利亚',
+        }
+        
+        # 常见的国际邮箱服务商
+        international_domains = {
+            'gmail.com': '美国',
+            'outlook.com': '美国',
+            'hotmail.com': '美国',
+            'yahoo.com': '美国',
+            'icloud.com': '美国',
+            'mail.ru': '俄罗斯',
+            'yandex.ru': '俄罗斯',
+            'qq.com': '中国',
+            '163.com': '中国',
+            '126.com': '中国',
+            'sina.com': '中国',
+            'sohu.com': '中国',
+            'aliyun.com': '中国',
+            'tencent.com': '中国',
+        }
+        
+        # 优先检查完整域名是否匹配常见服务商
+        if domain in international_domains:
+            return international_domains[domain]
+        
+        # 检查顶级域名是否匹配国家
+        for tld, country in country_map.items():
+            if domain.endswith(tld):
+                return country
+        
+        # 如果以上都不匹配，返回"国际"
+        return "国际"
+
+    @staticmethod
     async def save_email(result_dict :dict):
         doc_id = result_dict.get("doc_id")
         doc_name = result_dict.get("doc_name", "")
@@ -513,10 +600,12 @@ class UploadService:
             if from_box:
                 await mail_box_service.base_update(pk=from_box.id, obj={'email_num': from_box.email_num + 1})
             else:
+                country = upload_service.extract_country(from_email)
                 from_mail_obj = CreateMailBoxParam(
                     user_name=from_name,  # 使用提取的名称
                     name=from_email,
                     email_num=1,
+                    country=country,
                 )
                 await mail_box_service.create(obj=from_mail_obj)
 
@@ -526,10 +615,12 @@ class UploadService:
             if to_box:
                 await mail_box_service.base_update(pk=to_box.id, obj={'email_num': to_box.email_num + 1})
             else:
+                country = upload_service.extract_country(email_addr)
                 to_mail_obj = CreateMailBoxParam(
                     user_name=name,  # 使用提取的名称
                     name=email_addr,
                     email_num=1,
+                    country=country,
                 )
                 await mail_box_service.create(obj=to_mail_obj)
 
@@ -539,10 +630,12 @@ class UploadService:
             if cc_box:
                 await mail_box_service.base_update(pk=cc_box.id, obj={'email_num': cc_box.email_num + 1})
             else:
+                country = upload_service.extract_country(email_addr)
                 cc_mail_obj = CreateMailBoxParam(
                     user_name=name,  # 使用提取的名称
                     name=email_addr,
                     email_num=1,
+                    country=country,
                 )
                 await mail_box_service.create(obj=cc_mail_obj)
 
@@ -552,10 +645,12 @@ class UploadService:
             if bcc_box:
                 await mail_box_service.base_update(pk=bcc_box.id, obj={'email_num': bcc_box.email_num + 1})
             else:
+                country = upload_service.extract_country(email_addr)
                 bcc_mail_obj = CreateMailBoxParam(
                     user_name=name,  # 使用提取的名称
                     name=email_addr,
                     email_num=1,
+                    country=country,
                 )
                 await mail_box_service.create(obj=bcc_mail_obj)
         return body
