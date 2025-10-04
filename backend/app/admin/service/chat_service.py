@@ -33,6 +33,24 @@ class ChatService:
 
 
     @staticmethod
+    async def generate_translation(id: int):
+        # 获取文档
+        doc = await sys_doc_service.get(pk=id)
+        if not doc.content:
+            return ""
+        system_context = "你是一个专业的翻译助手。请将以下内容翻译成中文。"
+        question = (
+            "请将以下内容翻译成中文：\n"
+            "---\n"
+            f"{doc.content}\n"
+            "---\n"
+            "作为一个人工智能助手，你的翻译要尽可能准确、流畅。"
+        )
+        response = await llm_service.get_llm_response(system_context, question)
+        return response
+
+    
+    @staticmethod
     async def rag_chat(obj: ChatParam, max_length = 512, check_topk = 10):
 
         if obj.doc_id:
