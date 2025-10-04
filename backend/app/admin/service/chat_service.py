@@ -33,16 +33,18 @@ class ChatService:
 
 
     @staticmethod
-    async def generate_translation(id: int):
-        # 获取文档
-        doc = await sys_doc_service.get(pk=id)
-        if not doc.content:
-            return ""
-        system_context = "你是一个专业的翻译助手。请将以下内容翻译成中文。"
+    async def generate_translation(id: int, target_language: str, text: str):
+
+        if id:
+            doc = await sys_doc_service.get(pk=id)
+        
+        original_text = text if text else doc.content
+
+        system_context = f"你是一个专业的翻译助手。请将以下内容翻译成{target_language}。"
         question = (
-            "请将以下内容翻译成中文：\n"
+            f"请将以下内容翻译成{target_language}：\n"
             "---\n"
-            f"{doc.content}\n"
+            f"{original_text}\n"
             "---\n"
             "作为一个人工智能助手，你的翻译要尽可能准确、流畅。"
         )

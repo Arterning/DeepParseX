@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import json
 from typing import Annotated
-from backend.app.admin.schema.chat import ChatParam, IdParam
+from backend.app.admin.schema.chat import ChatParam, IdParam, TranslateParam
 from backend.common.response.response_schema import ResponseModel, response_base
 from backend.app.admin.service.chat_service import chat_service
 from fastapi import APIRouter, Request
@@ -27,7 +27,11 @@ async def generate_summary(obj: IdParam, request: Request) -> ResponseModel:
 
 # generate_translation
 @router.post('/generate_translation', summary='生成翻译')
-async def generate_translation(obj: IdParam, request: Request) -> ResponseModel:
-    data = await chat_service.generate_translation(id=obj.id)
+async def generate_translation(obj: TranslateParam, request: Request) -> ResponseModel:
+    data = await chat_service.generate_translation(
+        id=obj.id,
+        target_language=obj.target_language,
+        text=obj.text
+    )
     return response_base.success(data=data)
 
