@@ -49,6 +49,9 @@ class ChatService:
             "作为一个人工智能助手，你的翻译要尽可能准确、流畅。"
         )
         response = await llm_service.get_llm_response(system_context, question)
+        await sys_doc_service.base_update(pk=id, obj={
+            'translation': response
+        })
         return response
 
     

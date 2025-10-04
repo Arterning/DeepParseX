@@ -14,6 +14,7 @@ class SysDocSchemaBase(SchemaBase):
     content: str | None = None
     doc_tokens: str | None = None
     desc: str | None = None
+    translation: str | None = None
     file: str | None = None
     belong: int | None = None
     doc_time: datetime | None = None
