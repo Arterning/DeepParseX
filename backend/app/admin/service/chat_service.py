@@ -4,7 +4,11 @@ import asyncio
 from backend.app.admin.schema.chat import ChatParam
 from backend.app.admin.service.doc_service import sys_doc_service
 from backend.app.admin.service.llm_service import llm_service
+from backend.app.admin.service.mail_msg_service import mail_msg_service
 from backend.utils.doc_utils import request_text_to_vector
+from backend.database.db_pg import async_db_session
+from backend.app.admin.model.mail_msg import MailMsg
+from sqlalchemy import select
 
 
 
@@ -52,6 +56,31 @@ class ChatService:
         await sys_doc_service.base_update(pk=id, obj={
             'translation': response
         })
+        # 更新到对应的邮件表
+        # 根据文档ID查找关联的邮件
+        if id:
+            async with async_db_session() as db:
+                # 查询doc_id等于当前id的邮件记录
+                mail_msg = await db.execute(
+                    select(MailMsg).where(MailMsg.doc_id == id)
+                )
+                mail_msg_obj = mail_msg.scalars().first()
+                if mail_msg_obj:
+                    # 将response的第一行更新到zh_subject，其余部分更新到zh_content
+                    if response:
+                        lines = response.split('\n', 1)
+                        zh_subject = lines[0].strip() if lines else ''
+                        zh_content = lines[1].strip() if len(lines) > 1 else ''
+                        
+                        # 更新邮件记录
+                        await mail_msg_service.base_update(
+                            pk=mail_msg_obj.id, 
+                            obj={
+                                'zh_subject': zh_subject,
+                                'zh_content': zh_content
+                            }
+                        )
+        
         return response
 
     

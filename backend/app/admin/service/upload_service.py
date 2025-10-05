@@ -641,7 +641,7 @@ class UploadService:
                     country=country,
                 )
                 await mail_box_service.create(obj=bcc_mail_obj)
-        return body
+        return f"{subject}\n {body}"
 
 
     @staticmethod
