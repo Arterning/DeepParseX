@@ -11,8 +11,9 @@ from backend.app.admin.service.doc_service import sys_doc_service
 from backend.app.admin.service.upload_task_service import upload_task_service
 from backend.app.admin.schema.upload_task import CreateUploadTaskParam, UpdateUploadTaskParam
 from backend.app.admin.model.sys_upload_task import UploadTask
+from backend.app.admin.model.sys_doc import SysDoc
 from backend.database.db_pg import async_db_session
-from sqlalchemy import select
+from sqlalchemy import select, update
 import time
 import json
 from fastapi.responses import StreamingResponse
@@ -175,9 +176,26 @@ async def run_parse_task(pk: int):
             }), 
             ex = 60 * 5
         )
-        
+
         await sys_doc_service.create_doc_tokens(id=doc.id)
 
+        # 处理压缩包中的文件
+        async with async_db_session() as db:
+            # 查询所有belong等于当前文档ID的文件
+            stmt = select(SysDoc).where(SysDoc.belong == doc.id)
+            result = await db.execute(stmt)
+            sub_docs = result.scalars().all()
+            for sub_doc in sub_docs:
+                await redis_client.set(
+                    redis_key, json.dumps({
+                        'status': 'doing',
+                        'stage': f'创建索引({sub_doc.name})', 
+                        'progress': 3/5
+                    }), 
+                    ex = 60 * 5
+                )
+                await sys_doc_service.create_doc_tokens(id=sub_doc.id)
+        
         
         await redis_client.set(
             redis_key, json.dumps({
@@ -191,6 +209,13 @@ async def run_parse_task(pk: int):
         await sys_doc_service.base_update(pk=doc.id, obj={
             'status': 1,
         })
+
+        # 更新belong等于当前文档ID的文件状态为已解析
+        async with async_db_session.begin() as db:
+            stmt = update(SysDoc).where(SysDoc.belong == doc.id).values(status=1)
+            await db.execute(stmt)
+            await db.commit()
+
 
         async with async_db_session() as db:
             stmt = select(UploadTask).where(UploadTask.doc_id == doc.id)
