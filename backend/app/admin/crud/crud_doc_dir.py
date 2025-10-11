@@ -22,15 +22,19 @@ class CRUDDocDir(CRUDPlus[SysDocDir]):
         """
         return await self.select_model_by_column(db, id=dir_id, del_flag=False)
 
-    async def get_by_name(self, db: AsyncSession, name: str) -> SysDocDir | None:
+    async def get_by_name(self, db: AsyncSession, name: str, parent_id: int = None) -> SysDocDir | None:
         """
-        通过 name 获取目录
+        通过 name 和 parent_id 获取目录
 
         :param db:
         :param name:
+        :param parent_id:
         :return:
         """
-        return await self.select_model_by_column(db, name=name, del_flag=False)
+        if parent_id is not None:
+            return await self.select_model_by_column(db, name=name, parent_id=parent_id, del_flag=False)
+        else:
+            return await self.select_model_by_column(db, name=name, parent_id=None, del_flag=False)
 
     async def get_all(self, db: AsyncSession, name: str = None) -> Sequence[SysDocDir]:
         """

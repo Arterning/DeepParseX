@@ -29,9 +29,11 @@ class DocDirService:
     @staticmethod
     async def create(*, obj: CreateDocDirParam) -> None:
         async with async_db_session.begin() as db:
-            doc_dir = await doc_dir_dao.get_by_name(db, obj.name)
+            # 检查是否存在相同名称和父级目录的记录
+            doc_dir = await doc_dir_dao.get_by_name(db, obj.name, obj.parent_id)
             if doc_dir:
                 raise errors.ForbiddenError(msg='目录名称已存在')
+            # 验证父级目录是否存在
             if obj.parent_id:
                 parent_dir = await doc_dir_dao.get(db, obj.parent_id)
                 if not parent_dir:
@@ -45,7 +47,8 @@ class DocDirService:
             if not doc_dir:
                 raise errors.NotFoundError(msg='目录不存在')
             if doc_dir.name != obj.name:
-                if await doc_dir_dao.get_by_name(db, obj.name):
+                # 检查是否存在相同名称和父级目录的记录
+                if await doc_dir_dao.get_by_name(db, obj.name, obj.parent_id if obj.parent_id is not None else doc_dir.parent_id):
                     raise errors.ForbiddenError(msg='目录名称已存在')
             if obj.parent_id:
                 parent_dir = await doc_dir_dao.get(db, obj.parent_id)
