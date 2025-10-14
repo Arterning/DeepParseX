@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 import networkx as nx
 from collections import Counter
+from typing import List, Dict, Set, Tuple, Optional
+
 
 
 def analyze_node_degrees(G):
