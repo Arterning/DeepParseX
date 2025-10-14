@@ -230,8 +230,30 @@ def detect_communities_hard_partition(G):
     return response
 
 
+def blend_colors(colors):
+    """混合多个颜色（简单平均）"""
+    if not colors:
+        return '#CCCCCC'
+    
+    if len(colors) == 1:
+        return colors[0]
+    
+    # 将hex颜色转换为RGB
+    rgb_colors = []
+    for color in colors:
+        color = color.lstrip('#')
+        rgb_colors.append([int(color[i:i+2], 16) for i in (0, 2, 4)])
+    
+    # 计算平均值
+    avg_r = sum(c[0] for c in rgb_colors) // len(rgb_colors)
+    avg_g = sum(c[1] for c in rgb_colors) // len(rgb_colors)
+    avg_b = sum(c[2] for c in rgb_colors) // len(rgb_colors)
+    
+    return f'#{avg_r:02x}{avg_g:02x}{avg_b:02x}'
+
+
 # ============================================
-# 方案2: 重叠社区检测（节点可以属于多个社区）
+# 方案2: 重叠社区检测（节点可以属于多个社区）作用在有向图
 # ============================================
 
 def detect_communities_overlapping(G):

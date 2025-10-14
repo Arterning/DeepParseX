@@ -10,7 +10,7 @@ from backend.app.admin.utils.network_analysis import (
     analyze_centrality,
     find_key_nodes,
     build_networkx_graph,
-    detect_communities_overlapping
+    detect_communities_hard_partition
 )
 
 from backend.app.admin.crud.crud_mail_box import mail_box_dao
@@ -290,7 +290,7 @@ class MailBoxService:
             degrees = analyze_node_degrees(G)
             centrality_results = analyze_centrality(G)
             key_nodes_results = find_key_nodes(G)
-            communities_results = detect_communities_overlapping(G)
+            communities_results = detect_communities_hard_partition(G)
             
             # 将分析结果添加到返回数据中
             result = {
