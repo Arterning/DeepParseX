@@ -6,6 +6,24 @@ from typing import List, Dict, Set, Tuple, Optional
 
 
 
+# ============================================
+# 辅助函数：颜色生成和混合
+# ============================================
+
+def generate_color(index, total):
+    """生成区分度高的颜色"""
+    # 使用HSL色彩空间生成颜色
+    import colorsys
+    
+    hue = index / total
+    saturation = 0.7
+    lightness = 0.6
+    
+    r, g, b = colorsys.hls_to_rgb(hue, lightness, saturation)
+    
+    return f'#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}'
+
+
 def analyze_node_degrees(G):
     """分析节点的度数（连接数量）"""
     print("=== 节点度数分析 ===")
