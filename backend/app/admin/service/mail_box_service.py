@@ -165,9 +165,12 @@ class MailBoxService:
 
                     # 为下一层收集新的邮箱
                     for related_email in all_related_emails:
-                        if related_email and related_email not in mailbox_layers and layer < max_layers - 1:
+                        if related_email and related_email not in mailbox_layers:
+                            # 即使不在下一层扩展，也要先添加到mailbox_layers中确保能被包含在结果中
                             mailbox_layers[related_email] = layer + 1
-                            next_layer_emails.add(related_email)
+                            # 只有当还有下一层需要处理时，才添加到next_layer_emails
+                            if layer < max_layers - 1:
+                                next_layer_emails.add(related_email)
 
                     # 统计关系 - 发送关系（发送者到每个收件人）
                     if email_obj.sender and receiver_list:
