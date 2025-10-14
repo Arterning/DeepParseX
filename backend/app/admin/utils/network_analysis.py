@@ -147,3 +147,128 @@ def build_networkx_graph(nodes, edges):
         G.add_edge(edge['source'], edge['target'], **edge)
     
     return G
+
+
+
+# ============================================
+# 方案1: 硬划分社区（每个节点只属于一个社区）
+# ============================================
+
+def detect_communities_hard_partition(G):
+    """
+    检测社区（硬划分），每个节点只属于一个社区
+    返回适合前端使用的数据结构
+    """
+    # 使用贪婪模块化算法
+    communities = nx.community.greedy_modularity_communities(G)
+    
+    # 构建返回数据
+    response = {
+        'partition_type': 'hard',  # 硬划分
+        'num_communities': len(communities),
+        'modularity': nx.community.modularity(G, communities),
+        'communities': [],
+        'nodes': {},
+        'edges': []
+    }
+    
+    # 为每个社区分配ID和颜色
+    for i, community in enumerate(communities):
+        community_id = i + 1
+        community_data = {
+            'id': community_id,
+            'size': len(community),
+            'nodes': sorted(list(community)),
+            'color': generate_color(i, len(communities))  # 生成颜色
+        }
+        response['communities'].append(community_data)
+        
+        # 为每个节点记录其社区信息
+        for node in community:
+            response['nodes'][node] = {
+                'community_id': community_id,
+                'color': community_data['color']
+            }
+    
+    # 添加边信息（包括是否跨社区）
+    for u, v in G.edges():
+        edge_data = {
+            'source': u,
+            'target': v,
+            'is_inter_community': response['nodes'][u]['community_id'] != response['nodes'][v]['community_id']
+        }
+        response['edges'].append(edge_data)
+    
+    return response
+
+
+# ============================================
+# 方案2: 重叠社区检测（节点可以属于多个社区）
+# ============================================
+
+def detect_communities_overlapping(G):
+    """
+    检测重叠社区，节点可以属于多个社区
+    返回适合前端使用的数据结构
+    """
+    try:
+        # 使用重叠社区检测算法（例如k-clique percolation）
+        communities = list(nx.community.k_clique_communities(G, k=3))
+    except:
+        # 如果k-clique失败，降级使用硬划分
+        return detect_communities_hard_partition(G)
+    
+    response = {
+        'partition_type': 'overlapping',  # 重叠社区
+        'num_communities': len(communities),
+        'communities': [],
+        'nodes': {},
+        'edges': []
+    }
+    
+    # 为每个社区分配ID和颜色
+    community_colors = []
+    for i, community in enumerate(communities):
+        community_id = i + 1
+        color = generate_color(i, len(communities))
+        community_colors.append(color)
+        
+        community_data = {
+            'id': community_id,
+            'size': len(community),
+            'nodes': sorted(list(community)),
+            'color': color
+        }
+        response['communities'].append(community_data)
+    
+    # 为每个节点记录其所属的所有社区
+    for node in G.nodes():
+        node_communities = []
+        node_colors = []
+        
+        for i, community in enumerate(communities):
+            if node in community:
+                node_communities.append(i + 1)
+                node_colors.append(community_colors[i])
+        
+        response['nodes'][node] = {
+            'community_ids': node_communities,  # 所有所属社区
+            'colors': node_colors,  # 所有对应颜色
+            'is_overlapping': len(node_communities) > 1,  # 是否重叠节点
+            'display_color': blend_colors(node_colors) if len(node_colors) > 1 else node_colors[0]
+        }
+    
+    # 添加边信息
+    for u, v in G.edges():
+        u_communities = set(response['nodes'][u]['community_ids'])
+        v_communities = set(response['nodes'][v]['community_ids'])
+        
+        edge_data = {
+            'source': u,
+            'target': v,
+            'shared_communities': list(u_communities & v_communities),
+            'is_inter_community': len(u_communities & v_communities) == 0
+        }
+        response['edges'].append(edge_data)
+    
+    return response

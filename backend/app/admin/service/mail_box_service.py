@@ -9,7 +9,8 @@ from backend.app.admin.utils.network_analysis import (
     analyze_node_degrees,
     analyze_centrality,
     find_key_nodes,
-    build_networkx_graph
+    build_networkx_graph,
+    detect_communities_overlapping
 )
 
 from backend.app.admin.crud.crud_mail_box import mail_box_dao
@@ -289,6 +290,7 @@ class MailBoxService:
             degrees = analyze_node_degrees(G)
             centrality_results = analyze_centrality(G)
             key_nodes_results = find_key_nodes(G)
+            communities_results = detect_communities_overlapping(G)
             
             # 将分析结果添加到返回数据中
             result = {
@@ -298,6 +300,7 @@ class MailBoxService:
                     'degrees': degrees,
                     'centrality': centrality_results,
                     'key_nodes': key_nodes_results,
+                    'communities': communities_results,
                     'is_directed': G.is_directed(),
                     'number_of_nodes': G.number_of_nodes(),
                     'number_of_edges': G.number_of_edges(),
