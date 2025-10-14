@@ -186,11 +186,19 @@ def detect_communities_hard_partition(G):
     response = {
         'partition_type': 'hard',  # 硬划分
         'num_communities': len(communities),
-        'modularity': nx.community.modularity(G, communities),
+        'modularity': 0,  # 默认值
         'communities': [],
         'nodes': {},
         'edges': []
     }
+    
+    # 检查图中是否有边，只有有边时才计算模块化
+    if G.number_of_edges() > 0:
+        try:
+            response['modularity'] = nx.community.modularity(G, communities)
+        except ZeroDivisionError:
+            # 即使边数量>0也可能出现除以零的情况，例如有向图
+            response['modularity'] = 0
     
     # 为每个社区分配ID和颜色
     for i, community in enumerate(communities):
