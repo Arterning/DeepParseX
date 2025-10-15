@@ -6,11 +6,11 @@ class SysDocEmbeddingSchemaBase(SchemaBase):
     doc_id: int
     doc_name: str
     chunk_text: str
-    embedding: list[float]
-    embedding_384: list[float]
-    embedding_768: list[float]
-    embedding_1536: list[float]
-    embedding_3072: list[float]
+    embedding: list[float] | None = None
+    embedding_384: list[float] | None = None
+    embedding_768: list[float] | None = None
+    embedding_1536: list[float] | None = None
+    embedding_3072: list[float] | None = None
 
 class CreateSysDocEmbeddingParam(SysDocEmbeddingSchemaBase):
     pass
