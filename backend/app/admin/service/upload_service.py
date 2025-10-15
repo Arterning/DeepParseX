@@ -329,55 +329,6 @@ class UploadService:
 
 
 
-    @staticmethod
-    async def insert_text_embs(*, id: int):
-        doc = await sys_doc_service.get(pk=id)
-        doc_id = doc.id
-        doc_name = doc.name
-        loop = asyncio.get_running_loop()
-        
-        if not doc.content:
-            return
-
-        #所有文本的向量
-        vector_data = await loop.run_in_executor(None, request_text_to_vector, doc.content)
-        obj_list=[]
-        emb_list=[]
-        for vector in vector_data:
-            chunk_text = vector['text']
-            obj = CreateSysDocChunkParam(
-                doc_id=doc_id,
-                doc_name=doc_name,
-                chunk_text=chunk_text,
-            )
-            obj_list.append(obj)
-
-            chunk_embedding = vector['embs']
-            # 根据向量维度设置对应的字段
-            emb_kwargs = {
-                'doc_id': doc_id,
-                'doc_name': doc_name,
-                'chunk_text': chunk_text,
-            }
-            
-            # 根据向量长度选择对应的字段
-            vec_dim = len(chunk_embedding)
-            if vec_dim == 384:
-                emb_kwargs['embedding_384'] = chunk_embedding
-            elif vec_dim == 768:
-                emb_kwargs['embedding_768'] = chunk_embedding
-            elif vec_dim == 1536:
-                emb_kwargs['embedding_1536'] = chunk_embedding
-            elif vec_dim == 3072:
-                emb_kwargs['embedding_3072'] = chunk_embedding
-            else:
-                # 默认使用原始的embedding字段
-                emb_kwargs['embedding'] = chunk_embedding
-            
-            emb_obj = CreateSysDocEmbeddingParam(**emb_kwargs)
-            emb_list.append(emb_obj)
-        await sys_doc_service.create_doc_bulk_chunks(obj_list=obj_list)
-        await sys_doc_service.create_doc_bulk_embeddings(emb_list=emb_list)
 
     @staticmethod
     async def read_email_data(doc: SysDoc, file_bytes: bytes):

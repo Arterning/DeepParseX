@@ -102,6 +102,8 @@ class ChatService:
                 "作为一个人工智能助手，你的回答要尽可能严谨。"
             )
             response = await llm_service.get_llm_response(system_context, obj.question)
+            # 异步调用insert_text_embs，不等待返回
+            asyncio.create_task(sys_doc_service.compute_embedding(id=obj.doc_id))
         else:
             loop = asyncio.get_event_loop()
             question_text_emb = await loop.run_in_executor(None, request_text_to_vector, obj.question)
