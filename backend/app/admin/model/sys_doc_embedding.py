@@ -16,6 +16,10 @@ class SysDocEmbedding(Base):
 
     __table_args__ = (
         Index('ix_sys_doc_embedding', 'embedding', postgresql_using='ivfflat'),
+        Index('ix_sys_doc_embedding_384', 'embedding_384', postgresql_using='ivfflat'),
+        Index('ix_sys_doc_embedding_768', 'embedding_768', postgresql_using='ivfflat'),
+        Index('ix_sys_doc_embedding_1536', 'embedding_1536', postgresql_using='ivfflat'),
+        Index('ix_sys_doc_embedding_3072', 'embedding_3072', postgresql_using='ivfflat'),
     )
 
     id: Mapped[id_key] = mapped_column(init=False)
@@ -26,6 +30,10 @@ class SysDocEmbedding(Base):
 
     doc: Mapped[Union['SysDoc', None]] = relationship(init=False, back_populates='doc_desc')
 
-    desc: Mapped[str | None] = mapped_column(TEXT, default=None, comment='摘要')
+    chunk_text: Mapped[str | None] = mapped_column(TEXT, default=None, comment='分文本')
 
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), default=None, comment='摘要向量')
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), default=None, comment='1024维向量')
+    embedding_384: Mapped[list[float] | None] = mapped_column(Vector(384), default=None, comment='384维向量')
+    embedding_768: Mapped[list[float] | None] = mapped_column(Vector(768), default=None, comment='768维向量')
+    embedding_1536: Mapped[list[float] | None] = mapped_column(Vector(1536), default=None, comment='1536维向量')
+    embedding_3072: Mapped[list[float] | None] = mapped_column(Vector(3072), default=None, comment='3072维向量')

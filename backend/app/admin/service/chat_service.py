@@ -106,7 +106,7 @@ class ChatService:
             loop = asyncio.get_event_loop()
             question_text_emb = await loop.run_in_executor(None, request_text_to_vector, obj.question)
             query_vector = question_text_emb[0]["embs"]
-            similar_docs = await sys_doc_service.search_chunk_vector(query_vector=query_vector, limit=check_topk)
+            similar_docs = await sys_doc_service.search_similar_docs(query_vector=query_vector, limit=check_topk)
             
             context_list = []
             sources = {}  # 存储编号与超链接映射

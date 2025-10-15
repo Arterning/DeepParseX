@@ -13,33 +13,6 @@ from backend.app.admin.schema.doc_chunk import CreateSysDocChunkParam
 
 class CRUDSysDocDChunk(CRUDPlus[SysDocChunk]):
     
-    async def search_chunk_vector(self, db: AsyncSession, query_vector: list[float] = None, limit: int = 10)->SysDocChunk:
-        # 构建向量搜索SQL
-
-        # vector_str = f"[{', '.join(map(str, query_vector))}]"
-
-        vector_str = json.dumps(query_vector)
-
-        sql = f"""
-        SELECT id, doc_id,doc_name, chunk_text, chunk_embedding <-> :query_vector AS distance 
-        FROM sys_doc_chunk
-        WHERE chunk_embedding IS NOT NULL
-        ORDER BY chunk_embedding <-> :query_vector 
-        LIMIT :limit
-        """
-        
-        result = await db.execute(
-            text(sql),
-            {
-                "query_vector": vector_str,
-                "limit": limit
-            }
-        )
-        
-        similar_docs = result.fetchall()
-        
-        return similar_docs
-
     async def get(self, db: AsyncSession, pk: int) -> SysDocChunk | None:
         """
         获取 SysDocChunk

@@ -352,9 +352,9 @@ class SysDocService:
 
 
     @staticmethod
-    async def search_chunk_vector(*, query_vector: list[float] = None, limit: int = None):
+    async def search_similar_docs(*, query_vector: list[float] = None, limit: int = None):
         async with async_db_session() as db:
-            res = await sys_doc_chunk_dao.search_chunk_vector(db, query_vector, limit)
+            res = await sys_doc_embedding_dao.search_chunk_vector(db, query_vector, limit)
             return res
 
     @staticmethod
@@ -424,9 +424,9 @@ class SysDocService:
     
     @staticmethod
     # 批量插入
-    async def create_doc_bulk_embedding(*, obj_list: list[CreateSysDocEmbeddingParam]) -> list[CreateSysDocEmbeddingParam]:
+    async def create_doc_bulk_embeddings(*, emb_list: list[CreateSysDocEmbeddingParam]) -> list[CreateSysDocEmbeddingParam]:
         async with async_db_session.begin() as db:
-            return await sys_doc_embedding_dao.create_bulk(db, obj_list)
+            return await sys_doc_embedding_dao.create_bulk(db, emb_list)
 
     @staticmethod
     async def base_update(pk: int, obj: dict) -> int:

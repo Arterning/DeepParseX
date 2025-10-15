@@ -10,13 +10,10 @@ from backend.common.model import Base, id_key
 
 
 class SysDocChunk(Base):
-    """分块向量"""
+    """文件分块"""
 
     __tablename__ = 'sys_doc_chunk'
 
-    __table_args__ = (
-        Index('ix_sys_doc_chunk_embedding', 'chunk_embedding', postgresql_using='ivfflat'),
-    )
 
     id: Mapped[id_key] = mapped_column(init=False)
     doc_id: Mapped[int | None] = mapped_column(
@@ -28,4 +25,3 @@ class SysDocChunk(Base):
 
     chunk_text: Mapped[str | None] = mapped_column(TEXT, default=None, comment='chunk 文本')
 
-    chunk_embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), default=None, comment='chunk 向量')

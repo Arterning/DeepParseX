@@ -342,17 +342,26 @@ class UploadService:
         #所有文本的向量
         vector_data = await loop.run_in_executor(None, request_text_to_vector, doc.content)
         obj_list=[]
+        emb_list=[]
         for vector in vector_data:
             chunk_text = vector['text']
-            chunk_embedding = vector['embs']
             obj = CreateSysDocChunkParam(
                 doc_id=doc_id,
                 doc_name=doc_name,
                 chunk_text=chunk_text,
-                chunk_embedding=chunk_embedding
             )
             obj_list.append(obj)
+
+            chunk_embedding = vector['embs']
+            emb_obj = CreateSysDocEmbeddingParam(
+                doc_id=doc_id,
+                doc_name=doc_name,
+                chunk_text=chunk_text,
+                embedding=chunk_embedding,
+            )
+            emb_list.append(emb_obj)
         await sys_doc_service.create_doc_bulk_chunks(obj_list=obj_list)
+        await sys_doc_service.create_doc_bulk_embeddings(emb_list=emb_list)
 
     @staticmethod
     async def read_email_data(doc: SysDoc, file_bytes: bytes):

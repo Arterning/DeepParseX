@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from typing import Sequence
-
+import json
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
@@ -11,30 +11,48 @@ from backend.app.admin.schema.doc_embdding import CreateSysDocEmbeddingParam
 
 
 class CRUDSysDocEmbedding(CRUDPlus[SysDocEmbedding]):
-    # async def search_chunk_vector(self, db: AsyncSession, query_vector: list[float] = None, limit: int = 0)->SysDocChunk:
-    #     # 构建向量搜索SQL
 
-    #     vector_str = f"[{', '.join(map(str, query_vector))}]"
+    async def search_chunk_vector(self, db: AsyncSession, query_vector: list[float] = None, limit: int = 0)->list:
+        # 构建向量搜索SQL语句
+        if not query_vector or limit <= 0:
+            return []
 
-    #     sql = f"""
-    #     SELECT id, doc_id,doc_name, chunk_text, chunk_embedding <-> :query_vector AS distance 
-    #     FROM sys_doc_chunk
-    #     WHERE chunk_embedding IS NOT NULL
-    #     ORDER BY chunk_embedding <-> :query_vector 
-    #     LIMIT :limit
-    #     """
+        # 获取向量维度
+        vector_dim = len(query_vector)
+        # 根据维度选择对应的列名
+        if vector_dim == 384:
+            embedding_column = 'embedding_384'
+        elif vector_dim == 768:
+            embedding_column = 'embedding_768'
+        elif vector_dim == 1536:
+            embedding_column = 'embedding_1536'
+        elif vector_dim == 3072:
+            embedding_column = 'embedding_3072'
+        else:
+            # 默认使用1024维向量列
+            embedding_column = 'embedding'
+
+        vector_str = json.dumps(query_vector)
+
+        sql = f"""
+        SELECT id, doc_id, doc_name, chunk_text, {embedding_column} <-> :query_vector AS distance 
+        FROM sys_doc_embedding
+        WHERE {embedding_column} IS NOT NULL
+        ORDER BY {embedding_column} <-> :query_vector 
+        LIMIT :limit
+        """
         
-    #     result = await db.execute(
-    #         text(sql),
-    #         {
-    #             "query_vector": vector_str,
-    #             "limit": limit
-    #         }
-    #     )
+        result = await db.execute(
+            text(sql),
+            {
+                "query_vector": vector_str,
+                "limit": limit
+            }
+        )
         
-    #     similar_docs = result.fetchall()
+        similar_docs = result.fetchall()
         
-    #     return similar_docs
+        return similar_docs
 
     # async def get(self, db: AsyncSession, pk: int) -> SysDocEmbedding | None:
     #     """
