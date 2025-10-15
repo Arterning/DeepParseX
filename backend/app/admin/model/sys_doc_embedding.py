@@ -19,7 +19,6 @@ class SysDocEmbedding(Base):
         Index('ix_sys_doc_embedding_384', 'embedding_384', postgresql_using='ivfflat'),
         Index('ix_sys_doc_embedding_768', 'embedding_768', postgresql_using='ivfflat'),
         Index('ix_sys_doc_embedding_1536', 'embedding_1536', postgresql_using='ivfflat'),
-        Index('ix_sys_doc_embedding_3072', 'embedding_3072', postgresql_using='ivfflat'),
     )
 
     id: Mapped[id_key] = mapped_column(init=False)
