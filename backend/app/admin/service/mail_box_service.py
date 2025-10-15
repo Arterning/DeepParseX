@@ -198,8 +198,12 @@ class MailBoxService:
             nodes = []
             edges = []
 
-            # 确保输入的所有邮箱都作为节点返回，即使没有邮件记录
-            all_emails_to_include = set(mailboxes) | set(mailbox_layers.keys())
+            # 确保只返回不超过max_layers层级的邮箱节点
+            all_emails_to_include = set()
+            for email, layer in mailbox_layers.items():
+                # 只包含层级小于等于max_layers的邮箱，同时确保输入的所有邮箱都被包含
+                if layer <= max_layers or email in mailboxes:
+                    all_emails_to_include.add(email)
 
             # 构建节点
             for email in all_emails_to_include:
