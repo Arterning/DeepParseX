@@ -187,8 +187,9 @@ class Settings(BaseSettings):
     OCR_URL: str = 'http://localhost:8120/predict'
 
     # EMBEDDING
-    EMBEDDING_MODEL: str = 'bge'
+    EMBEDDING_MODEL: str = 'text-embedding-3-small'
     EMBEDDING_URL: str = 'http://localhost:8104/text_to_vector'
+    EMBEDDING_API_KEY: str = ''
 
 
 @lru_cache

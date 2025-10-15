@@ -3,29 +3,56 @@ import requests
 from backend.core.conf import settings
 from backend.common.log import log
 
-# EMBEDDING
-def request_text_to_vector(text, max_length=512):
-    EMBEDDING_MODEL = settings.EMBEDDING_MODEL
-
-    # return random
-    np_vector = np.random.rand(1024)   
-
+def random_vector(text, dim=1024):
+    # 出错时返回随机向量作为备份
+    import numpy as np
+    np_vector = np.random.rand(dim)
     list_vector = np_vector.tolist()
-
+    
     return [
         {
-            "text":text,
-            "embs": list_vector,
+            "text": text,
+            "embs": list_vector
         }
     ]
 
-    # if EMBEDDING_MODEL == "v1":
-    #     return v1_embedding(text, max_length=max_length)
+# EMBEDDING
+def request_text_to_vector(text, max_length=512):
+    import json
     
-    # if EMBEDDING_MODEL == "v2":
-    #     return v2_embedding(text, max_length=max_length)
+    # 调用 LLM-Gateway 的 Embeddings API
+    GATEWAY_API_KEY = settings.EMBEDDING_API_KEY
+    MODEL_NAME = settings.EMBEDDING_MODEL
+    API_ENDPOINT = settings.EMBEDDING_URL
     
-    # return v2_embedding(text, max_length=max_length)
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {GATEWAY_API_KEY}"
+    }
+    
+    data = {
+        "model": MODEL_NAME,
+        "input": text
+    }
+    
+    try:
+        response = requests.post(API_ENDPOINT, headers=headers, json=data, timeout=60)
+        response.raise_for_status()
+        response_data = response.json()
+        
+        # 提取向量并保持原有返回格式
+        embedding = response_data["data"][0]["embedding"]
+        
+        return [
+            {
+                "text": text,
+                "embs": embedding
+            }
+        ]
+    except Exception as e:
+        log.error(f"Error in request_text_to_vector: {str(e)}")
+        return []
+        
 
 # OCR
 def process_file(file_name: str, file_data: bytes):
