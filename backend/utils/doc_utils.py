@@ -17,8 +17,9 @@ def random_vector(text, dim=1024):
     ]
 
 # EMBEDDING
-def request_text_to_vector(text, max_length=512):
+def request_text_to_vector(text, max_length=1000):
     import json
+    texts = split_string_by_length(text, chunk_size=max_length)
     
     # 调用 LLM-Gateway 的 Embeddings API
     GATEWAY_API_KEY = settings.EMBEDDING_API_KEY
@@ -29,30 +30,32 @@ def request_text_to_vector(text, max_length=512):
         "Content-Type": "application/json",
         "Authorization": f"Bearer {GATEWAY_API_KEY}"
     }
+
+    embeddings = []
+
+    for text in texts:
+        data = {
+            "model": MODEL_NAME,
+            "input": text
+        }
     
-    data = {
-        "model": MODEL_NAME,
-        "input": text
-    }
-    
-    try:
-        response = requests.post(API_ENDPOINT, headers=headers, json=data, timeout=60)
-        response.raise_for_status()
-        response_data = response.json()
-        
-        # 提取向量并保持原有返回格式
-        embedding = response_data["data"][0]["embedding"]
-        
-        return [
-            {
+        try:
+            response = requests.post(API_ENDPOINT, headers=headers, json=data, timeout=60)
+            response.raise_for_status()
+            response_data = response.json()
+            
+            # 提取向量并保持原有返回格式
+            embedding = response_data["data"][0]["embedding"]
+            
+            embeddings.append({
                 "text": text,
                 "embs": embedding
-            }
-        ]
-    except Exception as e:
-        log.error(f"Error in request_text_to_vector: {str(e)}")
-        return []
+            })
+        except Exception as e:
+            log.error(f"Error in request_text_to_vector: {str(e)}")
+            return []
         
+    return embeddings
 
 # OCR
 def process_file(file_name: str, file_data: bytes):
