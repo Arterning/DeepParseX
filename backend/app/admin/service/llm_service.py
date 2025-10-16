@@ -7,6 +7,7 @@ from openai import OpenAI
 import time
 from backend.common.log import log
 from backend.core.conf import settings
+from backend.app.admin.service.knowledge_graph.llm import call_llm
 
 class LLMService:
 
@@ -45,41 +46,17 @@ class LLMService:
 
     @staticmethod
     def get_api_response(system_context: str, user_input: str):
-        BASE_URL = settings.LLM_API_URL
-        model = settings.LLM_MODEL
-        api_key = settings.LLM_API_KEY
-
-        API_ENDPOINT = f"{BASE_URL}/v1/chat/completions"
-
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}"
+        # 创建配置对象
+        config = {
+            "llm": {
+                "temperature": 0.7
+            }
         }
-
-        data = {
-            'model': model,
-            "temperature": 0.7,
-            "stream": False,
-            "messages": [
-                {
-                    "role": "system", 
-                    "content": system_context
-                },
-                {
-                    "role": "user",
-                    "content": user_input,
-                }
-            ],
-        }
+        
         for attempt in range(1, 3):
             try:
-                response = requests.post(
-                    API_ENDPOINT,
-                    headers=headers,
-                    json=data
-                )
-                # 尝试获取响应，如果没有异常则返回内容
-                reply = response.json()['choices'][0]['message']['content']
+                # 调用call_llm方法
+                reply = call_llm(user_input, system_context, config)
                 return reply
             except Exception as e:
                 print(f"Attempt {attempt} failed: {e}")
