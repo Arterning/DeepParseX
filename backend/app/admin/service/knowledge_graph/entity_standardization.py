@@ -424,7 +424,7 @@ def _resolve_entities_with_llm(triples, config):
         base_url = config["llm"]["base_url"]
         
         # Call LLM
-        response = call_llm(model, user_prompt, api_key, system_prompt, max_tokens, temperature, base_url)
+        response = call_llm(user_prompt, system_prompt, config)
         
         # Extract JSON mapping
         import json
@@ -521,7 +521,7 @@ def _infer_relationships_with_llm(triples, communities, config):
                 base_url = config["llm"]["base_url"]
                 
                 # Call LLM
-                response = call_llm(model, user_prompt, api_key, system_prompt, max_tokens, temperature, base_url)
+                response = call_llm(user_prompt, system_prompt, config)
                 
                 # Extract JSON results
                 from backend.app.admin.service.knowledge_graph.llm import extract_json_from_text
@@ -635,7 +635,7 @@ def _infer_within_community_relationships(triples, communities, config):
             base_url = config["llm"]["base_url"]
             
             # Call LLM
-            response = call_llm(model, user_prompt, api_key, system_prompt, max_tokens, temperature, base_url)
+            response = call_llm(user_prompt, system_prompt, config)
             
             # Extract JSON results
             from backend.app.admin.service.knowledge_graph.llm import extract_json_from_text
@@ -752,4 +752,4 @@ def _infer_relationships_by_lexical_similarity(entities, triples):
                 })
     
     print(f"Inferred {len(new_triples)} relationships based on lexical similarity")
-    return new_triples 
+    return new_triples

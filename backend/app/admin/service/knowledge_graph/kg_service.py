@@ -68,7 +68,7 @@ def process_with_llm(config, input_text, debug=False):
     metadata = {}
     
     print("call llm begin...", flush=True)
-    response = call_llm(model, user_prompt, api_key, system_prompt, max_tokens, temperature, base_url)
+    response = call_llm(user_prompt, system_prompt, config)
     print("llm call complete.", flush=True)
 
     # Print raw response only if debug mode is on
@@ -152,15 +152,7 @@ def get_entity_types(entities, config):
     base_url = config.get("llm", {}).get("base_url", "https://api.openai.com/v1/chat/completions")
     
     # 调用LLM
-    response = call_llm(
-        model,
-        user_prompt,
-        api_key,
-        system_prompt,
-        max_tokens,
-        temperature,
-        base_url
-    )
+    response = call_llm(user_prompt, system_prompt, config)
 
     debug = config.get("debug", False)
     # Print raw response only if debug mode is on

@@ -5,26 +5,32 @@ import requests
 from backend.core.conf import settings
 
 
-def call_llm(model, user_prompt, api_key, system_prompt=None, max_tokens=1000, temperature=0.2, base_url=None) -> str:
+def call_llm(user_prompt, system_prompt=None, config=None) -> str:
     """
     Call the language model API.
     
     Args:
-        model: The model name to use
         user_prompt: The user prompt to send
-        api_key: The API key for authentication
         system_prompt: Optional system prompt to set context
-        max_tokens: Maximum number of tokens to generate
-        temperature: Sampling temperature
-        base_url: The base URL for the API endpoint
+        config: Configuration object containing LLM settings
         
     Returns:
         The model's response as a string
     """
-
-    BASE_URL = settings.LLM_API_URL
+    # Default values from settings
     model = settings.LLM_MODEL
     api_key = settings.LLM_API_KEY
+    max_tokens = 1000
+    temperature = 0.2
+    base_url = settings.LLM_API_URL
+    
+    # Override with values from config if provided
+    if config:
+        llm_config = config.get("llm", {})
+        if llm_config:
+            max_tokens = llm_config.get("max_tokens", max_tokens)
+            temperature = llm_config.get("temperature", temperature)
+            
     
     payload = {
         'model': model,
@@ -161,4 +167,4 @@ def extract_json_from_text(text):
                         print("Could not fix JSON format issues in reconstructed array")
             
         print("No complete JSON array could be extracted")
-        return None 
+        return None
