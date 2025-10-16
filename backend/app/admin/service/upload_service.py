@@ -682,62 +682,65 @@ class UploadService:
                     is_attachment = ("attachment" in content_disposition or 
                                     (filename and not content_type.startswith('text/')))
                     
+                    print("part content type:", part.get_content_type(), filename)
+                    print("Content-Disposition:", content_disposition)
+                    
                     if is_attachment and filename:
-                            file_content_bytes = part.get_payload(decode=True)
-                            
-                            unique_id = str(uuid.uuid4())
-                            file_suffix = get_file_suffix(filename)
-                            new_filename_minio = f"{unique_id}{file_suffix}"
+                        file_content_bytes = part.get_payload(decode=True)
+                        
+                        unique_id = str(uuid.uuid4())
+                        file_suffix = get_file_suffix(filename)
+                        new_filename_minio = f"{unique_id}{file_suffix}"
 
-                            file_stream = io.BytesIO(file_content_bytes)
-                            object_size = len(file_stream.getbuffer())
-                            
-                            import mimetypes
-                            content_type_mime, _ = mimetypes.guess_type(filename)
-                            if content_type_mime is None:
-                                content_type_mime = 'application/octet-stream'
+                        file_stream = io.BytesIO(file_content_bytes)
+                        object_size = len(file_stream.getbuffer())
+                        
+                        import mimetypes
+                        content_type_mime, _ = mimetypes.guess_type(filename)
+                        if content_type_mime is None:
+                            content_type_mime = 'application/octet-stream'
 
-                            minio_client.put_object(bucket_name, new_filename_minio, file_stream, object_size, content_type_mime)
+                        minio_client.put_object(bucket_name, new_filename_minio, file_stream, object_size, content_type_mime)
 
-                            file_type = get_file_type(file_suffix)
+                        file_type = get_file_type(file_suffix)
 
-                            obj = CreateSysDocParam(
-                                title=filename, 
-                                name=filename, 
-                                type=file_type,
-                                file=new_filename_minio, 
-                                uuid=unique_id, 
-                                file_suffix=file_suffix,
-                                doc_time=datetime.datetime.now(),
-                                size=len(file_content_bytes),
-                                status=0,
-                                belong=doc.id,
-                                dept_id=doc.dept_id,
-                                created_by=doc.created_by,
-                                created_user=doc.created_user,
-                            )
-                            
-                            new_doc = await sys_doc_service.create(obj=obj)
-                            
-                            # 将附件信息添加到email_data['attachments']
-                            email_data['attachments'].append({
-                                'id': new_doc.id,
-                                'name': filename
-                            })
-                            
-                            # Process content for the new doc
-                            try:
-                                await upload_service.read_file_content(new_doc)
-                            except Exception as e:
-                                print(f"处理附件 {filename} 时发生错误: {e}")
-                                traceback.print_exc()
-                                continue
+                        obj = CreateSysDocParam(
+                            title=filename, 
+                            name=filename, 
+                            type=file_type,
+                            file=new_filename_minio, 
+                            uuid=unique_id, 
+                            file_suffix=file_suffix,
+                            doc_time=datetime.datetime.now(),
+                            size=len(file_content_bytes),
+                            status=0,
+                            belong=doc.id,
+                            dept_id=doc.dept_id,
+                            created_by=doc.created_by,
+                            created_user=doc.created_user,
+                        )
+                        
+                        new_doc = await sys_doc_service.create(obj=obj)
+                        
+                        # 将附件信息添加到email_data['attachments']
+                        email_data['attachments'].append({
+                            'id': new_doc.id,
+                            'name': filename
+                        })
+                        
+                        # Process content for the new doc
+                        try:
+                            await upload_service.read_file_content(new_doc)
+                        except Exception as e:
+                            print(f"处理附件 {filename} 时发生错误: {e}")
+                            traceback.print_exc()
+                            continue
 
-                            await sys_doc_service.create_doc_tokens(id=new_doc.id)
+                        await sys_doc_service.create_doc_tokens(id=new_doc.id)
 
-                            await sys_doc_service.base_update(pk=new_doc.id, obj={
-                                'status': 1,
-                            })
+                        await sys_doc_service.base_update(pk=new_doc.id, obj={
+                            'status': 1,
+                        })
                         continue
                     
                     content_type = part.get_content_type()
