@@ -98,7 +98,7 @@ class MailBoxService:
             # 存储邮箱间的关系统计
             relationships = defaultdict(lambda: {
                 'send_count': 0,
-                'receive_count': 0,
+                'reply_count': 0,
                 'cc_count': 0,
                 'first_interaction_time': None,
                 'latest_time': None,
@@ -177,7 +177,11 @@ class MailBoxService:
                         for receiver in receiver_list:
                             if receiver:
                                 key = (email_obj.sender, receiver, 'send')
-                                relationships[key]['send_count'] += 1
+                                # 判断是否为回复邮件（标题包含RE:）
+                                if hasattr(email_obj, 'name') and email_obj.name and isinstance(email_obj.name, str) and 'RE:' in email_obj.name.upper():
+                                    relationships[key]['reply_count'] += 1
+                                else:
+                                    relationships[key]['send_count'] += 1
                                 relationships[key]['emails'].append(email_obj)
                                 relationships[key]['attachment_count'] += len(email_obj.attachments)
                                 if not relationships[key]['first_interaction_time'] or email_obj.time < relationships[key]['first_interaction_time']:
