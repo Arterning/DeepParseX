@@ -104,8 +104,11 @@ class MailBoxService:
                 'send_count': 0,
                 'receive_count': 0,
                 'cc_count': 0,
+                'first_interaction_time': None,
                 'latest_time': None,
-                'emails': []
+                'emails': [],
+                'attachment_count': 0,
+                'interaction_duration': 0
             })
 
             # 初始化起始邮箱为第0层
@@ -179,6 +182,9 @@ class MailBoxService:
                                 key = (email_obj.sender, receiver, 'send')
                                 relationships[key]['send_count'] += 1
                                 relationships[key]['emails'].append(email_obj)
+                                relationships[key]['attachment_count'] += len(email_obj.attachments)
+                                if not relationships[key]['first_interaction_time'] or email_obj.time < relationships[key]['first_interaction_time']:
+                                    relationships[key]['first_interaction_time'] = email_obj.time
                                 if not relationships[key]['latest_time'] or email_obj.time > relationships[key]['latest_time']:
                                     relationships[key]['latest_time'] = email_obj.time
 
@@ -189,6 +195,9 @@ class MailBoxService:
                                 key = (email_obj.sender, cc_email, 'cc')
                                 relationships[key]['cc_count'] += 1
                                 relationships[key]['emails'].append(email_obj)
+                                relationships[key]['attachment_count'] += len(email_obj.attachments)
+                                if not relationships[key]['first_interaction_time'] or email_obj.time < relationships[key]['first_interaction_time']:
+                                    relationships[key]['first_interaction_time'] = email_obj.time
                                 if not relationships[key]['latest_time'] or email_obj.time > relationships[key]['latest_time']:
                                     relationships[key]['latest_time'] = email_obj.time
 
@@ -240,34 +249,32 @@ class MailBoxService:
             # 构建边
             for (source, target, relation_type), data in relationships.items():
                 if source in all_emails_to_include and target in all_emails_to_include:
-                    # 计算时间衰减权重
+                    # 计算关系权重
                     weight = 0
-                    email_count = 0
+                    
+                    # 关系权重 = （发送次数 × 0.4） + （回复次数 × 0.3） + （含个人文件附件次数 × 0.2） + （互动持续时间 × 0.1）
+                    send_count = data.get('send_count', 0)
+                    reply_count = data.get('reply_count', 0)
+                    attachment_count = data.get('attachment_count', 0)
+                    if data.get('first_interaction_time') and data.get('latest_time'):
+                        interaction_duration = (data.get('latest_time') - data.get('first_interaction_time')).total_seconds()
+                    else:
+                        interaction_duration = 0
+                    data['interaction_duration'] = interaction_duration
+                    
+                    # 计算总权重
+                    weight = (send_count * 0.4) + (reply_count * 0.3) + (attachment_count * 0.2) + (interaction_duration * 0.1)
+                    
+                    # 抄送关系权重降低50%
+                    if relation_type == 'cc':
+                        weight *= 0.5
 
-                    if relation_type == 'send':
-                        email_count = data['send_count']
-                    elif relation_type == 'cc':
-                        email_count = data['cc_count']
+                    # 密送关系权重增加50%
+                    if relation_type == 'bcc':
+                        weight *= 1.5
 
-                    # 计算权重
-                    if email_count > 0:
-                        if data['latest_time']:
-                            # 线性时间衰减：越近的时间权重越高
-                            days_diff = (reference_time - data['latest_time']).days
-                            time_weight = max(0, 1 - days_diff / 365)  # 一年后权重降为0
-                        else:
-                            # 如果没有时间信息，给一个默认权重
-                            time_weight = 0.5
-
-                        # 抄送关系权重降低50%
-                        base_weight = email_count * time_weight
-                        if relation_type == 'cc':
-                            base_weight *= 0.5
-
-                        weight = base_weight
-
-                    # 只添加有邮件数量的边（即使权重为0也要显示关系）
-                    if email_count > 0:
+                    # 只添加有关系的边（权重可能为0但只要有数据就显示关系）
+                    if any(data.get(key, 0) > 0 for key in ['send_count', 'reply_count', 'attachment_count', 'interaction_duration']):
                         # 构建该边对应的邮件详细信息列表（去重）
                         edge_emails = []
                         seen_email_ids = set()
