@@ -48,16 +48,13 @@ def call_llm(user_prompt, system_prompt=None, config=None) -> str:
         ],
     }
 
-
-    API_ENDPOINT = f"{BASE_URL}/v1/chat/completions"
-
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {api_key}"
     }
     
     response = requests.post(
-        API_ENDPOINT,
+        base_url,
         headers=headers,
         json=payload
     )
