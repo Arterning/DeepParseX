@@ -194,7 +194,11 @@ class MailBoxService:
                         for cc_email in cc_list:
                             if cc_email:
                                 key = (email_obj.sender, cc_email, 'cc')
-                                relationships[key]['cc_count'] += 1
+                                # 判断是否为回复邮件（标题包含RE:）
+                                if hasattr(email_obj, 'name') and email_obj.name and isinstance(email_obj.name, str) and 'RE:' in email_obj.name.upper():
+                                    relationships[key]['reply_count'] += 1
+                                else:
+                                    relationships[key]['cc_count'] += 1
                                 relationships[key]['emails'].append(email_obj)
                                 relationships[key]['attachment_count'] += len(email_obj.attachments)
                                 if not relationships[key]['first_interaction_time'] or email_obj.time < relationships[key]['first_interaction_time']:
