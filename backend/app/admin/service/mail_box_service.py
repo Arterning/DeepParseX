@@ -81,7 +81,6 @@ class MailBoxService:
         start_time: datetime | None = None,
         end_time: datetime | None = None,
         max_layers: int = 3,
-        reference_time: datetime | None = None
     ) -> dict:
         """
         分析邮箱之间的关系
@@ -90,12 +89,9 @@ class MailBoxService:
         :param start_time: 开始时间
         :param end_time: 结束时间
         :param max_layers: 最大分析层级，默认3层
-        :param reference_time: 时间权重计算的基准时间，默认为查询时间
         :return: 包含nodes和edges的图结构
         """
         async with async_db_session() as db:
-            if reference_time is None:
-                reference_time = datetime.now()
 
             # 存储所有邮箱及其层级
             mailbox_layers = {}
@@ -108,7 +104,8 @@ class MailBoxService:
                 'latest_time': None,
                 'emails': [],
                 'attachment_count': 0,
-                'interaction_duration': 0
+                'interaction_duration': 0,
+                'description': ''
             })
 
             # 初始化起始邮箱为第0层
@@ -261,7 +258,8 @@ class MailBoxService:
                     else:
                         interaction_duration = 0
                     data['interaction_duration'] = interaction_duration
-                    
+                    data['description'] = f'发送次数: {send_count}, 回复次数: {reply_count}, 含个人文件附件次数: {attachment_count}, 互动持续时间: {interaction_duration:.2f}秒'
+
                     # 计算总权重
                     weight = (send_count * 0.4) + (reply_count * 0.3) + (attachment_count * 0.2) + (interaction_duration * 0.1)
                     
@@ -292,6 +290,7 @@ class MailBoxService:
                             'target': target,
                             'weight': round(weight, 2),
                             'email_count': email_count,
+                            'description': data['description'],
                             'latest_time': data['latest_time'].isoformat() if data['latest_time'] else None,
                             'relation_type': relation_type,
                             'emails': edge_emails
