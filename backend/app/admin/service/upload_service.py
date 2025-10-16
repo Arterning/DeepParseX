@@ -673,10 +673,16 @@ class UploadService:
                 # 多部分邮件
                 for part in msg.walk():
                     content_disposition = str(part.get("Content-Disposition", ""))
+                    filename = part.get_filename()
                     
-                    if "attachment" in content_disposition:
-                        filename = part.get_filename()
-                        if filename:
+                    # 获取Content-Type
+                    content_type = str(part.get_content_type())
+                    
+                    # 判断是否为附件：1. 明确标识为附件 或 2. 有文件名且非文本类型
+                    is_attachment = ("attachment" in content_disposition or 
+                                    (filename and not content_type.startswith('text/')))
+                    
+                    if is_attachment and filename:
                             file_content_bytes = part.get_payload(decode=True)
                             
                             unique_id = str(uuid.uuid4())
