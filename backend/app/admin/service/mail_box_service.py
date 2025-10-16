@@ -254,11 +254,18 @@ class MailBoxService:
                     reply_count = data.get('reply_count', 0)
                     attachment_count = data.get('attachment_count', 0)
                     if data.get('first_interaction_time') and data.get('latest_time'):
-                        interaction_duration = (data.get('latest_time') - data.get('first_interaction_time')).total_seconds()
+                        # 计算天数差，如果在同一天则为1天
+                        start_time = data.get('first_interaction_time')
+                        end_time = data.get('latest_time')
+                        if start_time.date() == end_time.date():
+                            interaction_duration = 1
+                        else:
+                            # 计算完整天数
+                            interaction_duration = (end_time - start_time).days + 1
                     else:
                         interaction_duration = 0
                     data['interaction_duration'] = interaction_duration
-                    data['description'] = f'发送次数: {send_count}, 回复次数: {reply_count}, 含个人文件附件次数: {attachment_count}, 互动持续时间: {interaction_duration:.2f}秒'
+                    data['description'] = f'发送次数: {send_count}, 回复次数: {reply_count}, 含个人文件附件次数: {attachment_count}, 互动持续时间: {int(interaction_duration)}天'
 
                     # 计算总权重
                     weight = (send_count * 0.4) + (reply_count * 0.3) + (attachment_count * 0.2) + (interaction_duration * 0.1)
