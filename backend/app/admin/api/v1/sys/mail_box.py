@@ -12,6 +12,7 @@ from backend.common.response.response_schema import ResponseModel, response_base
 from backend.common.security.jwt import DependsJwtAuth
 from backend.common.security.permission import RequestPermission
 from backend.common.security.rbac import DependsRBAC
+from backend.common.exception import errors
 from backend.database.db_pg import CurrentSession
 from backend.utils.serializers import select_as_dict
 
@@ -65,6 +66,21 @@ async def get_email_provider_distribution_api(
 @router.get('/{pk}', summary='获取详情', dependencies=[DependsJwtAuth])
 async def get_mail_box(pk: Annotated[int, Path(...)]) -> ResponseModel:
     mail_box = await mail_box_service.get(pk=pk)
+    data = GetMailBoxDetails(**select_as_dict(mail_box))
+    return response_base.success(data=data)
+
+
+@router.get('/by-name', summary='根据邮箱账号名称获取详情', dependencies=[DependsJwtAuth])
+async def get_mail_box_by_name(name: Annotated[str, Query(..., description='邮箱账号名称')]) -> ResponseModel:
+    """
+    根据邮箱账号名称查询邮箱详情
+    
+    :param name: 邮箱账号名称
+    :return: 邮箱详情
+    """
+    mail_box = await mail_box_service.get_by_name(name=name)
+    if not mail_box:
+        raise errors.NotFoundError(msg='邮箱不存在')
     data = GetMailBoxDetails(**select_as_dict(mail_box))
     return response_base.success(data=data)
 
