@@ -612,6 +612,24 @@ class SysDocService:
         try:
             # 从 MinIO 获取文件
             bucket_name = settings.BUCKET_NAME
+            # 检查bucket是否存在，如果不存在则创建并设置为public权限
+            if not minio_client.bucket_exists(bucket_name):
+                minio_client.make_bucket(bucket_name)
+                # 设置bucket为public权限
+                policy = {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Action": ["s3:GetObject"],
+                            "Effect": "Allow",
+                            "Principal": {"AWS": ["*"]},
+                            "Resource": [f"arn:aws:s3:::{bucket_name}/*"],
+                            "Sid": "PublicRead"
+                        }
+                    ]
+                }
+                minio_client.set_bucket_policy(bucket_name, json.dumps(policy))
+                log.info(f"Bucket {bucket_name} created successfully with public access policy")
             response = minio_client.get_object(bucket_name, doc.file)
             file_bytes = response.read()
             

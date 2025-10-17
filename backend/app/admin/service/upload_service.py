@@ -57,7 +57,28 @@ from backend.utils.upload_utils import (
 bucket_name = settings.BUCKET_NAME
 
 class UploadService:
-
+    
+    @staticmethod
+    def ensure_bucket_exists(bucket_name):
+        """确保bucket存在，如果不存在则创建并设置为public权限"""
+        if not minio_client.bucket_exists(bucket_name):
+            minio_client.make_bucket(bucket_name)
+            # 设置bucket为public权限
+            policy = {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Action": ["s3:GetObject"],
+                        "Effect": "Allow",
+                        "Principal": {"AWS": ["*"]},
+                        "Resource": [f"arn:aws:s3:::{bucket_name}/*"],
+                        "Sid": "PublicRead"
+                    }
+                ]
+            }
+            minio_client.set_bucket_policy(bucket_name, json.dumps(policy))
+            log.info(f"Bucket {bucket_name} created successfully with public access policy")
+        return bucket_name
     
     # 提取内容
     @staticmethod
@@ -66,6 +87,8 @@ class UploadService:
         doc = await sys_doc_service.get(pk=pk)
         bucket_name = settings.BUCKET_NAME
         obj_name = doc.file
+        # 确保bucket存在
+        UploadService.ensure_bucket_exists(bucket_name)
         response = minio_client.get_object(bucket_name, obj_name)
         file_bytes = response.read()
         content = await upload_service.request_content(title=doc.title, file_bytes=file_bytes)
@@ -110,6 +133,8 @@ class UploadService:
         file_content = await file.read()
         file_stream = io.BytesIO(file_content)
         object_size = len(file_stream.getbuffer())
+        # 确保bucket存在
+        UploadService.ensure_bucket_exists(bucket_name)
         minio_client.put_object(bucket_name, new_filename, file_stream, object_size, file.content_type)
 
 
@@ -159,6 +184,8 @@ class UploadService:
         content = ''
         desc = ''
 
+        # 确保bucket存在
+        UploadService.ensure_bucket_exists(bucket_name)
         response = minio_client.get_object(bucket_name, doc.file)
         file_bytes = response.read()
 
@@ -191,6 +218,8 @@ class UploadService:
                     if content_type is None:
                         content_type = 'application/octet-stream'
 
+                    # 确保bucket存在
+                    UploadService.ensure_bucket_exists(bucket_name)
                     minio_client.put_object(bucket_name, new_filename_minio, file_stream, object_size, content_type)
 
                     file_type = get_file_type(file_suffix)
@@ -700,6 +729,8 @@ class UploadService:
                         if content_type_mime is None:
                             content_type_mime = 'application/octet-stream'
 
+                        # 确保bucket存在
+                        UploadService.ensure_bucket_exists(bucket_name)
                         minio_client.put_object(bucket_name, new_filename_minio, file_stream, object_size, content_type_mime)
 
                         file_type = get_file_type(file_suffix)

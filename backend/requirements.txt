@@ -140,3 +140,4 @@ wcwidth==0.2.13
 websockets==13.0.1
 xdbsearchip==1.0.2
 xlrd==2.0.1
+pyarrow==21.0.0

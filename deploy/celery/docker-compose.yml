@@ -1,0 +1,53 @@
+version: "3.10"
+
+networks:
+  fba_network:
+    external: true
+
+volumes:
+  fba_rabbitmq:
+    name: fba_rabbitmq
+
+services:
+  fba_rabbitmq:
+    hostname: fba_rabbitmq
+    image: rabbitmq:3.12.7
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+    container_name: fba_rabbitmq
+    restart: always
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    volumes:
+      - fba_rabbitmq:/var/lib/rabbitmq
+    networks:
+      - fba_network
+
+  fba_celery:
+    build:
+      context: ../../../
+      dockerfile: backend/celery.dockerfile
+    image: fba_celery:latest
+    ports:
+      - "8555:8555"
+    container_name: fba_celery
+    restart: always
+    depends_on:
+      - fba_rabbitmq
+    networks:
+      - fba_network
+    command:
+      - bash
+      - -c
+      - |
+        wait-for-it -s fba_rabbitmq:5672 -t 300
+        mkdir -p /var/log/supervisor/
+        supervisord -c /fba/deploy/backend/supervisor.conf
+        supervisorctl restart celery_worker
+        supervisorctl restart celery_beat
+        supervisorctl restart celery_flower
+
+
+  
