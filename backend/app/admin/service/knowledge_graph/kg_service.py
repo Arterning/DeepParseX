@@ -57,12 +57,9 @@ def process_with_llm(config, input_text, debug=False):
     
     user_prompt += f"```\n{input_text}```\n" 
 
-    # LLM configuration
-    model = config.get("llm", {}).get("model", "gpt-3.5-turbo")
-    api_key = config.get("llm", {}).get("api_key")
-    max_tokens = config.get("llm", {}).get("max_tokens", 1000)
-    temperature = config.get("llm", {}).get("temperature", 0.7)
-    base_url = config.get("llm", {}).get("base_url", "https://api.openai.com/v1/chat/completions")
+    if debug:
+        print("User prompt:\n", user_prompt, flush=True)
+
     
     # Process with LLM
     metadata = {}
