@@ -28,12 +28,12 @@ class CRUDEntity(CRUDPlus[Entity]):
         )
         return result.scalars().first()
 
-    async def get_list(self, name: str | None = None, entity_type: str | None = None) -> Select:
+    async def get_list(self, name: str | None = None, entity_type: str | list[str] | None = None) -> Select:
         """
         获取实体列表
 
         :param name: 实体名称（模糊匹配）
-        :param entity_type: 实体类型
+        :param entity_type: 实体类型，支持单个字符串或字符串数组
         :return:
         """
         whereclause = {}
@@ -42,7 +42,12 @@ class CRUDEntity(CRUDPlus[Entity]):
             whereclause.update(name__like=f'%{name}%')
         
         if entity_type:
-            whereclause.update(entity_type__like=f'%{entity_type}%')
+            if isinstance(entity_type, list):
+                # 如果是数组，使用IN操作符查询属于任一类型的数据
+                whereclause.update(entity_type__in=entity_type)
+            else:
+                # 如果是单个字符串，保持原有的模糊匹配
+                whereclause.update(entity_type__like=f'%{entity_type}%')
         
         return await self.select_order('created_time', 'desc', **whereclause)
 

@@ -38,7 +38,7 @@ async def get_entity(pk: Annotated[int, Path(...)]) -> ResponseModel:
 async def get_pagination_entity(
     db: CurrentSession,
     name: Annotated[str | None, Query(title='实体名称', description='模糊匹配')] = None,
-    entity_type: Annotated[str | None, Query(title='实体类型')] = None,
+    entity_type: Annotated[list[str] | None, Query(title='实体类型', description='支持多个实体类型，格式为数组')] = None,
 ) -> ResponseModel:
     entity_select = await entity_service.get_select(name=name, entity_type=entity_type)
     page_data = await paging_data(db, entity_select, GetEntityListDetails)

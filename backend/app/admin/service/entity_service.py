@@ -75,7 +75,7 @@ class EntityService:
             return formatted_relationships
     
     @staticmethod
-    async def get_select(name: str | None = None, entity_type: str | None = None) -> Select:
+    async def get_select(name: str | None = None, entity_type: str | list[str] | None = None) -> Select:
         return await entity_dao.get_list(name=name, entity_type=entity_type)
 
     @staticmethod
