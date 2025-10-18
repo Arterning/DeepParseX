@@ -19,7 +19,7 @@ def random_vector(text, dim=1024):
 # EMBEDDING
 def request_text_to_vector(text, max_length=1000):
     import json
-    texts = smart_split_text(text, chunk_size=max_length)
+    texts = smart_split_text(text, max_chunk_size=max_length)
     
     # 调用 LLM-Gateway 的 Embeddings API
     GATEWAY_API_KEY = settings.EMBEDDING_API_KEY
