@@ -3,66 +3,203 @@ import json
 import re
 import requests
 from backend.core.conf import settings
+from abc import ABC, abstractmethod
+from typing import Optional, Dict, Any
+import requests
 
-
-def call_llm(user_prompt, system_prompt=None, config=None) -> str:
-    """
-    Call the language model API.
+class LLMAdapter(ABC):
+    """LLM适配器基类"""
     
-    Args:
-        user_prompt: The user prompt to send
-        system_prompt: Optional system prompt to set context
-        config: Configuration object containing LLM settings
+    @abstractmethod
+    def call(self, user_prompt: str, system_prompt: Optional[str] = None, 
+             config: Optional[Dict] = None) -> str:
+        pass
+
+class OpenAIAdapter(LLMAdapter):
+    """OpenAI及兼容格式的适配器"""
+    
+    def __init__(self, api_key: str, base_url: str, model: str):
+        self.api_key = api_key
+        self.base_url = base_url
+        self.model = model
+    
+    def call(self, user_prompt: str, system_prompt: Optional[str] = None, 
+             config: Optional[Dict] = None) -> str:
+        max_tokens = 1000
+        temperature = 0.2
         
-    Returns:
-        The model's response as a string
-    """
-    # Default values from settings
-    model = settings.LLM_MODEL
-    api_key = settings.LLM_API_KEY
-    max_tokens = 1000
-    temperature = 0.2
-    base_url = settings.LLM_API_URL
-    
-    # Override with values from config if provided
-    if config:
-        llm_config = config.get("llm", {})
-        if llm_config:
+        if config:
+            llm_config = config.get("llm", {})
             max_tokens = llm_config.get("max_tokens", max_tokens)
             temperature = llm_config.get("temperature", temperature)
-            
-    
-    payload = {
-        'model': model,
-        # 'max_tokens': max_tokens,
-        'temperature': temperature,
-        "messages": [
-            {
-                "role": "system", 
-                "content": system_prompt
-            },
-            {
-                "role": "user",
-                "content": user_prompt,
-            }
-        ],
-    }
+        
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": user_prompt})
+        
+        payload = {
+            'model': self.model,
+            'max_tokens': max_tokens,
+            'temperature': temperature,
+            'messages': messages
+        }
+        
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+        
+        response = requests.post(self.base_url, headers=headers, json=payload)
+        
+        if response.status_code == 200:
+            return response.json()['choices'][0]['message']['content']
+        else:
+            raise Exception(f"API request failed: {response.text}")
 
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}"
+class ClaudeAdapter(LLMAdapter):
+    """Claude (Anthropic) 适配器"""
+    
+    def __init__(self, api_key: str, model: str = "claude-3-5-sonnet-20241022"):
+        self.api_key = api_key
+        self.model = model
+        self.base_url = "https://api.anthropic.com/v1/messages"
+    
+    def call(self, user_prompt: str, system_prompt: Optional[str] = None, 
+             config: Optional[Dict] = None) -> str:
+        max_tokens = 1000
+        temperature = 0.2
+        
+        if config:
+            llm_config = config.get("llm", {})
+            max_tokens = llm_config.get("max_tokens", max_tokens)
+            temperature = llm_config.get("temperature", temperature)
+        
+        payload = {
+            'model': self.model,
+            'max_tokens': max_tokens,
+            'temperature': temperature,
+            'messages': [{"role": "user", "content": user_prompt}]
+        }
+        
+        if system_prompt:
+            payload['system'] = system_prompt
+        
+        headers = {
+            "Content-Type": "application/json",
+            "x-api-key": self.api_key,
+            "anthropic-version": "2023-06-01"
+        }
+        
+        response = requests.post(self.base_url, headers=headers, json=payload)
+        
+        if response.status_code == 200:
+            return response.json()['content'][0]['text']
+        else:
+            raise Exception(f"API request failed: {response.text}")
+
+class GeminiAdapter(LLMAdapter):
+    """Google Gemini 适配器"""
+    
+    def __init__(self, api_key: str, model: str = "gemini-pro"):
+        self.api_key = api_key
+        self.model = model
+        self.base_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    
+    def call(self, user_prompt: str, system_prompt: Optional[str] = None, 
+             config: Optional[Dict] = None) -> str:
+        temperature = 0.2
+        
+        if config:
+            llm_config = config.get("llm", {})
+            temperature = llm_config.get("temperature", temperature)
+        
+        # Gemini 将 system prompt 合并到 user prompt
+        full_prompt = user_prompt
+        if system_prompt:
+            full_prompt = f"{system_prompt}\n\n{user_prompt}"
+        
+        payload = {
+            "contents": [{
+                "parts": [{"text": full_prompt}]
+            }],
+            "generationConfig": {
+                "temperature": temperature
+            }
+        }
+        
+        response = requests.post(
+            f"{self.base_url}?key={self.api_key}",
+            headers={"Content-Type": "application/json"},
+            json=payload
+        )
+        
+        if response.status_code == 200:
+            return response.json()['candidates'][0]['content']['parts'][0]['text']
+        else:
+            raise Exception(f"API request failed: {response.text}")
+
+# 工厂类
+class LLMFactory:
+    """LLM 工厂类"""
+    
+    @staticmethod
+    def create_adapter(provider: str, **kwargs) -> LLMAdapter:
+        """
+        根据提供商创建适配器
+        
+        Args:
+            provider: 提供商名称 (openai, claude, gemini, etc.)
+            **kwargs: 各提供商所需的参数
+        """
+        if provider.lower() in ['openai', 'zhipu', 'deepseek', 'moonshot', 'yi', 'ollama']:
+            return OpenAIAdapter(
+                api_key=kwargs['api_key'],
+                base_url=kwargs['base_url'],
+                model=kwargs['model']
+            )
+        elif provider.lower() == 'claude':
+            return ClaudeAdapter(
+                api_key=kwargs['api_key'],
+                model=kwargs.get('model', 'claude-3-5-sonnet-20241022')
+            )
+        elif provider.lower() == 'gemini':
+            return GeminiAdapter(
+                api_key=kwargs['api_key'],
+                model=kwargs.get('model', 'gemini-pro')
+            )
+        else:
+            raise ValueError(f"Unsupported provider: {provider}")
+
+
+# 统一调用接口
+def call_llm(user_prompt: str, system_prompt: Optional[str] = None, 
+             config: Optional[Dict] = None) -> str:
+    """
+    统一的 LLM 调用接口
+    
+    Args:
+        user_prompt: 用户提示词
+        system_prompt: 系统提示词
+        config: 配置对象，包含 provider 和其他设置
+    
+    Returns:
+        模型响应字符串
+    """
+    provider = config.get('provider', 'openai') if config else 'openai'
+    
+    # 从配置中提取参数
+    adapter_kwargs = {
+        'api_key': settings.LLM_API_KEY,
+        'base_url': settings.LLM_API_URL,
+        'model': settings.LLM_MODEL
     }
     
-    response = requests.post(
-        base_url,
-        headers=headers,
-        json=payload
-    )
+    if config and 'llm' in config:
+        adapter_kwargs.update(config['llm'])
     
-    if response.status_code == 200:
-        return response.json()['choices'][0]['message']['content']
-    else:
-        raise Exception(f"API request failed: {response.text}")
+    adapter = LLMFactory.create_adapter(provider, **adapter_kwargs)
+    return adapter.call(user_prompt, system_prompt, config)
 
 def extract_json_from_text(text):
     """
