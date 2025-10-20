@@ -5,7 +5,7 @@ from backend.app.admin.schema.chat import ChatParam
 from backend.app.admin.service.doc_service import sys_doc_service
 from backend.app.admin.service.llm_service import llm_service
 from backend.app.admin.service.mail_msg_service import mail_msg_service
-from backend.utils.doc_utils import request_text_to_vector
+from backend.utils.doc_utils import embed_text_chunks
 from backend.database.db_pg import async_db_session
 from backend.app.admin.model.mail_msg import MailMsg
 from sqlalchemy import select
@@ -106,7 +106,7 @@ class ChatService:
             asyncio.create_task(sys_doc_service.compute_embedding(id=obj.doc_id))
         else:
             loop = asyncio.get_event_loop()
-            question_text_emb = await loop.run_in_executor(None, request_text_to_vector, obj.question)
+            question_text_emb = await loop.run_in_executor(None, embed_text_chunks, obj.question)
             query_vector = question_text_emb[0]["embs"]
             similar_docs = await sys_doc_service.search_similar_docs(query_vector=query_vector, limit=check_topk)
             

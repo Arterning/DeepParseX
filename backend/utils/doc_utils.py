@@ -16,8 +16,14 @@ def random_vector(text, dim=1024):
         }
     ]
 
-# EMBEDDING
-def request_text_to_vector(text, max_length=1000):
+def embed_text_chunks(text, max_length=1000):
+    MODEL_NAME = settings.EMBEDDING_MODEL
+    if MODEL_NAME == "text-embedding-3-small":
+        return text_embedding(text, max_length=max_length)
+    else:
+        return legacy_embedding(text, max_length=max_length)
+
+def text_embedding(text, max_length=1000):
     import json
     texts = smart_split_text(text, max_chunk_size=max_length)
     
@@ -326,7 +332,7 @@ def v1_embedding(text, max_length=512):
         raise e 
     
 
-def v2_embedding(text, max_length=512):
+def legacy_embedding(text, max_length=512):
     url = settings.EMBEDDING_URL
     
     # 准备请求体

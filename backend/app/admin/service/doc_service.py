@@ -4,7 +4,6 @@ import re
 from typing import Sequence
 from sqlalchemy import Select, select, func, delete
 from typing import List
-
 from backend.app.admin.service.knowledge_graph.kg_service import kg_service
 from backend.app.admin.crud.crud_doc import sys_doc_dao
 from backend.app.admin.crud.crud_doc_data import sys_doc_data_dao
@@ -23,7 +22,7 @@ from backend.database.db_pg import async_db_session
 from backend.app.admin.schema.doc_data import CreateSysDocDataParam
 from backend.app.admin.schema.doc_chunk import CreateSysDocChunkParam
 from backend.app.admin.schema.doc_embdding import CreateSysDocEmbeddingParam
-from backend.utils.doc_utils import request_text_to_vector
+from backend.utils.doc_utils import embed_text_chunks
 from backend.app.admin.service.llm_service import llm_service
 from backend.utils.oss_client import minio_client
 from backend.core.conf import settings
@@ -47,7 +46,7 @@ class SysDocService:
             return
 
         #所有文本的向量
-        vector_data = await loop.run_in_executor(None, request_text_to_vector, doc.content)
+        vector_data = await loop.run_in_executor(None, embed_text_chunks, doc.content)
         obj_list=[]
         emb_list=[]
         for vector in vector_data:
@@ -393,7 +392,7 @@ class SysDocService:
     @staticmethod
     async def similar_search(query: str = None, page: int = None, size: int = None):
         loop = asyncio.get_running_loop()
-        text_emb = await loop.run_in_executor(None, request_text_to_vector, query)
+        text_emb = await loop.run_in_executor(None, embed_text_chunks, query)
         query_vector = text_emb[0]["embs"]
         async with async_db_session() as db:
             res = await sys_doc_dao.search_by_vector(db, query_vector, page, size)
