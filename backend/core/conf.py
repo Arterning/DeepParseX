@@ -179,6 +179,7 @@ class Settings(BaseSettings):
     BUCKET_NAME: str = ''
 
     # LLVM
+    LLM_PROVIDER: str = 'openai'
     LLM_MODEL: str = 'gemma3'
     LLM_API_KEY: str = ''
     LLM_API_URL: str = 'http://localhost:8000/v1/chat/completions'

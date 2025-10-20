@@ -13,41 +13,10 @@ class LLMService:
 
     @staticmethod
     async def get_llm_response(system_context: str, user_input: str):
-        llm_model =  settings.LLM_MODEL
-        loop = asyncio.get_event_loop()
-        if "deepseek" in llm_model:
-            # 使用 DeepSeek API
-            response = await loop.run_in_executor(None, LLMService.get_deepseek_api_response, system_context, user_input)
-            return response
-        else:
-            # 使用 VLLM API
-            response = await loop.run_in_executor(None, LLMService.get_api_response, system_context, user_input)
-            return response
-
-
-    @staticmethod
-    def get_deepseek_api_response(system_context: str, user_input: str):
-        api_key = settings.LLM_API_KEY
-        client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
-
-        response = client.chat.completions.create(
-            model="deepseek-chat",
-            messages=[
-                {"role": "system", "content": system_context},
-                {"role": "user", "content": user_input},
-            ],
-            stream=False
-        )
-
-        return response.choices[0].message.content
-    
-
-
-
-    @staticmethod
-    def get_api_response(system_context: str, user_input: str):
+        
         # 创建配置对象
         config = {
+            "provider": settings.LLM_PROVIDER,
             "llm": {
                 "temperature": 0.7
             }
@@ -56,7 +25,7 @@ class LLMService:
         for attempt in range(1, 3):
             try:
                 # 调用call_llm方法
-                reply = call_llm(user_input, system_context, config)
+                reply = await loop.run_in_executor(None, call_llm, user_input, system_context, config)
                 return reply
             except Exception as e:
                 print(f"Attempt {attempt} failed: {e}")
@@ -64,7 +33,7 @@ class LLMService:
                     time.sleep(0.5)  # 等待一段时间后重试
                 else:
                     print("All attempts failed, returning None.")
-                    return None
+                    return ""
                 
 
 llm_service = LLMService()
