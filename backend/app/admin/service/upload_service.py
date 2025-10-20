@@ -9,14 +9,11 @@ import uuid
 from backend.core.conf import settings
 from backend.app.admin.schema.doc import CreateSysDocParam, UpdateSysDocParam
 from backend.app.admin.schema.doc_data import CreateSysDocDataParam
-from backend.app.admin.schema.doc_chunk import CreateSysDocChunkParam
-from backend.app.admin.schema.doc_embdding import CreateSysDocEmbeddingParam
 from backend.app.admin.schema.mail_msg import CreateMailMsgParam
 from backend.app.admin.schema.mail_box import CreateMailBoxParam
 from backend.app.admin.service.doc_service import sys_doc_service
 from backend.app.admin.service.mail_msg_service import mail_msg_service
 from backend.app.admin.service.mail_box_service import mail_box_service
-from backend.app.admin.utils.text_processor import embed_text_chunks
 
 import os
 import json
@@ -34,7 +31,6 @@ import os
 from email import policy
 from email.parser import BytesParser
 from zipfile import ZipFile
-from bs4 import BeautifulSoup
 from backend.app.admin.model import SysDoc
 from backend.utils.oss_client import minio_client
 import rarfile

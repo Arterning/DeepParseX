@@ -7,20 +7,18 @@ from typing import List
 from backend.app.admin.service.knowledge_graph.kg_service import kg_service
 from backend.app.admin.crud.crud_doc import sys_doc_dao
 from backend.app.admin.crud.crud_doc_data import sys_doc_data_dao
-from backend.app.admin.crud.crud_doc_chunk import sys_doc_chunk_dao
 from backend.app.admin.crud.crud_doc_embedding import sys_doc_embedding_dao
 from backend.app.admin.crud.crud_tag import tag_dao
 from backend.app.admin.model import SysDoc
 from backend.app.admin.model import SubjectPredictObject
 from backend.app.admin.model.sys_entity import Entity
 from backend.app.admin.model.sys_entity_relationship import EntityRelation
-from backend.app.admin.model import SysDocData,SysDocChunk
+from backend.app.admin.model import SysDocData
 from backend.app.admin.model.sys_star_doc import sys_star_doc
 from backend.app.admin.schema.doc import CreateSysDocParam, UpdateSysDocParam
 from backend.common.exception import errors
 from backend.database.db_pg import async_db_session
 from backend.app.admin.schema.doc_data import CreateSysDocDataParam
-from backend.app.admin.schema.doc_chunk import CreateSysDocChunkParam
 from backend.app.admin.schema.doc_embdding import CreateSysDocEmbeddingParam
 from backend.app.admin.utils.text_processor import embed_text_chunks
 from backend.app.admin.service.llm_service import llm_service
@@ -47,16 +45,10 @@ class SysDocService:
 
         #所有文本的向量
         vector_data = await loop.run_in_executor(None, embed_text_chunks, doc.content)
-        obj_list=[]
         emb_list=[]
         for vector in vector_data:
+
             chunk_text = vector['text']
-            obj = CreateSysDocChunkParam(
-                doc_id=doc_id,
-                doc_name=doc_name,
-                chunk_text=chunk_text,
-            )
-            obj_list.append(obj)
 
             chunk_embedding = vector['embs']
             # 根据向量维度设置对应的字段
@@ -82,7 +74,6 @@ class SysDocService:
             
             emb_obj = CreateSysDocEmbeddingParam(**emb_kwargs)
             emb_list.append(emb_obj)
-        await SysDocService.create_doc_bulk_chunks(obj_list=obj_list)
         await SysDocService.create_doc_bulk_embeddings(emb_list=emb_list)
 
     @staticmethod
@@ -461,18 +452,6 @@ class SysDocService:
     
     @staticmethod
     # 批量插入
-    async def create_doc_bulk_chunks(*, obj_list: list[CreateSysDocChunkParam]) -> list[SysDocChunk]:
-        async with async_db_session.begin() as db:
-            return await sys_doc_chunk_dao.create_bulk(db, obj_list)
-
-    @staticmethod
-    # 插入一个chunk
-    async def create_doc_chunk(*, obj: CreateSysDocDataParam):
-        async with async_db_session.begin() as db:
-            return await sys_doc_chunk_dao.create(db, obj)
-    
-    @staticmethod
-    # 批量插入
     async def create_doc_bulk_embeddings(*, emb_list: list[CreateSysDocEmbeddingParam]) -> list[CreateSysDocEmbeddingParam]:
         async with async_db_session.begin() as db:
             return await sys_doc_embedding_dao.create_bulk(db, emb_list)
@@ -508,12 +487,6 @@ class SysDocService:
     async def  delete_doc_data(*, doc_id: list[int]) -> int:
         async with async_db_session.begin() as db:
             count = await sys_doc_data_dao.delete(db, doc_id)
-            return count
-        
-    @staticmethod
-    async def  delete_doc_chunk(*, doc_id: list[int]) -> int:
-        async with async_db_session.begin() as db:
-            count = await sys_doc_chunk_dao.delete(db, doc_id)
             return count
         
 

@@ -40,7 +40,7 @@ class OpenAIAdapter(LLMAdapter):
         
         payload = {
             'model': self.model,
-            'max_tokens': max_tokens,
+            # 'max_tokens': max_tokens,
             'temperature': temperature,
             'messages': messages
         }
