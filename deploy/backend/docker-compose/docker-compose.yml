@@ -40,6 +40,14 @@ services:
       - fba_static:/fba/backend/app/static
     networks:
       - fba_network
+    environment:
+      - LLM_MODEL=Qwen2.5-7B-Instruct
+      - LLM_API_URL=http://172.17.0.1:8103/v1/chat/completions
+      - LLM_API_KEY=
+      - EMBEDDING_MODEL=text-embedding-3-small
+      - EMBEDDING_URL=http://172.17.0.1:8104/text_to_vector
+      - EMBEDDING_API_KEY=
+      - OCR_URL=http://172.17.0.1:8120/predict
     command:
       - bash
       - -c
