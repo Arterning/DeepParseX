@@ -22,7 +22,7 @@ from backend.database.db_pg import async_db_session
 from backend.app.admin.schema.doc_data import CreateSysDocDataParam
 from backend.app.admin.schema.doc_chunk import CreateSysDocChunkParam
 from backend.app.admin.schema.doc_embdding import CreateSysDocEmbeddingParam
-from backend.utils.doc_utils import embed_text_chunks
+from backend.app.admin.utils.text_processor import embed_text_chunks
 from backend.app.admin.service.llm_service import llm_service
 from backend.utils.oss_client import minio_client
 from backend.core.conf import settings

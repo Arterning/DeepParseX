@@ -5,7 +5,7 @@ from anyio import run
 
 sys.path.append('../')
 
-from backend.utils.doc_utils import embed_text_chunks
+from backend.app.admin.utils.text_processor import embed_text_chunks
 
 async def init() -> None:
     res = embed_text_chunks(

@@ -16,7 +16,7 @@ from backend.app.admin.schema.mail_box import CreateMailBoxParam
 from backend.app.admin.service.doc_service import sys_doc_service
 from backend.app.admin.service.mail_msg_service import mail_msg_service
 from backend.app.admin.service.mail_box_service import mail_box_service
-from backend.utils.doc_utils import process_file
+from backend.app.admin.utils.text_processor import embed_text_chunks
 
 import os
 import json

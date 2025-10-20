@@ -5,7 +5,7 @@ from backend.app.admin.schema.chat import ChatParam
 from backend.app.admin.service.doc_service import sys_doc_service
 from backend.app.admin.service.llm_service import llm_service
 from backend.app.admin.service.mail_msg_service import mail_msg_service
-from backend.utils.doc_utils import embed_text_chunks
+from backend.app.admin.utils.text_processor import embed_text_chunks
 from backend.database.db_pg import async_db_session
 from backend.app.admin.model.mail_msg import MailMsg
 from sqlalchemy import select
