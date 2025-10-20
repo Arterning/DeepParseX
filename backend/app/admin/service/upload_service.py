@@ -5,16 +5,6 @@
 from datetime import datetime
 import chardet
 import uuid
-
-from backend.core.conf import settings
-from backend.app.admin.schema.doc import CreateSysDocParam, UpdateSysDocParam
-from backend.app.admin.schema.doc_data import CreateSysDocDataParam
-from backend.app.admin.schema.mail_msg import CreateMailMsgParam
-from backend.app.admin.schema.mail_box import CreateMailBoxParam
-from backend.app.admin.service.doc_service import sys_doc_service
-from backend.app.admin.service.mail_msg_service import mail_msg_service
-from backend.app.admin.service.mail_box_service import mail_box_service
-
 import os
 import json
 from fastapi import File, UploadFile
@@ -23,7 +13,6 @@ import pandas as pd
 import numpy as np
 import asyncio
 from io import BytesIO
-from backend.common.log import log
 import traceback
 import zipfile
 import io
@@ -31,9 +20,20 @@ import os
 from email import policy
 from email.parser import BytesParser
 from zipfile import ZipFile
-from backend.app.admin.model import SysDoc
-from backend.utils.oss_client import minio_client
 import rarfile
+
+from backend.core.conf import settings
+from backend.common.log import log
+from backend.app.admin.model import SysDoc
+from backend.app.admin.schema.doc import CreateSysDocParam, UpdateSysDocParam
+from backend.app.admin.schema.doc_data import CreateSysDocDataParam
+from backend.app.admin.schema.mail_msg import CreateMailMsgParam
+from backend.app.admin.schema.mail_box import CreateMailBoxParam
+from backend.app.admin.service.doc_service import sys_doc_service
+from backend.app.admin.service.mail_msg_service import mail_msg_service
+from backend.app.admin.service.mail_box_service import mail_box_service
+from backend.app.admin.utils.text_processor import process_file
+from backend.utils.oss_client import minio_client
 from backend.utils.upload_utils import (
     get_file_suffix, 
     get_file_type, 
