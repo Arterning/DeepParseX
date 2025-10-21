@@ -386,7 +386,7 @@ class SysDocService:
         text_emb = await loop.run_in_executor(None, embed_text_chunks, query)
         query_vector = text_emb[0]["embs"]
         async with async_db_session() as db:
-            res = await sys_doc_dao.search_by_vector(db, query_vector, page, size)
+            res = await SysDocService.search_similar_docs(db, query_vector, limit=size)
             return res
 
 

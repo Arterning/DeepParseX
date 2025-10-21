@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from datetime import datetime
-from typing import Sequence
+from typing import Sequence, List, Set
 
 from backend.app.admin.crud.crud_mail_msg import mail_msg_dao
 from backend.app.admin.model.mail_msg import MailMsg
 from backend.app.admin.schema.mail_msg import CreateMailMsgParam, UpdateMailMsgParam
+from backend.app.admin.service.doc_service import sys_doc_service
 from backend.common.exception import errors
 from backend.database.db_pg import async_db_session
-from sqlalchemy import Select
+from sqlalchemy import Select, select
 
 
 class MailMsgService:
@@ -72,6 +73,16 @@ class MailMsgService:
     @staticmethod
     async def delete(*, pk: list[int]) -> int:
         async with async_db_session.begin() as db:
+            # 先查询要删除的邮件记录，获取关联的doc_id
+            stmt = select(MailMsg.doc_id).where(MailMsg.id.in_(pk))
+            result = await db.execute(stmt)
+            doc_ids = [doc_id for doc_id in result.scalars().all() if doc_id is not None]
+            
+            # 如果有关联的文档，先删除文档
+            if doc_ids:
+                await sys_doc_service.delete(pk=doc_ids)
+            
+            # 然后删除邮件记录
             count = await mail_msg_dao.delete(db, pk)
             return count
 
