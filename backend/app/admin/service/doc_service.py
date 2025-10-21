@@ -484,11 +484,16 @@ class SysDocService:
             return count
 
     @staticmethod
-    async def  delete_doc_data(*, doc_id: list[int]) -> int:
+    async def delete_doc_data(*, doc_id: list[int]) -> int:
         async with async_db_session.begin() as db:
             count = await sys_doc_data_dao.delete(db, doc_id)
             return count
         
+    @staticmethod
+    async def delete_doc_embeddings(*, doc_id: list[int]) -> int:
+        async with async_db_session.begin() as db:
+            count = await sys_doc_embedding_dao.delete(db, doc_id)
+            return count
 
     @staticmethod
     async def get_hot_docs(user_id: int = None) -> Sequence[SysDoc]:
