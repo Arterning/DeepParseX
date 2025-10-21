@@ -24,6 +24,7 @@ class LLMService:
         
         for attempt in range(1, 3):
             try:
+                loop = asyncio.get_running_loop()
                 # 调用call_llm方法
                 reply = await loop.run_in_executor(None, call_llm, user_input, system_context, config)
                 return reply
