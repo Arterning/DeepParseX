@@ -2,6 +2,50 @@ import numpy as np
 import requests
 from backend.core.conf import settings
 from backend.common.log import log
+from backend.app.admin.service.config_service import config_service
+
+# 创建一个配置缓存，用于存储从数据库获取的配置
+_config_cache = None
+
+async def get_merged_settings():
+    """
+    获取合并后的配置，数据库配置优先于环境变量配置
+    """
+    global _config_cache
+    
+    # 创建一个新的settings副本
+    merged_settings = settings
+    
+    try:
+        # 如果缓存为空，从数据库获取配置
+        if _config_cache is None:
+            config = await config_service.get()
+            if config and hasattr(config, 'settings') and config.settings:
+                _config_cache = config.settings
+        
+        # 用数据库配置覆盖环境变量配置
+        if _config_cache:
+            for key, value in _config_cache.items():
+                if hasattr(merged_settings, key):
+                    setattr(merged_settings, key, value)
+    except Exception as e:
+        log.error(f"Failed to load config from database: {str(e)}")
+    
+    return merged_settings
+
+# 同步版本的配置获取函数
+def get_merged_settings_sync():
+    """
+    同步获取合并后的配置（用于非异步场景）
+    """
+    import asyncio
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
+    return loop.run_until_complete(get_merged_settings())
 
 def random_vector(text, dim=1024):
     # 出错时返回随机向量作为备份
@@ -17,7 +61,9 @@ def random_vector(text, dim=1024):
     ]
 
 def embed_text_chunks(text, max_length=1000):
-    MODEL_NAME = settings.EMBEDDING_MODEL
+    # 使用合并后的配置
+    merged_settings = get_merged_settings_sync()
+    MODEL_NAME = merged_settings.EMBEDDING_MODEL
     if MODEL_NAME == "text-embedding-3-small":
         return text_embedding(text, max_length=max_length)
     else:
@@ -25,12 +71,16 @@ def embed_text_chunks(text, max_length=1000):
 
 def text_embedding(text, max_length=1000):
     import json
+    # 使用文件中已定义的全局smart_split_text函数
     texts = smart_split_text(text, max_chunk_size=max_length)
+
+    # 使用合并后的配置
+    merged_settings = get_merged_settings_sync()
     
     # 调用 LLM-Gateway 的 Embeddings API
-    GATEWAY_API_KEY = settings.EMBEDDING_API_KEY
-    MODEL_NAME = settings.EMBEDDING_MODEL
-    API_ENDPOINT = settings.EMBEDDING_URL
+    GATEWAY_API_KEY = merged_settings.EMBEDDING_API_KEY
+    MODEL_NAME = merged_settings.EMBEDDING_MODEL
+    API_ENDPOINT = merged_settings.EMBEDDING_URL
     
     headers = {
         "Content-Type": "application/json",
@@ -71,7 +121,9 @@ def process_file(file_name: str, file_data: bytes):
     :param file_path: 文件的完整路径，需为图片文件。
     :return: 服务端返回的处理结果，JSON 格式。
     """
-    url = settings.OCR_URL
+    # 使用合并后的配置
+    merged_settings = get_merged_settings_sync()
+    url = merged_settings.OCR_URL
     try:
         data = {"task" : "默认算法"}
         mime_type =  'application/octet-stream'
@@ -305,7 +357,9 @@ def smart_split_text(text: str, max_chunk_size: int = 500) -> list[str]:
 
 
 def v1_embedding(text, max_length=512):
-    url = settings.EMBEDDING_URL
+    # 使用合并后的配置
+    merged_settings = get_merged_settings_sync()
+    url = merged_settings.EMBEDDING_URL
     texts = split_string_by_length(text, chunk_size=max_length)
     payload = {
         "texts": texts,
@@ -333,7 +387,9 @@ def v1_embedding(text, max_length=512):
     
 
 def legacy_embedding(text, max_length=512):
-    url = settings.EMBEDDING_URL
+    # 使用合并后的配置
+    merged_settings = get_merged_settings_sync()
+    url = merged_settings.EMBEDDING_URL
     
     # 准备请求体
     payload = {
