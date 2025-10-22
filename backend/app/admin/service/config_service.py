@@ -31,6 +31,9 @@ class ConfigService:
         async with async_db_session.begin() as db:
             count = await config_dao.update(db, pk, obj)
             # await redis_client.hset(admin_settings.CONFIG_REDIS_KEY, mapping=obj.model_dump())
+            # 清除配置缓存，确保下次获取时重新加载最新配置
+            from backend.app.admin.utils.config_manager import clear_config_cache
+            clear_config_cache()
             return count
 
     @staticmethod
