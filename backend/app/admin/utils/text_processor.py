@@ -40,12 +40,12 @@ def get_merged_settings_sync():
     """
     import asyncio
     try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    
-    return loop.run_until_complete(get_merged_settings())
+        # 使用asyncio.run()来运行异步函数，确保创建隔离的事件循环
+        return asyncio.run(get_merged_settings())
+    except Exception as e:
+        log.error(f"Error running async config fetch: {str(e)}")
+        # 出错时返回原始settings作为备用
+        return settings
 
 def random_vector(text, dim=1024):
     # 出错时返回随机向量作为备份
