@@ -26,7 +26,7 @@ class LLMService:
             try:
                 loop = asyncio.get_running_loop()
                 # 调用call_llm方法
-                reply = await loop.run_in_executor(None, call_llm, user_input, system_context, config)
+                reply = call_llm(user_input, system_context, config)
                 return reply
             except Exception as e:
                 print(f"Attempt {attempt} failed: {e}")

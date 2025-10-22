@@ -2,10 +2,24 @@
 import json
 import re
 import requests
+import asyncio
 from backend.core.conf import settings
+from backend.app.admin.utils.config_manager import get_merged_settings
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any
 import requests
+
+
+def get_merged_settings_sync():
+    """
+    同步获取合并后的配置
+    """
+    try:
+        return asyncio.run(get_merged_settings())
+    except Exception as e:
+        # 出错时返回原始settings作为备用
+        print(f"Failed to get merged settings: {str(e)}")
+        return settings
 
 class LLMAdapter(ABC):
     """LLM适配器基类"""
@@ -186,13 +200,15 @@ def call_llm(user_prompt: str, system_prompt: Optional[str] = None,
     Returns:
         模型响应字符串
     """
-    provider = config.get('provider', 'openai') if config else 'openai'
+    # 从config_manager获取合并后的配置（数据库配置优先于环境变量配置）
+    merged_settings = get_merged_settings_sync()
+    provider = merged_settings.LLM_PROVIDER if merged_settings.LLM_PROVIDER else 'openai'
     
     # 从配置中提取参数
     adapter_kwargs = {
-        'api_key': settings.LLM_API_KEY,
-        'base_url': settings.LLM_API_URL,
-        'model': settings.LLM_MODEL
+        'api_key': merged_settings.LLM_API_KEY,
+        'base_url': merged_settings.LLM_API_URL,
+        'model': merged_settings.LLM_MODEL
     }
     
     if config and 'llm' in config:
