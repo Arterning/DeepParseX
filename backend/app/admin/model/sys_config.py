@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from sqlalchemy import String
-from sqlalchemy.dialects.postgresql import TEXT
+from sqlalchemy.dialects.postgresql import TEXT, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
+from typing import Dict, Any
 
 from backend.common.model import Base, id_key
 
@@ -25,3 +26,4 @@ class Config(Base):
         default='强大的多模态文档解析与知识管理平台',
         comment='系统描述',
     )
+    settings: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict, comment='系统配置JSON')
