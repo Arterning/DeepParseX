@@ -14,18 +14,8 @@ class ConfigService:
     @staticmethod
     async def get() -> Config | dict:
         async with async_db_session() as db:
-            cache_config = await redis_client.hgetall(admin_settings.CONFIG_REDIS_KEY)
-            if not cache_config:
-                config = await config_dao.get_one(db)
-                if not config:
-                    raise errors.NotFoundError(msg='系统配置不存在')
-                data_map = select_as_dict(config)
-                del data_map['created_time']
-                del data_map['updated_time']
-                await redis_client.hset(admin_settings.CONFIG_REDIS_KEY, mapping=data_map)
-                return config
-            else:
-                return cache_config
+            config = await config_dao.get_one(db)
+            return config
 
     @staticmethod
     async def create(*, obj: CreateConfigParam) -> None:
@@ -34,13 +24,13 @@ class ConfigService:
             if config:
                 raise errors.ForbiddenError(msg='系统配置已存在')
             await config_dao.create(db, obj)
-            await redis_client.hset(admin_settings.CONFIG_REDIS_KEY, mapping=obj.model_dump())
+            # await redis_client.hset(admin_settings.CONFIG_REDIS_KEY, mapping=obj.model_dump())
 
     @staticmethod
     async def update(*, pk: int, obj: UpdateConfigParam) -> int:
         async with async_db_session.begin() as db:
             count = await config_dao.update(db, pk, obj)
-            await redis_client.hset(admin_settings.CONFIG_REDIS_KEY, mapping=obj.model_dump())
+            # await redis_client.hset(admin_settings.CONFIG_REDIS_KEY, mapping=obj.model_dump())
             return count
 
     @staticmethod
@@ -50,7 +40,7 @@ class ConfigService:
             if len(configs) == 1:
                 raise errors.ForbiddenError(msg='系统配置无法彻底删除')
             count = await config_dao.delete(db, pk)
-            await redis_client.delete(admin_settings.CONFIG_REDIS_KEY)
+            # await redis_client.delete(admin_settings.CONFIG_REDIS_KEY)
             return count
 
 
