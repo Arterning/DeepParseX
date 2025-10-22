@@ -105,8 +105,7 @@ class ChatService:
             # 异步调用insert_text_embs，不等待返回
             asyncio.create_task(sys_doc_service.compute_embedding(id=obj.doc_id))
         else:
-            loop = asyncio.get_event_loop()
-            question_text_emb = await loop.run_in_executor(None, embed_text_chunks, obj.question)
+            question_text_emb = await embed_text_chunks(obj.question)
             query_vector = question_text_emb[0]["embs"]
             similar_docs = await sys_doc_service.search_similar_docs(query_vector=query_vector, limit=check_topk)
             

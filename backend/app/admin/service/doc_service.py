@@ -44,7 +44,7 @@ class SysDocService:
             return
 
         #所有文本的向量
-        vector_data = await loop.run_in_executor(None, embed_text_chunks, doc.content)
+        vector_data = await embed_text_chunks(doc.content)
         emb_list=[]
         for vector in vector_data:
 
@@ -382,8 +382,7 @@ class SysDocService:
 
     @staticmethod
     async def similar_search(query: str = None, page: int = None, size: int = None):
-        loop = asyncio.get_running_loop()
-        text_emb = await loop.run_in_executor(None, embed_text_chunks, query)
+        text_emb = await embed_text_chunks(query)
         query_vector = text_emb[0]["embs"]
         async with async_db_session() as db:
             res = await SysDocService.search_similar_docs(db, query_vector, limit=size)

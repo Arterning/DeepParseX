@@ -33,19 +33,6 @@ async def get_merged_settings():
     
     return merged_settings
 
-# 同步版本的配置获取函数
-def get_merged_settings_sync():
-    """
-    同步获取合并后的配置（用于非异步场景）
-    """
-    import asyncio
-    try:
-        # 使用asyncio.run()来运行异步函数，确保创建隔离的事件循环
-        return asyncio.run(get_merged_settings())
-    except Exception as e:
-        log.error(f"Error running async config fetch: {str(e)}")
-        # 出错时返回原始settings作为备用
-        return settings
 
 def random_vector(text, dim=1024):
     # 出错时返回随机向量作为备份
@@ -60,22 +47,23 @@ def random_vector(text, dim=1024):
         }
     ]
 
-def embed_text_chunks(text, max_length=1000):
-    # 使用合并后的配置
-    merged_settings = get_merged_settings_sync()
+async def embed_text_chunks(text, max_length=1000):
+    # 直接调用异步版本的get_merged_settings
+    merged_settings = await get_merged_settings()
     MODEL_NAME = merged_settings.EMBEDDING_MODEL
     if MODEL_NAME == "text-embedding-3-small":
-        return text_embedding(text, max_length=max_length)
+        return await text_embedding(text, max_length=max_length)
     else:
-        return legacy_embedding(text, max_length=max_length)
+        return await legacy_embedding(text, max_length=max_length)
 
-def text_embedding(text, max_length=1000):
+async def text_embedding(text, max_length=1000):
     import json
+    import aiohttp
     # 使用文件中已定义的全局smart_split_text函数
     texts = smart_split_text(text, max_chunk_size=max_length)
 
-    # 使用合并后的配置
-    merged_settings = get_merged_settings_sync()
+    # 直接调用异步版本的get_merged_settings
+    merged_settings = await get_merged_settings()
     
     # 调用 LLM-Gateway 的 Embeddings API
     GATEWAY_API_KEY = merged_settings.EMBEDDING_API_KEY
@@ -89,58 +77,71 @@ def text_embedding(text, max_length=1000):
 
     embeddings = []
 
-    for text in texts:
-        data = {
-            "model": MODEL_NAME,
-            "input": text
-        }
-    
-        try:
-            response = requests.post(API_ENDPOINT, headers=headers, json=data, timeout=60)
-            response.raise_for_status()
-            response_data = response.json()
-            
-            # 提取向量并保持原有返回格式
-            embedding = response_data["data"][0]["embedding"]
-            
-            embeddings.append({
-                "text": text,
-                "embs": embedding
-            })
-        except Exception as e:
-            log.error(f"Error in request_text_to_vector: {str(e)}")
-            return []
+    async with aiohttp.ClientSession() as session:
+        for text in texts:
+            data = {
+                "model": MODEL_NAME,
+                "input": text
+            }
+        
+            try:
+                async with session.post(API_ENDPOINT, headers=headers, json=data, timeout=60) as response:
+                    response.raise_for_status()
+                    response_data = await response.json()
+                    
+                    if 'data' in response_data and isinstance(response_data['data'], list):
+                        for item in response_data['data']:
+                            if 'embedding' in item:
+                                embeddings.append({
+                                    "text": text,
+                                    "embs": item['embedding']
+                                })
+            except Exception as e:
+                log.error(f"[text_embedding] API调用失败: {str(e)}")
+                # 出错时返回随机向量
+                embeddings.extend(random_vector(text))
         
     return embeddings
 
 # OCR
-def process_file(file_name: str, file_data: bytes):
+async def process_file(file_name: str, file_data: bytes):
     """
     向服务端发送文件路径，获取处理后的 OCR 结果。
     
     :param file_path: 文件的完整路径，需为图片文件。
     :return: 服务端返回的处理结果，JSON 格式。
     """
-    # 使用合并后的配置
-    merged_settings = get_merged_settings_sync()
+    # 直接调用异步版本的get_merged_settings
+    merged_settings = await get_merged_settings()
     url = merged_settings.OCR_URL
     try:
+        # 使用aiohttp替代requests进行异步HTTP请求
+        import aiohttp
+        import aiohttp.multipart
+        
         data = {"task" : "默认算法"}
-        mime_type =  'application/octet-stream'
-        files = {'file': (file_name, file_data, mime_type) } 
-        response = requests.post(url, data=data, files=files)
-        if response.status_code == 200:
-            return response.json()
-        else:
-            print(f"请求失败，状态码：{response.status_code}")
-            print(f"错误信息：{response.text}")
-            return {
-                "content": response.text
-            }
+        mime_type = 'application/octet-stream'
+        
+        # 准备多部分表单数据
+        form_data = aiohttp.FormData()
+        form_data.add_field('file', file_data, filename=file_name, content_type=mime_type)
+        for key, value in data.items():
+            form_data.add_field(key, value)
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, data=form_data) as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    error_text = await response.text()
+                    print(f"请求失败，状态码：{response.status}")
+                    print(f"错误信息：{error_text}")
+                    return {
+                        "content": error_text
+                    }
     except Exception as e:
         log.error(f"[process_file]中出现错误：{str(e)}")
         return str(e)
-        # raise e
 
         
 # 分隔字符串
@@ -356,59 +357,74 @@ def smart_split_text(text: str, max_chunk_size: int = 500) -> list[str]:
     return result
 
 
-def v1_embedding(text, max_length=512):
-    # 使用合并后的配置
-    merged_settings = get_merged_settings_sync()
-    url = merged_settings.EMBEDDING_URL
-    texts = split_string_by_length(text, chunk_size=max_length)
-    payload = {
-        "texts": texts,
-    }
-    # 发送 POST 请求
-    try:
-        response = requests.post(url, json=payload)
-        # print("response", response)
-        if response.status_code == 200:
-            res = response.json()
-            embeddings = res["embeddings"]
-            result = []
-            for i in range(len(embeddings)):
-                result.append({
-                    "embs": embeddings[i],
-                    "text": texts[i]
-                })
-            return result
-        else:
-            log.error(f"Request failed with status code {response.status_code}")
-            raise Exception(f"Request failed with status code {response.status_code}")
-    except Exception as e:
-        log.error(f"Error occurred: {str(e)}")
-        raise e 
-    
-
-def legacy_embedding(text, max_length=512):
-    # 使用合并后的配置
-    merged_settings = get_merged_settings_sync()
+async def v1_embedding(text, max_length=1000):
+    import aiohttp
+    # 直接调用异步版本的get_merged_settings
+    merged_settings = await get_merged_settings()
     url = merged_settings.EMBEDDING_URL
     
-    # 准备请求体
-    payload = {
-        "text": text,
-        "max_length":max_length
+    headers = {
+        "Content-Type": "application/json"
     }
+    
+    # 将文本分割成小块
+    texts = split_string_by_length(text, max_length)
+    
+    embeddings = []
+    
+    async with aiohttp.ClientSession() as session:
+        for chunk in texts:
+            data = {
+                "text": chunk
+            }
+            
+            try:
+                async with session.post(url, headers=headers, json=data, timeout=60) as response:
+                    response.raise_for_status()
+                    
+                    result = await response.json()
+                    if "data" in result:
+                        embeddings.append({
+                            "text": chunk,
+                            "embs": result["data"]
+                        })
+            except Exception as e:
+                log.error(f"[v1_embedding] API调用失败: {str(e)}")
+                embeddings.extend(random_vector(chunk))
+    
+    return embeddings 
+    
 
-    # 发送 POST 请求
+async def legacy_embedding(text, max_length=1000):
+    import aiohttp
+    # 直接调用异步版本的get_merged_settings
+    merged_settings = await get_merged_settings()
+    url = merged_settings.EMBEDDING_URL
+    
     try:
-        response = requests.post(url, json=payload)
+        headers = {
+            "Content-Type": "application/json"
+        }
         
-        if response.status_code == 200:
-            return response.json()
-        else:
-            log.error(f"Request failed with status code {response.status_code}")
-            return []
+        data = {
+            "text": text
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=headers, json=data, timeout=60) as response:
+                response.raise_for_status()
+                
+                result = await response.json()
+                if "data" in result:
+                    return [
+                        {
+                            "text": text,
+                            "embs": result["data"]
+                        }
+                    ]
     except Exception as e:
-        log.error(f"Error occurred: {str(e)}")
-        return []
+        log.error(f"[legacy_embedding] API调用失败: {str(e)}")
+        return random_vector(text)
 
 
 

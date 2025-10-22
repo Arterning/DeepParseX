@@ -164,8 +164,8 @@ class UploadService:
 
     @staticmethod
     async def request_content(title, file_bytes: bytes):
-        loop = asyncio.get_running_loop()
-        response = await loop.run_in_executor(None, process_file, title, file_bytes)
+        # 直接await调用异步版本的process_file
+        response = await process_file(title, file_bytes)
         if not response or 'content' not in response:
             return '无法获取文件解析结果'
         raw_content = response.get('content', '')
