@@ -10,17 +10,6 @@ from typing import Optional, Dict, Any
 import requests
 
 
-def get_merged_settings_sync():
-    """
-    同步获取合并后的配置
-    """
-    try:
-        return asyncio.run(get_merged_settings())
-    except Exception as e:
-        # 出错时返回原始settings作为备用
-        print(f"Failed to get merged settings: {str(e)}")
-        return settings
-
 class LLMAdapter(ABC):
     """LLM适配器基类"""
     
@@ -187,35 +176,33 @@ class LLMFactory:
 
 
 # 统一调用接口
-def call_llm(user_prompt: str, system_prompt: Optional[str] = None, 
-             config: Optional[Dict] = None) -> str:
+async def call_llm(user_prompt: str, system_prompt: Optional[str] = None,
+                         config: Optional[Dict] = None) -> str:
     """
-    统一的 LLM 调用接口
-    
+    统一的 LLM 调用接口（异步版本）
+
     Args:
         user_prompt: 用户提示词
         system_prompt: 系统提示词
         config: 配置对象，包含 provider 和其他设置
-    
+
     Returns:
         模型响应字符串
     """
     # 从config_manager获取合并后的配置（数据库配置优先于环境变量配置）
-    merged_settings = get_merged_settings_sync()
+    merged_settings = await get_merged_settings()
     provider = merged_settings.LLM_PROVIDER if merged_settings.LLM_PROVIDER else 'openai'
-    
+
     # 从配置中提取参数
     adapter_kwargs = {
         'api_key': merged_settings.LLM_API_KEY,
         'base_url': merged_settings.LLM_API_URL,
         'model': merged_settings.LLM_MODEL
     }
-    
-    if config and 'llm' in config:
-        adapter_kwargs.update(config['llm'])
-    
+
     adapter = LLMFactory.create_adapter(provider, **adapter_kwargs)
     return adapter.call(user_prompt, system_prompt, config)
+
 
 def extract_json_from_text(text):
     """

@@ -95,7 +95,6 @@ class SysDocService:
         # 配置知识图谱生成参数
         config = {
             "llm": {
-                "model": "gpt-3.5-turbo",
                 "max_tokens": 1000,
                 "temperature": 0.7
             },

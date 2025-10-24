@@ -24,17 +24,17 @@ class LLMService:
         
         for attempt in range(1, 3):
             try:
-                loop = asyncio.get_running_loop()
-                # 调用call_llm方法
-                reply = call_llm(user_input, system_context, config)
+                # 调用异步版本的call_llm方法
+                reply = await call_llm(user_input, system_context, config)
                 return reply
             except Exception as e:
                 print(f"Attempt {attempt} failed: {e}")
-                if attempt < 3:
-                    time.sleep(0.5)  # 等待一段时间后重试
-                else:
+                if attempt == 2:
                     print("All attempts failed, returning None.")
-                    return ""
+                    raise
+                else:
+                    await asyncio.sleep(0.5)  # 等待一段时间后重试
+                    
                 
 
 llm_service = LLMService()

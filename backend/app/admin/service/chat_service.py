@@ -139,7 +139,8 @@ class ChatService:
 
             # 替换回答中的 [编号] 为超链接
             for ref, link in sources.items():
-                response = response.replace(ref, f"{link}")
+                if response:
+                    response = response.replace(ref, f"{link}")
 
         return response
 

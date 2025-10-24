@@ -28,7 +28,7 @@ def get_unique_entities(triples):
             entities.add(triple["object"])
     return entities
 
-def process_with_llm(config, input_text, debug=False):
+async def process_with_llm(config, input_text, debug=False):
     """
     Process input text with LLM to extract triples.
     
@@ -65,7 +65,7 @@ def process_with_llm(config, input_text, debug=False):
     metadata = {}
     
     print("call llm begin...", flush=True)
-    response = call_llm(user_prompt, system_prompt, config)
+    response = await call_llm(user_prompt, system_prompt, config)
     print("llm call complete.", flush=True)
 
     # Print raw response only if debug mode is on
@@ -112,7 +112,7 @@ def process_with_llm(config, input_text, debug=False):
         return None
 
 # 获取实体的类型
-def get_entity_types(entities, config):
+async def get_entity_types(entities, config):
     """
     获取实体的类型
     
@@ -141,15 +141,8 @@ def get_entity_types(entities, config):
     entities_text = "、".join(entities)
     user_prompt = f"请判断以下实体的类型：{entities_text}"
     
-    # LLM configuration
-    model = config.get("llm", {}).get("model", "gpt-3.5-turbo")
-    api_key = config.get("llm", {}).get("api_key")
-    max_tokens = config.get("llm", {}).get("max_tokens", 1000)
-    temperature = config.get("llm", {}).get("temperature", 0.7)
-    base_url = config.get("llm", {}).get("base_url", "https://api.openai.com/v1/chat/completions")
-    
     # 调用LLM
-    response = call_llm(user_prompt, system_prompt, config)
+    response = await call_llm(user_prompt, system_prompt, config)
 
     debug = config.get("debug", False)
     # Print raw response only if debug mode is on
@@ -162,7 +155,7 @@ def get_entity_types(entities, config):
     entity_types = extract_json_from_text(response)
     return entity_types if entity_types else {}
 
-def process_text_in_chunks(config: dict, full_text, debug=False):
+async def process_text_in_chunks(config: dict, full_text, debug=False):
     """
     Process a large text by breaking it into chunks with overlap,
     and then processing each chunk separately.
@@ -193,7 +186,7 @@ def process_text_in_chunks(config: dict, full_text, debug=False):
         print(f"Processing chunk {i+1}/{len(text_chunks)} ({len(chunk.split())} words)")
         
         # Process the chunk with LLM
-        chunk_results = process_with_llm(config, chunk, debug)
+        chunk_results = await process_with_llm(config, chunk, debug)
         
         if chunk_results:
             # Add chunk information to each triple
@@ -267,7 +260,7 @@ def process_text_in_chunks(config: dict, full_text, debug=False):
         print(f"开始识别 {len(unique_entities)} 个唯一实体的类型")
         
         # 获取实体类型
-        entity_types = get_entity_types(list(unique_entities), config)
+        entity_types = await get_entity_types(list(unique_entities), config)
         
         # 将类型信息添加到三元组中
         for triple in all_results:
@@ -295,9 +288,9 @@ class KnowledgeGraphService:
 
     @staticmethod
     async def generate_knowledge_graph(input_text: str, config: dict, debug: bool = False) -> None:
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(None, process_text_in_chunks, config, input_text, debug)
-        # result = process_text_in_chunks(config, input_text, debug)
+        # loop = asyncio.get_event_loop()
+        # result = await loop.run_in_executor(None, process_text_in_chunks, config, input_text, debug)
+        result = await process_text_in_chunks(config, input_text, debug)
         if result:
             print("Knowledge graph generation completed successfully.")
             return result
