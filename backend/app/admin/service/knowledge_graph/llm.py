@@ -4,7 +4,7 @@ import re
 import requests
 import asyncio
 from backend.core.conf import settings
-from backend.app.admin.utils.config_manager import get_merged_settings
+from backend.app.admin.service.config_service import config_service
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any
 import requests
@@ -190,7 +190,7 @@ async def call_llm(user_prompt: str, system_prompt: Optional[str] = None,
         模型响应字符串
     """
     # 从config_manager获取合并后的配置（数据库配置优先于环境变量配置）
-    merged_settings = await get_merged_settings()
+    merged_settings = await config_service.get_merged_settings()
     provider = merged_settings.LLM_PROVIDER if merged_settings.LLM_PROVIDER else 'openai'
 
     # 从配置中提取参数

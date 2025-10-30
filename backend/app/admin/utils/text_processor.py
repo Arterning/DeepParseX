@@ -3,7 +3,6 @@ import requests
 from backend.core.conf import settings
 from backend.common.log import log
 from backend.app.admin.service.config_service import config_service
-from backend.app.admin.utils.config_manager import get_merged_settings
 from backend.app.admin.utils.text_splitter import (
     split_string_by_length,
     is_markdown,
@@ -28,8 +27,7 @@ def random_vector(text, dim=1024):
     ]
 
 async def embed_text_chunks(text, max_length=1000):
-    # 直接调用异步版本的get_merged_settings
-    merged_settings = await get_merged_settings()
+    merged_settings = await config_service.get_merged_settings()
     MODEL_NAME = merged_settings.EMBEDDING_MODEL
     if MODEL_NAME == "text-embedding-3-small":
         return await text_embedding(text, max_length=max_length)
@@ -42,8 +40,7 @@ async def text_embedding(text, max_length=1000):
     # 使用文件中已定义的全局smart_split_text函数
     texts = smart_split_text(text, max_chunk_size=max_length)
 
-    # 直接调用异步版本的get_merged_settings
-    merged_settings = await get_merged_settings()
+    merged_settings = await config_service.get_merged_settings()
     
     # 调用 LLM-Gateway 的 Embeddings API
     GATEWAY_API_KEY = merged_settings.EMBEDDING_API_KEY
@@ -91,8 +88,7 @@ async def process_file(file_name: str, file_data: bytes):
     :param file_path: 文件的完整路径，需为图片文件。
     :return: 服务端返回的处理结果，JSON 格式。
     """
-    # 直接调用异步版本的get_merged_settings
-    merged_settings = await get_merged_settings()
+    merged_settings = await config_service.get_merged_settings()
     url = merged_settings.OCR_URL
     try:
         # 使用aiohttp替代requests进行异步HTTP请求
@@ -129,8 +125,7 @@ async def process_file(file_name: str, file_data: bytes):
 
 async def v1_embedding(text, max_length=1000):
     import aiohttp
-    # 直接调用异步版本的get_merged_settings
-    merged_settings = await get_merged_settings()
+    merged_settings = await config_service.get_merged_settings()
     url = merged_settings.EMBEDDING_URL
     
     headers = {
@@ -167,8 +162,7 @@ async def v1_embedding(text, max_length=1000):
 
 async def legacy_embedding(text, max_length=1000):
     import aiohttp
-    # 直接调用异步版本的get_merged_settings
-    merged_settings = await get_merged_settings()
+    merged_settings = await config_service.get_merged_settings()
     url = merged_settings.EMBEDDING_URL
     
     try:
