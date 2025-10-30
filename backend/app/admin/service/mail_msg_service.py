@@ -33,6 +33,7 @@ class MailMsgService:
         cc: str | None = None,
         bcc: str | None = None,
         doc_dir_id: int | None = None,
+        current_user_id: int | None = None,
     ) -> Select:
         return await mail_msg_dao.get_list(
             name=name,
@@ -44,6 +45,7 @@ class MailMsgService:
             cc=cc,
             bcc=bcc,
             doc_dir_id=doc_dir_id,
+            current_user_id=current_user_id,
         )
 
     @staticmethod

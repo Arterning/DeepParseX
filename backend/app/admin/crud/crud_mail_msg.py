@@ -33,13 +33,21 @@ class CRUDMailMsg(CRUDPlus[MailMsg]):
         cc: str | None = None,
         bcc: str | None = None,
         doc_dir_id: int | None = None,
+        current_user_id: int | None = None
     ) -> Select:
         """
         获取邮件列表
-
+        
+        :param current_user_id: 当前登录用户ID，用于权限过滤
         :return:
         """
         select_stmt = await self.select_order('created_time', 'desc')
+        
+        # 只有指定了current_user_id时，才进行用户权限过滤
+        # 根据model.py中的UserMixin，邮件应该有create_user字段表示创建者
+        if current_user_id is not None:
+            select_stmt = select_stmt.where(self.model.create_user == current_user_id)
+        
         if name:
             select_stmt = select_stmt.where(self.model.name.like(f'%{name}%'))
         if subject:

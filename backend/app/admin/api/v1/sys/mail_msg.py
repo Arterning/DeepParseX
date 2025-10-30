@@ -34,6 +34,7 @@ async def get_mail_msg(pk: Annotated[int, Path(...)]) -> ResponseModel:
     ],
 )
 async def get_pagination_mail_msg(
+    request: Request,
     db: CurrentSession,
     name: str | None = Query(None, description='邮件标题'),
     subject: str | None = Query(None, description='邮件主题'),
@@ -45,6 +46,10 @@ async def get_pagination_mail_msg(
     bcc: str | None = Query(None, description='密送者'),
     doc_dir_id: int | None = Query(None, description='目录ID'),
 ) -> ResponseModel:
+
+    # 从JWT中获取当前登录用户ID
+    current_user_id = request.user.id
+
     mail_msg_select = await mail_msg_service.get_select(
         name=name,
         subject=subject,
@@ -55,6 +60,7 @@ async def get_pagination_mail_msg(
         cc=cc,
         bcc=bcc,
         doc_dir_id=doc_dir_id,
+        current_user_id=current_user_id,
     )
     page_data = await paging_data(db, mail_msg_select, GetMailMsgListDetails)
     return response_base.success(data=page_data)

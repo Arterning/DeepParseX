@@ -134,13 +134,21 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
                        title: str = None, source: str = None,
                         content: str = None, ids: list[int] = None,
                         start_time: str = None, end_time :str = None,
+                        current_user_id: int = None
                         ) -> Select:
         """
         获取 SysDoc 列表
+        :param current_user_id: 当前登录用户ID，用于权限过滤
         :return:
         """
         where_list = []
         stmt = select(self.model).order_by(desc(self.model.created_time))
+        
+        # 只有指定了current_user_id时，才进行用户权限过滤
+        # 根据model.py中的UserMixin，文档应该有create_user字段表示创建者
+        if current_user_id is not None:
+            where_list.append(self.model.create_user == current_user_id)
+        
         if title is not None and title != '':
             where_list.append(self.model.title.like(f'%{title}%'))
         if name is not None and name != '':

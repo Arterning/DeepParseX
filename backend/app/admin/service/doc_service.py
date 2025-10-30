@@ -286,7 +286,9 @@ class SysDocService:
     @staticmethod
     async def get_select(*, title: str = None, name: str = None, doc_type: str = None,
                           content: str = None, source: str = None, ids: list[int] = None, 
-                          rangeValue: list[str]) -> Select:
+                          rangeValue: list[str] = None, current_user_id: int = None) -> Select:
+        if not rangeValue:
+            rangeValue = ['', '']
         start_time = rangeValue[0]
         end_time = rangeValue[1]
         return await sys_doc_dao.get_list(
@@ -298,6 +300,7 @@ class SysDocService:
             ids=ids,
             start_time=start_time, 
             end_time=end_time,
+            current_user_id=current_user_id,
         )
 
     def highlight_text(original: str, keywords: List[str], start_tag='<b>', end_tag='</b>') -> str:

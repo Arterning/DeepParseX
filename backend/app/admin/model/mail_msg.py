@@ -9,11 +9,11 @@ from sqlalchemy.dialects.postgresql import TEXT, JSON
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from backend.common.model import Base, id_key
+from backend.common.model import Base, id_key, UserMixin
 
 
 
-class MailMsg(Base):
+class MailMsg(Base, UserMixin):
     """邮件"""
 
     __tablename__ = 'mail_msg'

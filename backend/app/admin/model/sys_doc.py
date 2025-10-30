@@ -8,11 +8,11 @@ from sqlalchemy.dialects.postgresql import TEXT, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from backend.utils.timezone import timezone
-from backend.common.model import Base, id_key
+from backend.common.model import Base, id_key, UserMixin
 from backend.app.admin.model.sys_tag_doc import sys_tag_doc
 from backend.app.admin.model.sys_entity_doc import sys_entity_doc
 
-class SysDoc(Base):
+class SysDoc(Base, UserMixin):
     """文件"""
 
     __tablename__ = 'sys_doc'
