@@ -24,6 +24,7 @@ import rarfile
 
 from backend.core.conf import settings
 from backend.common.log import log
+from backend.common.context import get_current_user
 from backend.app.admin.model import SysDoc
 from backend.app.admin.schema.doc import CreateSysDocParam, UpdateSysDocParam
 from backend.app.admin.schema.doc_data import CreateSysDocDataParam
@@ -138,12 +139,16 @@ class UploadService:
         last_modified = meta.get('last_modified', None)
         size = meta.get('size', None)
 
+        # 如果没有传入 user 参数，则从上下文中获取
+        if user is None:
+            user = get_current_user()
+
         obj = CreateSysDocParam(
-            title=file.filename, 
-            name=file.filename, 
+            title=file.filename,
+            name=file.filename,
             type=file_type,
-            file=new_filename, 
-            uuid=unique_id, 
+            file=new_filename,
+            uuid=unique_id,
             file_suffix=file_suffix,
             doc_time=last_modified,
             size=size,
@@ -152,7 +157,7 @@ class UploadService:
             created_by= user.id if user else None,
             created_user= user.username if user else None,
         )
-        
+
         doc = await sys_doc_service.create(obj=obj)
 
         return doc
@@ -554,7 +559,7 @@ class UploadService:
         to_emails_with_names = upload_service.extract_multiple_emails_with_names(to_email_raw)
         cc_emails_with_names = upload_service.extract_multiple_emails_with_names(cc_raw)
         bcc_emails_with_names = upload_service.extract_multiple_emails_with_names(bcc_raw)
-        
+
         # 用于msg_obj的字符串格式邮箱
         to_email = ', '.join([email for _, email in to_emails_with_names])
         cc = ', '.join([email for _, email in cc_emails_with_names])
@@ -562,7 +567,10 @@ class UploadService:
 
         # 获取附件信息，如果没有则设为空列表
         attachments = result_dict.get('attachments', [])
-        
+
+        # 从上下文中获取当前用户
+        user = get_current_user()
+
         msg_obj = CreateMailMsgParam(
             doc_id=doc_id,
             doc_name=doc_name,
@@ -580,6 +588,7 @@ class UploadService:
             bcc=bcc,
             time=time,
             attachments=attachments,
+            create_user=user.id if user else None,
         )
         await mail_msg_service.create(obj=msg_obj)
 

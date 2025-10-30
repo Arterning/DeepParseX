@@ -16,6 +16,7 @@ from backend.core.conf import settings
 from backend.database.db_pg import async_db_session
 from backend.database.db_redis import redis_client
 from backend.utils.serializers import MsgSpecJSONResponse, select_as_dict
+from backend.common.context import set_current_user
 
 
 class _AuthenticationError(AuthenticationError):
@@ -49,20 +50,23 @@ class JwtAuthMiddleware(AuthenticationBackend):
 
         try:
             sub = await jwt.jwt_authentication(token)
-            cache_user = await redis_client.get(f'{settings.JWT_USER_REDIS_PREFIX}:{sub}')
-            if not cache_user:
-                async with async_db_session() as db:
-                    current_user = await jwt.get_current_user(db, sub)
-                    user = CurrentUserIns(**select_as_dict(current_user))
-                    await redis_client.setex(
-                        f'{settings.JWT_USER_REDIS_PREFIX}:{sub}',
-                        settings.JWT_USER_REDIS_EXPIRE_SECONDS,
-                        user.model_dump_json(),
-                    )
-            else:
+            # cache_user = await redis_client.get(f'{settings.JWT_USER_REDIS_PREFIX}:{sub}')
+            # if not cache_user:
+            async with async_db_session() as db:
+                current_user = await jwt.get_current_user(db, sub)
+                user = CurrentUserIns(**select_as_dict(current_user))
+                    # await redis_client.setex(
+                    #     f'{settings.JWT_USER_REDIS_PREFIX}:{sub}',
+                    #     settings.JWT_USER_REDIS_EXPIRE_SECONDS,
+                    #     user.model_dump_json(),
+                    # )
+            # else:
                 # TODO: 在恰当的时机，应替换为使用 model_validate_json
                 # https://docs.pydantic.dev/latest/concepts/json/#partial-json-parsing
-                user = CurrentUserIns.model_validate(from_json(cache_user, allow_partial=True))
+                # user = CurrentUserIns.model_validate(from_json(cache_user, allow_partial=True))
+
+            # 将用户信息设置到上下文中，以便在 Service 层访问
+            set_current_user(user)
         except TokenError as exc:
             raise _AuthenticationError(code=exc.code, msg=exc.detail, headers=exc.headers)
         except Exception as e:

@@ -145,9 +145,8 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
         stmt = select(self.model).order_by(desc(self.model.created_time))
         
         # 只有指定了current_user_id时，才进行用户权限过滤
-        # 根据model.py中的UserMixin，文档应该有create_user字段表示创建者
         if current_user_id is not None:
-            where_list.append(self.model.create_user == current_user_id)
+            where_list.append(self.model.created_by == current_user_id)
         
         if title is not None and title != '':
             where_list.append(self.model.title.like(f'%{title}%'))
