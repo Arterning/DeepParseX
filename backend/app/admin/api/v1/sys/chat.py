@@ -14,6 +14,23 @@ router = APIRouter()
 
 @router.post('', summary='对话')
 async def chat(obj: ChatParam, request: Request) -> ResponseModel:
+    """
+    RAG 对话接口
+
+    返回数据格式:
+    {
+        "answer": "回答内容（包含超链接的HTML字符串）",
+        "chunks": [
+            {
+                "chunk_id": "文本片段UUID",
+                "chunk_text": "文本片段内容",
+                "doc_id": "文档ID",
+                "doc_name": "文档名称"
+            },
+            ...
+        ]
+    }
+    """
     data = await chat_service.rag_chat(obj=obj)
     return response_base.success(data=data)
     

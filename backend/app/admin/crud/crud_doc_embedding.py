@@ -35,10 +35,10 @@ class CRUDSysDocEmbedding(CRUDPlus[SysDocEmbedding]):
         vector_str = json.dumps(query_vector)
 
         sql = f"""
-        SELECT id, doc_id, doc_name, chunk_text, {embedding_column} <-> :query_vector AS distance 
+        SELECT id, chunk_id, doc_id, doc_name, chunk_text, {embedding_column} <-> :query_vector AS distance
         FROM sys_doc_embedding
         WHERE {embedding_column} IS NOT NULL
-        ORDER BY {embedding_column} <-> :query_vector 
+        ORDER BY {embedding_column} <-> :query_vector
         LIMIT :limit
         """
         

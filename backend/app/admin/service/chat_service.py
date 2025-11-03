@@ -91,7 +91,10 @@ class ChatService:
             # 如果指定了文档ID，则只查询该文档的相关片段
             doc = await sys_doc_service.get(pk=obj.doc_id)
             if not doc:
-                return "指定的文档不存在。"
+                return {
+                    "answer": "指定的文档不存在。",
+                    "chunks": []
+                }
             context = doc.content if doc.content else ""
             system_context = (
                 "上下文信息如下。\n"
@@ -104,24 +107,38 @@ class ChatService:
             response = await llm_service.get_llm_response(system_context, obj.question)
             # 异步调用insert_text_embs，不等待返回
             asyncio.create_task(sys_doc_service.compute_embedding(id=obj.doc_id))
+
+            return {
+                "answer": response,
+                "chunks": []
+            }
         else:
             question_text_emb = await embed_text_chunks(obj.question)
             query_vector = question_text_emb[0]["embs"]
             similar_docs = await sys_doc_service.search_similar_docs(query_vector=query_vector, limit=check_topk)
-            
+
             context_list = []
             sources = {}  # 存储编号与超链接映射
+            chunks = []  # 存储文本片段列表
+
             for idx, doc in enumerate(similar_docs):
                 if doc.chunk_text:
-                    # 对chunk_text进行HTML转义，防止特殊字符影响属性值
-                    escaped_chunk_text = doc.chunk_text.replace('"', '&quot;').replace("'", '&#39;')
-                    link = f"[{idx + 1}] <a href=\"javascript:void(0)\" data-doc-id=\"{doc.doc_id}\" data-chunk-text=\"{escaped_chunk_text}\" data-doc-name=\"{doc.doc_name}\" onclick=\"openDrawer(this)\">{doc.doc_name}</a>"
+                    # 构建超链接，使用 chunk_id 代替 chunk_text
+                    link = f"[{idx + 1}] <a href=\"javascript:void(0)\" data-doc-id=\"{doc.doc_id}\" data-chunk-id=\"{doc.chunk_id}\" data-doc-name=\"{doc.doc_name}\" onclick=\"openDrawer(this)\">{doc.doc_name}</a>"
                     # 存储编号与超链接的映射
                     sources[f"[{idx + 1}]"] = link
                     source_entry = f"来源：[{idx + 1}] \n内容: {doc.chunk_text}"
                     context_list.append(source_entry)
 
-                    
+                    # 将 chunk 信息添加到列表中
+                    chunks.append({
+                        "chunk_id": doc.chunk_id,
+                        "chunk_text": doc.chunk_text,
+                        "doc_id": doc.doc_id,
+                        "doc_name": doc.doc_name
+                    })
+
+
             context = "\n".join(context_list)
 
             system_context = (
@@ -133,7 +150,7 @@ class ChatService:
                 "作为一个人工智能助手，你的回答要尽可能严谨。"
             )
 
-        
+
             response = await llm_service.get_llm_response(system_context, obj.question)
 
 
@@ -142,7 +159,10 @@ class ChatService:
                 if response:
                     response = response.replace(ref, f"{link}")
 
-        return response
+            return {
+                "answer": response,
+                "chunks": chunks
+            }
 
 
 chat_service = ChatService()
