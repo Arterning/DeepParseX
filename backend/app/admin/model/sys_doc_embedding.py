@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from typing import Union
-from sqlalchemy import String, ForeignKey
+from sqlalchemy import String, ForeignKey, text
 from sqlalchemy.schema import Index
-from sqlalchemy.dialects.postgresql import TEXT
+from sqlalchemy.dialects.postgresql import TEXT, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from pgvector.sqlalchemy import Vector
 from backend.common.model import Base, id_key
@@ -22,6 +22,14 @@ class SysDocEmbedding(Base):
     )
 
     id: Mapped[id_key] = mapped_column(init=False)
+    chunk_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        unique=True,
+        nullable=False,
+        server_default=text("gen_random_uuid()::text"),
+        comment='分片唯一标识',
+        init=False
+    )
     doc_id: Mapped[int | None] = mapped_column(
         ForeignKey('sys_doc.id', ondelete='CASCADE'), default=None, index=True, comment='文件ID'
     )
