@@ -26,7 +26,7 @@ class SysDocEmbedding(Base):
         UUID(as_uuid=False),
         unique=True,
         nullable=False,
-        server_default=text("gen_random_uuid()::text"),
+        server_default=text("gen_random_uuid()"),
         comment='分片唯一标识',
         init=False
     )
