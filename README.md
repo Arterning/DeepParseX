@@ -8,21 +8,21 @@
 ---
 
 ## **✨ 核心功能**  
-✅ **多模态文件解析**  
-- 支持 **文本、表格、图像、语音、视频** 等内容的提取  
-- 使用 **OCR、ASR、NLP** 技术解析非结构化数据  
+✅ **多模态文件解析**
+- 支持 **文本、表格、图像、语音、视频** 等内容的提取
+- 集成 **外部 OCR 接口、ASR、NLP** 技术解析非结构化数据
 
-✅ **关键信息提取（KIE）**  
-- 基于 **深度学习模型（如LayoutLM、Donut、Whisper）** 抽取实体、关系、摘要  
-- 支持 **自定义Schema**，适应不同行业需求（如法律、医疗、金融）  
+✅ **关键信息提取（KIE）**
+- 基于 **大模型提示词工程** 抽取实体、关系、摘要
+- 支持 **自定义Schema**，适应不同行业需求（如法律、医疗、金融）
 
-✅ **检索增强生成（RAG）**  
-- 构建 **向量数据库（FAISS、Milvus、Weaviate）** 实现语义搜索  
-- 结合 **LLM（GPT、Llama、Claude）** 提供智能问答  
+✅ **检索增强生成（RAG）**
+- 使用 **ParadeDB 向量数据库** 实现高性能语义搜索
+- 结合 **LLM（GPT、Llama、Claude）** 提供智能问答
 
-✅ **知识图谱（KG）构建**  
-- 自动抽取 **实体-关系**，构建结构化知识网络  
-- 支持 **图数据库（Neo4j、NebulaGraph）** 存储与查询  
+✅ **知识图谱（KG）构建**
+- 自动抽取 **实体-关系**，构建结构化知识网络
+- 使用 **NetworkX** 进行图分析与可视化  
 
 ✅ **可扩展架构**  
 - 模块化设计，支持 **自定义解析器、嵌入模型、LLM**  
@@ -30,12 +30,12 @@
 
 ---
 
-## **🛠 技术栈**  
-- **文件解析**：PyPDF2, pdfplumber, Apache Tika, PIL, OpenCV, Whisper  
-- **NLP/ML**：spaCy, HuggingFace Transformers, LangChain, LlamaIndex  
-- **向量存储**：FAISS, Milvus, Weaviate  
-- **知识图谱**：Neo4j, NetworkX, RDFLib  
-- **后端**：FastAPI, Docker，Minio  
+## **🛠 技术栈**
+- **文件解析**：PyPDF2, pdfplumber, Apache Tika, PIL, OpenCV, 外部 OCR 接口
+- **NLP/ML**：LangChain, LlamaIndex, 大模型提示词工程
+- **向量存储**：ParadeDB
+- **知识图谱**：NetworkX
+- **后端**：FastAPI, Docker, MinIO
 - **前端**：Vue
 
 ---
