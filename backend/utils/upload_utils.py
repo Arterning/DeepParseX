@@ -40,6 +40,9 @@ def is_text_file(file_suffix: str) -> bool:
 def is_email_file(file_suffix: str) -> bool:
     return file_suffix in ['.eml']
 
+def is_mbox_file(file_suffix: str) -> bool:
+    return file_suffix in ['.mbox']
+
 def is_docx_file(file_suffix: str) -> bool:
     return file_suffix in ['.docx', '.doc']
 
@@ -63,7 +66,7 @@ file_type_handlers = {
     '图片': is_picture_file,
     '媒体': is_media_file,
     '文本': is_text_file,
-    '邮件': is_email_file,
+    '邮件': lambda suffix: is_email_file(suffix) or is_mbox_file(suffix),
     'PDF': is_pdf_file,
     '文档': is_docx_file,
     'PPT': is_pptx_file,

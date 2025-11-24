@@ -21,6 +21,7 @@ from email import policy
 from email.parser import BytesParser
 from zipfile import ZipFile
 import rarfile
+import mailbox
 
 from backend.core.conf import settings
 from backend.common.log import log
@@ -36,19 +37,20 @@ from backend.app.admin.service.mail_box_service import mail_box_service
 from backend.app.admin.utils.text_processor import process_file
 from backend.utils.oss_client import minio_client
 from backend.utils.upload_utils import (
-    get_file_suffix, 
-    get_file_type, 
-    is_text_file, 
-    is_picture_file, 
-    is_excel_file, 
-    is_email_file, 
+    get_file_suffix,
+    get_file_type,
+    is_text_file,
+    is_picture_file,
+    is_excel_file,
+    is_email_file,
     is_pdf_file,
     is_docx_file,
     is_pptx_file,
     is_media_file,
     is_zip_file,
     is_rar_file,
-    is_parquet_file
+    is_parquet_file,
+    is_mbox_file
     )
 
 bucket_name = settings.BUCKET_NAME
@@ -321,6 +323,85 @@ class UploadService:
             }
             await sys_doc_service.base_update(pk=doc.id, obj=obj_dict)
             return
+
+        if is_mbox_file(doc.file_suffix):
+            try:
+                # 创建临时文件来存储 mbox 内容
+                import tempfile
+                with tempfile.NamedTemporaryFile(suffix='.mbox', delete=False) as temp_file:
+                    temp_file.write(file_bytes)
+                    temp_file_path = temp_file.name
+
+                # 使用 mailbox 库读取 mbox 文件
+                mbox = mailbox.mbox(temp_file_path)
+                email_count = 0
+
+                for message in mbox:
+                    email_count += 1
+                    # 将邮件对象转换为字节格式
+                    email_bytes = message.as_bytes()
+
+                    # 生成邮件标题，如果没有主题则使用默认名称
+                    subject = message.get('Subject', f'邮件_{email_count}')
+                    if not subject:
+                        subject = f'邮件_{email_count}'
+
+                    # 为邮件创建一个唯一的文件名
+                    unique_id = str(uuid.uuid4())
+                    new_filename_minio = f"{unique_id}.eml"
+
+                    # 将邮件上传到 MinIO
+                    file_stream = io.BytesIO(email_bytes)
+                    object_size = len(file_stream.getbuffer())
+
+                    # 确保bucket存在
+                    UploadService.ensure_bucket_exists(bucket_name)
+                    minio_client.put_object(bucket_name, new_filename_minio, file_stream, object_size, 'message/rfc822')
+
+                    # 创建新的 SysDoc 记录
+                    obj = CreateSysDocParam(
+                        title=subject,
+                        name=subject,
+                        type='邮件',
+                        file=new_filename_minio,
+                        uuid=unique_id,
+                        file_suffix='.eml',
+                        doc_time=datetime.now(),
+                        size=len(email_bytes),
+                        status=0,
+                        belong=doc.id,
+                        dept_id=doc.dept_id,
+                        created_by=doc.created_by,
+                        created_user=doc.created_user,
+                    )
+
+                    new_doc = await sys_doc_service.create(obj=obj)
+
+                    # 处理邮件内容
+                    await upload_service.read_file_content(new_doc)
+
+                # 删除临时文件
+                os.unlink(temp_file_path)
+
+                # 更新 mbox 文件本身的记录
+                content = f"这是一个 MBOX 邮箱文件，包含 {email_count} 封邮件。"
+                obj_dict = {
+                    'content': content,
+                    'status': 1,  # Processed
+                }
+                await sys_doc_service.base_update(pk=doc.id, obj=obj_dict)
+                return
+
+            except Exception as e:
+                log.error(f"处理 MBOX 文件时发生错误：{e}")
+                traceback.print_exc()
+                content = f"处理 MBOX 文件时发生错误：{str(e)}"
+                obj_dict = {
+                    'content': content,
+                    'status': 1,
+                }
+                await sys_doc_service.base_update(pk=doc.id, obj=obj_dict)
+                return
 
         if is_text_file(doc.file_suffix):
             content = upload_service.decode_content_with_chardet(file_bytes)
