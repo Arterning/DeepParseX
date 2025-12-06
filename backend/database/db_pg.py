@@ -53,7 +53,7 @@ async def get_db() -> AsyncSession:
 CurrentSession = Annotated[AsyncSession, Depends(get_db)]
 
 async def execute_sql_file(session: AsyncSession, file_path: str):
-    with open(file_path, 'r') as file:
+    with open(file_path, 'r', encoding='utf-8') as file:
         sql_commands = file.read().strip().split(';')  # 根据分号分割 SQL 语句
     for command in sql_commands:
         if command.strip():  # 确保不是空命令
