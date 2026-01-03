@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from typing import Sequence
 
-from sqlalchemy import delete, Select, and_
+from sqlalchemy import delete, Select, and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy_crud_plus import CRUDPlus
@@ -71,13 +71,14 @@ class CRUDChatSession(CRUDPlus[ChatSession]):
         :param user_id:
         :return:
         """
-        return await self.select_models_by_column(
-            db,
-            create_user=user_id,
-            order_by_columns=['created_time'],
-            order_by_direction='desc',
-            options=[selectinload(ChatSession.messages)]
+        stmt = (
+            select(self.model)
+            .where(ChatSession.create_user == user_id)
+            .options(selectinload(ChatSession.messages))
+            .order_by(ChatSession.created_time.desc())
         )
+        result = await db.execute(stmt)
+        return result.scalars().all()
 
     async def create(self, db: AsyncSession, obj_in: CreateChatSessionParam) -> ChatSession:
         """
