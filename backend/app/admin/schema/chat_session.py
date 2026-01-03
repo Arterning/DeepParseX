@@ -34,7 +34,6 @@ class ChatSessionSchemaBase(SchemaBase):
 class CreateChatSessionParam(ChatSessionSchemaBase):
     """创建会话参数（空会话，只有 topic）"""
     topic: str = "新对话"
-    created_time: datetime | None = None
 
 
 class UpdateChatSessionParam(SchemaBase):
@@ -42,7 +41,6 @@ class UpdateChatSessionParam(SchemaBase):
     topic: str | None = None
     messages: list[MessageParam] | None = None
     update_user: int | None = None
-    updated_time: datetime | None = None
 
 
 class GetChatSessionListDetails(SchemaBase):
