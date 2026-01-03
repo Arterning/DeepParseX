@@ -20,11 +20,13 @@ class CRUDChatSession(CRUDPlus[ChatSession]):
         :param pk:
         :return:
         """
-        return await self.select_model_by_column(
-            db,
-            id=pk,
-            options=[selectinload(ChatSession.messages)]
+        stmt = (
+            select(self.model)
+            .where(ChatSession.id == pk)
+            .options(selectinload(ChatSession.messages))
         )
+        result = await db.execute(stmt)
+        return result.scalars().first()
 
     async def get_with_user_check(self, db: AsyncSession, pk: int, user_id: int) -> ChatSession | None:
         """
@@ -35,21 +37,22 @@ class CRUDChatSession(CRUDPlus[ChatSession]):
         :param user_id:
         :return:
         """
-        return await self.select_model_by_column(
-            db,
-            id=pk,
-            create_user=user_id,
-            options=[selectinload(ChatSession.messages)]
+        stmt = (
+            select(self.model)
+            .where(and_(ChatSession.id == pk, ChatSession.create_user == user_id))
+            .options(selectinload(ChatSession.messages))
         )
+        result = await db.execute(stmt)
+        return result.scalars().first()
 
     async def get_list(self, user_id: int | None = None) -> Select:
         """
-        获取聊天会话列表
+        获取聊天会话列表（返回 Select 语句，用于分页）
 
         :param user_id: 用户ID，如果提供则只返回该用户的会话
         :return:
         """
-        stmt = await self.select_order('created_time', 'desc')
+        stmt = select(self.model).order_by(ChatSession.created_time.desc())
         if user_id is not None:
             stmt = stmt.where(ChatSession.create_user == user_id)
         return stmt
@@ -61,7 +64,9 @@ class CRUDChatSession(CRUDPlus[ChatSession]):
         :param db:
         :return:
         """
-        return await self.select_models(db)
+        stmt = select(self.model).order_by(ChatSession.created_time.desc())
+        result = await db.execute(stmt)
+        return result.scalars().all()
 
     async def get_user_sessions(self, db: AsyncSession, user_id: int) -> Sequence[ChatSession]:
         """
@@ -109,7 +114,9 @@ class CRUDChatSession(CRUDPlus[ChatSession]):
         :param pk:
         :return:
         """
-        return await self.delete_model_by_column(db, allow_multiple=True, id__in=pk)
+        stmt = delete(self.model).where(ChatSession.id.in_(pk))
+        result = await db.execute(stmt)
+        return result.rowcount
 
     async def delete_user_sessions(self, db: AsyncSession, pk: list[int], user_id: int) -> int:
         """
@@ -120,12 +127,11 @@ class CRUDChatSession(CRUDPlus[ChatSession]):
         :param user_id:
         :return:
         """
-        return await self.delete_model_by_column(
-            db,
-            allow_multiple=True,
-            id__in=pk,
-            create_user=user_id
+        stmt = delete(self.model).where(
+            and_(ChatSession.id.in_(pk), ChatSession.create_user == user_id)
         )
+        result = await db.execute(stmt)
+        return result.rowcount
 
 
 chat_session_dao: CRUDChatSession = CRUDChatSession(ChatSession)
