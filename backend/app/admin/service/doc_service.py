@@ -31,6 +31,31 @@ import pandas as pd
 import pyarrow.parquet as pq
 from io import BytesIO
 
+# 谓词到属性的映射配置
+PREDICATE_PROPERTY_MAPPING = {
+    "职务": {
+        "entity": "subject",      # 给subject实体设置属性
+        "property_key": "position",  # 属性键名
+        "value_from": "object"    # 属性值来自object
+    },
+    "就职": {
+        "entity": "subject",
+        "property_key": "organization",
+        "value_from": "object"
+    },
+    "毕业于": {
+        "entity": "subject",
+        "property_key": "education",
+        "value_from": "object"
+    },
+    "居住在": {
+        "entity": "subject",
+        "property_key": "residence",
+        "value_from": "object"
+    },
+    # 可以继续扩展其他谓词...
+}
+
 class SysDocService:
 
     @staticmethod
@@ -126,34 +151,63 @@ class SysDocService:
             # 导入sys_entity_doc表以用于直接插入记录
             from backend.app.admin.model.sys_entity_doc import sys_entity_doc
 
-            async def get_or_create_entity(name: str, entity_type: str) -> Entity:
+            async def get_or_create_entity(name: str, entity_type: str, properties_to_add: dict = None) -> Entity:
+                """获取或创建实体，并更新属性（追加模式）
+
+                Args:
+                    name: 实体名称
+                    entity_type: 实体类型
+                    properties_to_add: 需要添加的属性字典（追加模式）
+                """
                 if name in entity_cache:
+                    entity = entity_cache[name]
                     # 检查实体是否已经与文档关联
-                    if entity_cache[name].id not in doc_entities:
-                        doc_entities.add(entity_cache[name].id)
+                    if entity.id not in doc_entities:
+                        doc_entities.add(entity.id)
                         # 向sys_entity_doc表中插入记录，建立实体和文档的关系
                         await db.execute(
                             sys_entity_doc.insert().values(
-                                entity_id=entity_cache[name].id,
+                                entity_id=entity.id,
                                 doc_id=pk
                             )
                         )
                         await db.flush()
-                    return entity_cache[name]
-                
+
+                    # 如果有新属性需要添加，使用追加模式更新
+                    if properties_to_add:
+                        if entity.properties is None:
+                            entity.properties = {}
+                        # 追加模式：保留现有属性，添加新属性
+                        entity.properties.update(properties_to_add)
+                        await db.flush()
+
+                    return entity
+
                 # Check if entity exists
                 stmt = select(Entity).where(Entity.name == name)
                 result = await db.execute(stmt)
                 entity = result.scalar_one_or_none()
 
                 if not entity:
-                    # Create entity
-                    entity_to_create = Entity(name=name, entity_type=entity_type)
+                    # Create entity with properties
+                    entity_to_create = Entity(
+                        name=name,
+                        entity_type=entity_type,
+                        properties=properties_to_add if properties_to_add else None
+                    )
                     db.add(entity_to_create)
                     await db.flush()
                     await db.refresh(entity_to_create)
                     entity = entity_to_create
-                
+                else:
+                    # 如果实体已存在，但有新属性需要添加
+                    if properties_to_add:
+                        if entity.properties is None:
+                            entity.properties = {}
+                        # 追加模式：保留现有属性，添加新属性
+                        entity.properties.update(properties_to_add)
+                        await db.flush()
+
                 # 记录实体ID并向sys_entity_doc表中插入记录
                 if entity.id not in doc_entities:
                     doc_entities.add(entity.id)
@@ -164,7 +218,7 @@ class SysDocService:
                         )
                     )
                     await db.flush()
-                
+
                 entity_cache[name] = entity
                 return entity
 
@@ -190,8 +244,24 @@ class SysDocService:
                 if not subject_name or not object_name or not predicate:
                     continue
 
-                subject_entity = await get_or_create_entity(subject_name, subject_type)
-                object_entity = await get_or_create_entity(object_name, object_type)
+                # 检查谓词是否需要设置实体属性
+                subject_properties = None
+                object_properties = None
+
+                if predicate in PREDICATE_PROPERTY_MAPPING:
+                    mapping = PREDICATE_PROPERTY_MAPPING[predicate]
+                    property_key = mapping["property_key"]
+
+                    # 根据配置决定给哪个实体设置属性
+                    if mapping["entity"] == "subject" and mapping["value_from"] == "object":
+                        # 给subject设置属性，属性值来自object
+                        subject_properties = {property_key: object_name}
+                    elif mapping["entity"] == "object" and mapping["value_from"] == "subject":
+                        # 给object设置属性，属性值来自subject
+                        object_properties = {property_key: subject_name}
+
+                subject_entity = await get_or_create_entity(subject_name, subject_type, subject_properties)
+                object_entity = await get_or_create_entity(object_name, object_type, object_properties)
 
                 # Create relationship
                 if subject_entity and object_entity:
