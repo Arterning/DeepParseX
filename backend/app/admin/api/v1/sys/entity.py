@@ -86,3 +86,19 @@ async def delete_entity(pk: Annotated[list[int], Query(...)]) -> ResponseModel:
     if count > 0:
         return response_base.success()
     return response_base.fail()
+
+
+@router.post(
+    '/{pk}/generate-properties',
+    summary='AI生成实体属性',
+    dependencies=[DependsJwtAuth],
+)
+async def generate_entity_properties(pk: Annotated[int, Path(...)]) -> ResponseModel:
+    """
+    根据实体类型调用AI生成实体属性
+
+    目前支持的实体类型：
+    - 人物：生成性别、国籍、组织、职位、联系方式等属性
+    """
+    properties = await entity_service.generate_properties_by_ai(pk=pk)
+    return response_base.success(data=properties)

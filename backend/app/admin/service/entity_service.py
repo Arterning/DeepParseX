@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from typing import Sequence, Dict, List
+import json
+from typing import Sequence, Dict, List, Any
 
 from backend.app.admin.crud.crud_entity import entity_dao
 from backend.app.admin.crud.crud_entity_relationship import entity_relation_dao
 from backend.app.admin.model.sys_entity import Entity
 from backend.app.admin.model.sys_entity_relationship import EntityRelation
 from backend.app.admin.schema.entity import CreateEntityParam, UpdateEntityParam
+from backend.app.admin.service.llm_service import llm_service
 from backend.common.exception import errors
+from backend.common.log import log
 from backend.database.db_pg import async_db_session
 from sqlalchemy import Select
 
@@ -100,6 +103,97 @@ class EntityService:
         async with async_db_session.begin() as db:
             count = await entity_dao.delete(db, pk)
             return count
+
+    @staticmethod
+    async def generate_properties_by_ai(*, pk: int) -> Dict[str, Any]:
+        """
+        根据实体类型调用 AI 生成实体属性
+
+        :param pk: 实体ID
+        :return: 生成的属性字典
+        """
+        async with async_db_session.begin() as db:
+            # 获取实体（包含关联文档）
+            entity = await entity_dao.get(db, pk)
+            if not entity:
+                raise errors.NotFoundError(msg='实体不存在')
+
+            # 目前只支持"人物"类型
+            if entity.entity_type != '人物':
+                raise errors.RequestError(msg=f'暂不支持类型: {entity.entity_type}，目前仅支持"人物"类型')
+
+            # 构建上下文信息
+            context_parts = []
+            context_parts.append(f'实体名称: {entity.name}')
+            if entity.description:
+                context_parts.append(f'实体描述: {entity.description}')
+
+            # 获取关联文档内容
+            if entity.docs:
+                doc_contents = []
+                for doc in entity.docs[:5]:  # 限制最多5个文档避免上下文过长
+                    if doc.content:
+                        # 截取前2000字符避免内容过长
+                        content = doc.content[:2000] if len(doc.content) > 2000 else doc.content
+                        doc_contents.append(f'[{doc.title}]: {content}')
+                if doc_contents:
+                    context_parts.append('关联文档内容:\n' + '\n'.join(doc_contents))
+
+            user_input = '\n'.join(context_parts)
+
+            # 构建 system prompt
+            system_prompt = '''你是一个信息提取专家。根据提供的实体信息和相关文档内容，提取人物的属性信息。
+
+请严格按照以下JSON格式输出，只输出JSON，不要有其他内容：
+{
+    "gender": "性别（男/女/未知）",
+    "nationality": "国籍",
+    "organization": "所属组织",
+    "position": "职位",
+    "contact": "联系方式"
+}
+
+注意：
+1. 如果某个属性无法从提供的信息中推断出来，请填写"未知"
+2. 只输出JSON格式，不要有任何其他文字说明
+3. 确保输出是有效的JSON格式'''
+
+            try:
+                # 调用 AI 服务
+                ai_response = await llm_service.get_llm_response(system_prompt, user_input)
+                log.info(f'AI 响应: {ai_response}')
+
+                # 解析 JSON
+                # 尝试从响应中提取 JSON
+                response_text = ai_response.strip()
+                # 如果响应被包裹在 markdown 代码块中，提取出来
+                if response_text.startswith('```'):
+                    lines = response_text.split('\n')
+                    json_lines = []
+                    in_json = False
+                    for line in lines:
+                        if line.startswith('```') and not in_json:
+                            in_json = True
+                            continue
+                        elif line.startswith('```') and in_json:
+                            break
+                        elif in_json:
+                            json_lines.append(line)
+                    response_text = '\n'.join(json_lines)
+
+                properties = json.loads(response_text)
+
+                # 更新实体的 properties 字段
+                await entity_dao.update_properties(db, pk, properties)
+
+                return properties
+
+            except json.JSONDecodeError as e:
+                log.error(f'AI 响应解析失败: {ai_response}, 错误: {e}')
+                raise errors.RequestError(msg='AI 响应格式错误，无法解析为JSON')
+            except Exception as e:
+                log.error(f'生成属性失败: {e}')
+                raise errors.RequestError(msg=f'生成属性失败: {str(e)}')
 
 
 entity_service = EntityService()

@@ -91,5 +91,16 @@ class CRUDEntity(CRUDPlus[Entity]):
         """
         return  await self.delete_model_by_column(db, allow_multiple=True, id__in=pk)
 
+    async def update_properties(self, db: AsyncSession, pk: int, properties: dict) -> int:
+        """
+        更新 Entity 的 properties 字段
+
+        :param db:
+        :param pk:
+        :param properties:
+        :return:
+        """
+        return await self.update_model(db, pk, {'properties': properties})
+
 
 entity_dao: CRUDEntity = CRUDEntity(Entity)
