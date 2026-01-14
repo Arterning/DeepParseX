@@ -188,9 +188,14 @@ class Settings(BaseSettings):
     OCR_URL: str = 'http://localhost:8120/predict'
 
     # EMBEDDING
-    EMBEDDING_MODEL: str = 'text-embedding-3-small'
+    EMBEDDING_MODEL: str = 'BAAI/bge-large-zh-v1.5'
+    EMBEDDING_MODEL_PATH: str = ''  # 本地模型路径，优先使用；为空时从网络下载
     EMBEDDING_URL: str = 'http://localhost:8104/text_to_vector'
     EMBEDDING_API_KEY: str = ''
+    
+    # OA Platform
+    OA_API_URL: str = 'http://OA_IP:PORT/x.do?method=getTicketInfo'
+    OA_SM4_KEY: str = '37353563376333643232336438303435'  # SM4密钥，需要是16字节
 
 
 @lru_cache

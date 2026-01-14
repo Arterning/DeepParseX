@@ -1,5 +1,4 @@
 import numpy as np
-import requests
 from backend.core.conf import settings
 from backend.common.log import log
 from backend.app.admin.service.config_service import config_service
@@ -11,6 +10,34 @@ from backend.app.admin.utils.text_splitter import (
     split_long_block,
     smart_split_text
 )
+
+# 全局嵌入模型缓存（支持多个模型）
+_embedding_models = {}
+
+
+def get_embedding_model(model_name: str, model_path: str = None):
+    """
+    获取嵌入模型（按模型标识缓存）
+
+    :param model_name: 模型名称（用于从网络下载，如 BAAI/bge-large-zh-v1.5）
+    :param model_path: 本地模型路径，优先使用；为空时从网络下载
+    :return: SentenceTransformer 模型实例
+    """
+    global _embedding_models
+
+    # 使用本地路径或模型名称作为缓存 key
+    cache_key = model_path if model_path else model_name
+
+    if cache_key not in _embedding_models:
+        from sentence_transformers import SentenceTransformer
+
+        # 优先使用本地路径
+        load_path = model_path if model_path else model_name
+        log.info(f"正在加载嵌入模型: {load_path}")
+        _embedding_models[cache_key] = SentenceTransformer(load_path)
+        log.info(f"嵌入模型加载完成: {load_path}")
+
+    return _embedding_models[cache_key]
 
 
 def random_vector(text, dim=1024):
@@ -27,58 +54,42 @@ def random_vector(text, dim=1024):
     ]
 
 async def embed_text_chunks(text, max_length=1000):
-    merged_settings = await config_service.get_merged_settings()
-    MODEL_NAME = merged_settings.EMBEDDING_MODEL
-    if MODEL_NAME == "text-embedding-3-small":
-        return await text_embedding(text, max_length=max_length)
-    else:
-        return await legacy_embedding(text, max_length=max_length)
+    """
+    使用本地嵌入模型计算文本向量
 
-async def text_embedding(text, max_length=1000):
-    import json
-    import aiohttp
-    # 使用文件中已定义的全局smart_split_text函数
+    :param text: 输入文本
+    :param max_length: 文本分块的最大长度
+    :return: 包含文本和嵌入向量的列表
+    """
+    # 从配置读取模型名称和本地路径
+    merged_settings = await config_service.get_merged_settings()
+    model_name = merged_settings.EMBEDDING_MODEL or "BAAI/bge-large-zh-v1.5"
+    model_path = getattr(merged_settings, 'EMBEDDING_MODEL_PATH', None) or None
+
+    # 使用智能分割函数将文本分块
     texts = smart_split_text(text, max_chunk_size=max_length)
-
-    merged_settings = await config_service.get_merged_settings()
-    
-    # 调用 LLM-Gateway 的 Embeddings API
-    GATEWAY_API_KEY = merged_settings.EMBEDDING_API_KEY
-    MODEL_NAME = merged_settings.EMBEDDING_MODEL
-    API_ENDPOINT = merged_settings.EMBEDDING_URL
-    
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {GATEWAY_API_KEY}"
-    }
 
     embeddings = []
 
-    async with aiohttp.ClientSession() as session:
-        for text in texts:
-            data = {
-                "model": MODEL_NAME,
-                "input": text
-            }
-        
-            try:
-                async with session.post(API_ENDPOINT, headers=headers, json=data, timeout=60) as response:
-                    response.raise_for_status()
-                    response_data = await response.json()
-                    
-                    if 'data' in response_data and isinstance(response_data['data'], list):
-                        for item in response_data['data']:
-                            if 'embedding' in item:
-                                embeddings.append({
-                                    "text": text,
-                                    "embs": item['embedding']
-                                })
-            except Exception as e:
-                log.error(f"[text_embedding] API调用失败: {str(e)}")
-                # 出错时返回随机向量
-                embeddings.extend(random_vector(text))
-        
+    try:
+        model = get_embedding_model(model_name, model_path)
+
+        # 批量计算嵌入向量
+        vectors = model.encode(texts, normalize_embeddings=True)
+
+        for i, chunk in enumerate(texts):
+            embeddings.append({
+                "text": chunk,
+                "embs": vectors[i].tolist()
+            })
+    except Exception as e:
+        log.error(f"[embed_text_chunks] 本地嵌入模型调用失败: {str(e)}")
+        # 出错时返回随机向量
+        for chunk in texts:
+            embeddings.extend(random_vector(chunk))
+
     return embeddings
+
 
 # OCR
 async def process_file(file_name: str, file_data: bytes):
@@ -118,77 +129,3 @@ async def process_file(file_name: str, file_data: bytes):
     except Exception as e:
         log.error(f"[process_file]中出现错误：{str(e)}")
         return str(e)
-
-        
-# 分隔字符串 - 已移至text_splitter.py
-
-
-async def v1_embedding(text, max_length=1000):
-    import aiohttp
-    merged_settings = await config_service.get_merged_settings()
-    url = merged_settings.EMBEDDING_URL
-    
-    headers = {
-        "Content-Type": "application/json"
-    }
-    
-    # 将文本分割成小块
-    texts = split_string_by_length(text, max_length)
-    
-    embeddings = []
-    
-    async with aiohttp.ClientSession() as session:
-        for chunk in texts:
-            data = {
-                "text": chunk
-            }
-            
-            try:
-                async with session.post(url, headers=headers, json=data, timeout=60) as response:
-                    response.raise_for_status()
-                    
-                    result = await response.json()
-                    if "data" in result:
-                        embeddings.append({
-                            "text": chunk,
-                            "embs": result["data"]
-                        })
-            except Exception as e:
-                log.error(f"[v1_embedding] API调用失败: {str(e)}")
-                embeddings.extend(random_vector(chunk))
-    
-    return embeddings 
-    
-
-async def legacy_embedding(text, max_length=1000):
-    import aiohttp
-    merged_settings = await config_service.get_merged_settings()
-    url = merged_settings.EMBEDDING_URL
-    
-    try:
-        headers = {
-            "Content-Type": "application/json"
-        }
-        
-        data = {
-            "text": text
-        }
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, headers=headers, json=data, timeout=60) as response:
-                response.raise_for_status()
-                
-                result = await response.json()
-                if "data" in result:
-                    return [
-                        {
-                            "text": text,
-                            "embs": result["data"]
-                        }
-                    ]
-    except Exception as e:
-        log.error(f"[legacy_embedding] API调用失败: {str(e)}")
-        return random_vector(text)
-
-
-
