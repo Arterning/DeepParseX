@@ -26,3 +26,5 @@ from backend.app.admin.model.sys_subject_predict_object import SubjectPredictObj
 from backend.app.admin.model.sys_upload_task import UploadTask
 from backend.app.admin.model.sys_chat_session import ChatSession
 from backend.app.admin.model.sys_chat_message import ChatMessage
+from backend.app.admin.model.sys_rss_source import RssSource
+from backend.app.admin.model.sys_briefing import Briefing

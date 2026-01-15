@@ -49,6 +49,7 @@ fastapi-cli==0.0.20
 fastapi-limiter==0.1.6
 fastapi-oauth20==0.0.2
 fastapi-pagination==0.12.13
+feedparser==6.0.12
 filelock==3.20.2
 flower==2.0.1
 frozenlist==1.8.0
@@ -150,6 +151,7 @@ scipy==1.15.3 ; python_full_version < '3.11'
 scipy==1.16.3 ; python_full_version >= '3.11'
 sentence-transformers==5.2.0
 setuptools==80.9.0
+sgmllib3k==1.0.0
 shellingham==1.5.4
 simpleeval==1.0.3
 six==1.17.0

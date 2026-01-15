@@ -69,6 +69,7 @@ dependencies = [
     "aiohttp>=3.13.1",
     "supervisor==4.2.5",
     "sentence-transformers>=5.2.0",
+    "feedparser>=6.0.12",
 ]
 requires-python = ">=3.10,<3.13"
 readme = "README.md"
