@@ -25,6 +25,7 @@ from backend.app.admin.api.v1.sys.mail_msg import router as mail_msg_router
 from backend.app.admin.api.v1.sys.subject_predict_object import router as subject_predict_object_router
 from backend.app.admin.api.v1.sys.upload_task import router as upload_task_router
 from backend.app.admin.api.v1.sys.chat_session import router as chat_session_router
+from backend.app.admin.api.v1.sys.briefing import router as briefing_router
 
 
 router = APIRouter(prefix='/sys')
@@ -52,3 +53,4 @@ router.include_router(mail_msg_router,prefix='/mailmsg',tags=['邮件'])
 router.include_router(subject_predict_object_router,prefix='/spo',tags=['要素提取'])
 router.include_router(upload_task_router,prefix='/upload_task',tags=['任务管理'])
 router.include_router(chat_session_router,prefix='/chat_session',tags=['对话会话'])
+router.include_router(briefing_router, prefix='/briefings', tags=['每日简报'])
