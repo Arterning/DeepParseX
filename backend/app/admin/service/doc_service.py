@@ -30,6 +30,108 @@ import duckdb
 import pandas as pd
 import pyarrow.parquet as pq
 from io import BytesIO
+from html.parser import HTMLParser
+
+
+class HTMLTextExtractor(HTMLParser):
+    """HTML 文本提取器"""
+    def __init__(self):
+        super().__init__()
+        self.text_parts = []
+        self.skip_tags = {'script', 'style', 'head', 'meta', 'link'}
+        self.current_tag = None
+
+    def handle_starttag(self, tag, attrs):
+        self.current_tag = tag.lower()
+
+    def handle_endtag(self, tag):
+        self.current_tag = None
+
+    def handle_data(self, data):
+        if self.current_tag not in self.skip_tags:
+            text = data.strip()
+            if text:
+                self.text_parts.append(text)
+
+    def get_text(self):
+        return ' '.join(self.text_parts)
+
+
+def is_html_content(content: str) -> bool:
+    """
+    检测内容是否为 HTML
+
+    Args:
+        content: 要检测的文本内容
+
+    Returns:
+        bool: 是否为 HTML 内容
+    """
+    if not content:
+        return False
+
+    # 检查常见的 HTML 标签模式
+    html_patterns = [
+        r'<!DOCTYPE\s+html',
+        r'<html[^>]*>',
+        r'<head[^>]*>',
+        r'<body[^>]*>',
+        r'<div[^>]*>',
+        r'<p[^>]*>',
+        r'<table[^>]*>',
+        r'<span[^>]*>',
+        r'<br\s*/?>',
+        r'<a\s+href=',
+    ]
+
+    content_lower = content[:2000].lower()  # 只检查前2000个字符
+
+    for pattern in html_patterns:
+        if re.search(pattern, content_lower, re.IGNORECASE):
+            return True
+
+    # 检查是否包含多个 HTML 标签
+    tag_count = len(re.findall(r'<[a-zA-Z][^>]*>', content[:2000]))
+    return tag_count >= 3
+
+
+def extract_text_from_html(html_content: str) -> str:
+    """
+    从 HTML 内容中提取纯文本
+
+    Args:
+        html_content: HTML 内容
+
+    Returns:
+        str: 提取的纯文本
+    """
+    if not html_content:
+        return ''
+
+    try:
+        parser = HTMLTextExtractor()
+        parser.feed(html_content)
+        text = parser.get_text()
+
+        # 清理多余的空白字符
+        text = re.sub(r'\s+', ' ', text)
+        text = text.strip()
+
+        return text
+    except Exception:
+        # 如果解析失败，使用正则表达式简单处理
+        # 移除 script 和 style 标签及其内容
+        text = re.sub(r'<script[^>]*>.*?</script>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
+        # 移除所有 HTML 标签
+        text = re.sub(r'<[^>]+>', ' ', text)
+        # 清理 HTML 实体
+        text = re.sub(r'&nbsp;', ' ', text)
+        text = re.sub(r'&[a-zA-Z]+;', ' ', text)
+        # 清理多余空白
+        text = re.sub(r'\s+', ' ', text)
+        return text.strip()
+
 
 # 谓词到属性的映射配置
 # 规则：给subject实体设置属性，属性值来自object
@@ -150,7 +252,16 @@ class SysDocService:
         doc = await sys_doc_service.get(pk=pk)
         if not doc.content:
             return []
-            
+
+        # 处理内容：如果是 HTML 则提取纯文本
+        content = doc.content
+        if is_html_content(content):
+            content = extract_text_from_html(content)
+
+        # 如果提取后内容为空，直接返回
+        if not content or not content.strip():
+            return []
+
         # 配置知识图谱生成参数
         config = {
             "llm": {
@@ -169,9 +280,9 @@ class SysDocService:
             },
             "entity_types": entity_types  # 添加实体类型配置
         }
-        
+
         # 生成知识图谱
-        spo_list = await kg_service.generate_knowledge_graph(doc.content, config)
+        spo_list = await kg_service.generate_knowledge_graph(content, config)
         if not spo_list:
             return []
             
@@ -204,14 +315,22 @@ class SysDocService:
                     # 检查实体是否已经与文档关联
                     if entity.id not in doc_entities:
                         doc_entities.add(entity.id)
-                        # 向sys_entity_doc表中插入记录，建立实体和文档的关系
-                        await db.execute(
-                            sys_entity_doc.insert().values(
-                                entity_id=entity.id,
-                                doc_id=pk
+                        # 检查数据库中是否已存在该关联
+                        existing_relation = await db.execute(
+                            select(sys_entity_doc).where(
+                                sys_entity_doc.c.entity_id == entity.id,
+                                sys_entity_doc.c.doc_id == pk
                             )
                         )
-                        await db.flush()
+                        if not existing_relation.first():
+                            # 向sys_entity_doc表中插入记录，建立实体和文档的关系
+                            await db.execute(
+                                sys_entity_doc.insert().values(
+                                    entity_id=entity.id,
+                                    doc_id=pk
+                                )
+                            )
+                            await db.flush()
 
                     # 如果有新属性需要添加
                     if properties_to_add:
@@ -285,13 +404,21 @@ class SysDocService:
                 # 记录实体ID并向sys_entity_doc表中插入记录
                 if entity.id not in doc_entities:
                     doc_entities.add(entity.id)
-                    await db.execute(
-                        sys_entity_doc.insert().values(
-                            entity_id=entity.id,
-                            doc_id=pk
+                    # 检查数据库中是否已存在该关联
+                    existing_relation = await db.execute(
+                        select(sys_entity_doc).where(
+                            sys_entity_doc.c.entity_id == entity.id,
+                            sys_entity_doc.c.doc_id == pk
                         )
                     )
-                    await db.flush()
+                    if not existing_relation.first():
+                        await db.execute(
+                            sys_entity_doc.insert().values(
+                                entity_id=entity.id,
+                                doc_id=pk
+                            )
+                        )
+                        await db.flush()
 
                 entity_cache[name] = entity
                 return entity
