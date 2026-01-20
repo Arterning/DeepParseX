@@ -13,6 +13,7 @@ from backend.common.exception.exception_handler import register_exception
 from backend.common.log import set_customize_logfile, setup_logging
 from backend.core.conf import settings
 from backend.core.path_conf import STATIC_DIR, UPLOAD_DIR
+from backend.core.scheduler import start_scheduler, shutdown_scheduler
 from backend.database.db_pg import create_table
 from backend.database.db_redis import redis_client
 from backend.middleware.jwt_auth_middleware import JwtAuthMiddleware
@@ -39,8 +40,13 @@ async def register_init(app: FastAPI):
     await FastAPILimiter.init(
         redis=redis_client, prefix=settings.REQUEST_LIMITER_REDIS_PREFIX, http_callback=http_limit_callback
     )
+    # 启动定时任务调度器
+    await start_scheduler()
 
     yield
+
+    # 关闭定时任务调度器
+    await shutdown_scheduler()
 
     # 关闭 redis 连接
     await redis_client.close()
