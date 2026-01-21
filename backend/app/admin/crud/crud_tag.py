@@ -49,6 +49,27 @@ class CRUDTag(CRUDPlus[Tag]):
         """
         return await self.select_models(db)
 
+    async def get_all_by_user(self, db: AsyncSession, user_id: int) -> Sequence[Tag]:
+        """
+        获取用户的所有标签（包括用户创建的标签和系统标签）
+
+        :param db:
+        :param user_id: 用户ID
+        :return:
+        """
+        from sqlalchemy import or_
+        query = await db.execute(
+            select(self.model)
+            .where(
+                or_(
+                    self.model.create_user == user_id,
+                    self.model.create_user.is_(None)
+                )
+            )
+            .order_by(desc(self.model.created_time))
+        )
+        return query.scalars().all()
+
     async def create(self, db: AsyncSession, obj_in: CreateTagParam) -> None:
         """
         创建 Tag

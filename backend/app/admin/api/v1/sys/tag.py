@@ -17,6 +17,15 @@ from backend.utils.serializers import select_as_dict
 router = APIRouter()
 
 
+@router.get('/all', summary='获取用户所有标签', dependencies=[DependsJwtAuth])
+async def get_all_user_tags(request: Request) -> ResponseModel:
+    """获取当前用户的所有标签（包括用户创建的标签和系统标签）"""
+    user_id = request.user.id
+    tags = await tag_service.get_all_by_user(user_id=user_id)
+    data = [GetTagListDetails(**select_as_dict(tag)) for tag in tags]
+    return response_base.success(data=data)
+
+
 @router.get('/{pk}', summary='获取详情', dependencies=[DependsJwtAuth])
 async def get_tag(pk: Annotated[int, Path(...)]) -> ResponseModel:
     tag = await tag_service.get(pk=pk)

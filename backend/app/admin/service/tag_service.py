@@ -30,6 +30,13 @@ class TagService:
             return tags
 
     @staticmethod
+    async def get_all_by_user(*, user_id: int) -> Sequence[Tag]:
+        """获取用户的所有标签（包括用户创建的标签和系统标签）"""
+        async with async_db_session() as db:
+            tags = await tag_dao.get_all_by_user(db, user_id)
+            return tags
+
+    @staticmethod
     async def create(*, obj: CreateTagParam) -> None:
         async with async_db_session.begin() as db:
             await tag_dao.create(db, obj)

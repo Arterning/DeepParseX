@@ -27,11 +27,19 @@ class SysDocSchemaBase(SchemaBase):
     created_user: str | None = None
     
 
+class GetTagSimple(SchemaBase):
+    """简化的标签信息，用于列表展示"""
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+
+
 class GetSysDocPage(SysDocSchemaBase):
     id: int
     model_config = ConfigDict(from_attributes=True)
     created_time: datetime
     is_collected: bool = False
+    tags: list[GetTagSimple] = []
 
 
 class CreateSysDocParam(SysDocSchemaBase):

@@ -244,6 +244,8 @@ class SysDocService:
             
             emb_obj = CreateSysDocEmbeddingParam(**emb_kwargs)
             emb_list.append(emb_obj)
+        # 先删除该文档的旧向量记录，再插入新的
+        await SysDocService.delete_doc_embeddings(doc_id=[doc_id])
         await SysDocService.create_doc_bulk_embeddings(emb_list=emb_list)
 
     @staticmethod
@@ -570,22 +572,24 @@ class SysDocService:
 
     @staticmethod
     async def get_select(*, title: str = None, name: str = None, doc_type: str = None,
-                          content: str = None, source: str = None, ids: list[int] = None, 
-                          rangeValue: list[str] = None, current_user_id: int = None) -> Select:
+                          content: str = None, source: str = None, ids: list[int] = None,
+                          rangeValue: list[str] = None, current_user_id: int = None,
+                          tag_ids: list[int] = None) -> Select:
         if not rangeValue:
             rangeValue = ['', '']
         start_time = rangeValue[0]
         end_time = rangeValue[1]
         return await sys_doc_dao.get_list(
             name=name,
-            title=title, 
-            source=source, 
-            doc_type=doc_type, 
-            content=content, 
+            title=title,
+            source=source,
+            doc_type=doc_type,
+            content=content,
             ids=ids,
-            start_time=start_time, 
+            start_time=start_time,
             end_time=end_time,
             current_user_id=current_user_id,
+            tag_ids=tag_ids,
         )
 
     def highlight_text(original: str, keywords: List[str], start_tag='<b>', end_tag='</b>') -> str:

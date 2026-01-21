@@ -134,15 +134,22 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
                        title: str = None, source: str = None,
                         content: str = None, ids: list[int] = None,
                         start_time: str = None, end_time :str = None,
-                        current_user_id: int = None
+                        current_user_id: int = None, tag_ids: list[int] = None
                         ) -> Select:
         """
         获取 SysDoc 列表
         :param current_user_id: 当前登录用户ID，用于权限过滤
+        :param tag_ids: 标签ID列表，用于筛选
         :return:
         """
+        from backend.app.admin.model.sys_tag_doc import sys_tag_doc
+
         where_list = []
-        stmt = select(self.model).order_by(desc(self.model.created_time))
+        stmt = (
+            select(self.model)
+            .options(selectinload(self.model.tags))
+            .order_by(desc(self.model.created_time))
+        )
         
         # 只有指定了current_user_id时，才进行用户权限过滤
         if current_user_id is not None:
@@ -175,6 +182,16 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
             where_list.append(self.model.doc_time <= end_dt)
         if ids is not None:
             where_list.append(self.model.id.in_(ids))
+        # 标签过滤：查询同时包含所有指定标签的文档
+        if tag_ids is not None and len(tag_ids) > 0:
+            # 使用子查询找出包含所有指定标签的文档ID
+            subquery = (
+                select(sys_tag_doc.c.doc_id)
+                .where(sys_tag_doc.c.tag_id.in_(tag_ids))
+                .group_by(sys_tag_doc.c.doc_id)
+                .having(func.count(sys_tag_doc.c.tag_id.distinct()) == len(tag_ids))
+            )
+            where_list.append(self.model.id.in_(subquery))
         if where_list:
             stmt = stmt.where(and_(*where_list))
         return stmt

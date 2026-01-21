@@ -236,8 +236,9 @@ async def get_pagination_sys_doc(request: Request,
                                  content: Annotated[str | None, Query()] = None,
                                  source: Annotated[str | None, Query()] = None,
                                  rangeValue: Annotated[list[str] | None, Query()] = ['', ''],
+                                 tag_ids: Annotated[list[int] | None, Query()] = None,
                                 ) -> ResponseModel:
-    
+
     # 从JWT中获取当前登录用户ID
     current_user_id = request.user.id
 
@@ -246,9 +247,10 @@ async def get_pagination_sys_doc(request: Request,
         title=title,
         doc_type=doc_type,
         source=source,
-        content=content, 
+        content=content,
         rangeValue=rangeValue,
         current_user_id=current_user_id,
+        tag_ids=tag_ids,
     )
     page_data = await paging_data(db, sys_doc_select, GetSysDocPage)
 
