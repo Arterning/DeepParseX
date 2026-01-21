@@ -186,17 +186,56 @@ def split_long_block(block: str, max_length: int = 500) -> list[str]:
     return chunks
 
 
+def merge_short_blocks(blocks: list[str], max_chunk_size: int = 500) -> list[str]:
+    """
+    合并过短的文本块，使每个块尽可能接近 max_chunk_size
+
+    :param blocks: 要合并的文本块列表
+    :param max_chunk_size: 每个块的最大长度
+    :return: 合并后的文本块列表
+    """
+    if not blocks:
+        return []
+
+    result = []
+    current_chunk = ''
+
+    for block in blocks:
+        block = block.strip()
+        if not block:
+            continue
+
+        # 计算合并后的长度（加上换行符）
+        separator = '\n\n' if current_chunk else ''
+        merged_length = len(current_chunk) + len(separator) + len(block)
+
+        if merged_length <= max_chunk_size:
+            # 可以合并
+            current_chunk = current_chunk + separator + block if current_chunk else block
+        else:
+            # 无法合并，保存当前块并开始新块
+            if current_chunk:
+                result.append(current_chunk)
+            current_chunk = block
+
+    # 保存最后一个块
+    if current_chunk:
+        result.append(current_chunk)
+
+    return result
+
+
 def smart_split_text(text: str, max_chunk_size: int = 500) -> list[str]:
     """
     智能分割文本，根据文本类型选择合适的分割策略
-    
+
     :param text: 要分割的文本
     :param max_chunk_size: 每个块的最大长度
     :return: 分割后的文本块列表
     """
     if not text:
         return []
-    
+
     # 检测是否为Markdown
     if is_markdown(text):
         # 按Markdown结构分割
@@ -204,13 +243,16 @@ def smart_split_text(text: str, max_chunk_size: int = 500) -> list[str]:
     else:
         # 按段落分割
         blocks = split_text_by_paragraphs(text)
-    
+
     # 处理过长的块
-    result = []
+    sized_blocks = []
     for block in blocks:
         if len(block) > max_chunk_size:
-            result.extend(split_long_block(block, max_chunk_size))
+            sized_blocks.extend(split_long_block(block, max_chunk_size))
         else:
-            result.append(block)
-    
+            sized_blocks.append(block)
+
+    # 合并过短的块，使每个块尽可能接近 max_chunk_size
+    result = merge_short_blocks(sized_blocks, max_chunk_size)
+
     return result
