@@ -114,9 +114,15 @@ class ChatSessionService:
 
                 # 创建新的 messages
                 for msg_param in obj.messages:
+                    # 处理 chunks：将 Pydantic 对象转换为字典列表
+                    chunks_data = None
+                    if msg_param.chunks:
+                        chunks_data = [chunk.model_dump() for chunk in msg_param.chunks]
+
                     new_message = ChatMessage(
                         sender=msg_param.sender,
                         content=msg_param.content,
+                        chunks=chunks_data,
                         session_id=pk,
                         create_user=current_user.id if current_user else None
                     )
