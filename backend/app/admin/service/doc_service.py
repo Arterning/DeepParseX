@@ -200,12 +200,21 @@ class SysDocService:
         doc_id = doc.id
         doc_name = doc.name
         loop = asyncio.get_running_loop()
-        
+
         if not doc.content:
             return
 
-        #所有文本的向量
-        vector_data = await embed_text_chunks(doc.content)
+        # 处理内容：如果是 HTML 则提取纯文本
+        content = doc.content
+        if is_html_content(content):
+            content = extract_text_from_html(content)
+
+        # 如果提取后内容为空，直接返回
+        if not content or not content.strip():
+            return
+
+        # 所有文本的向量
+        vector_data = await embed_text_chunks(content)
         emb_list=[]
         for vector in vector_data:
 

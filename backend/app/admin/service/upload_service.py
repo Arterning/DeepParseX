@@ -438,6 +438,10 @@ class UploadService:
         }
         await sys_doc_service.base_update(pk=doc.id, obj=obj_dict)
 
+        # 异步调用 compute_embedding，不等待返回
+        if content:
+            asyncio.create_task(sys_doc_service.compute_embedding(id=doc.id))
+
 
 
 
