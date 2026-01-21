@@ -79,7 +79,9 @@ cfgv==3.5.0
 chardet==5.2.0
     # via fastapi-best-architecture
 charset-normalizer==3.4.4
-    # via requests
+    # via
+    #   pdfminer-six
+    #   requests
 click==8.3.1
     # via
     #   celery
@@ -103,7 +105,9 @@ colorama==0.4.6 ; sys_platform == 'win32'
     #   tqdm
     #   uvicorn
 cryptography==41.0.7
-    # via fastapi-best-architecture
+    # via
+    #   fastapi-best-architecture
+    #   pdfminer-six
 distlib==0.4.0
     # via virtualenv
 distro==1.9.0
@@ -317,12 +321,18 @@ passlib==1.7.4
     # via fastapi-best-architecture
 path==15.1.2
     # via fastapi-best-architecture
+pdfminer-six==20251230
+    # via pdfplumber
+pdfplumber==0.11.9
+    # via fastapi-best-architecture
 pgvector==0.4.2
     # via fastapi-best-architecture
 phonenumbers==8.13.27
     # via fastapi-best-architecture
 pillow==12.1.0
-    # via fast-captcha
+    # via
+    #   fast-captcha
+    #   pdfplumber
 platformdirs==4.5.1
     # via virtualenv
 pluggy==1.6.0
@@ -366,6 +376,10 @@ pydantic-settings==2.12.0
     # via fastapi
 pygments==2.19.2
     # via rich
+pypdf2==3.0.1
+    # via fastapi-best-architecture
+pypdfium2==5.3.0
+    # via pdfplumber
 pytest==7.2.2
     # via
     #   fastapi-best-architecture

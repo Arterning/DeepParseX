@@ -71,6 +71,8 @@ dependencies = [
     "sentence-transformers>=5.2.0",
     "feedparser>=6.0.12",
     "apscheduler>=3.11.2",
+    "pdfplumber>=0.11.9",
+    "pypdf2>=3.0.1",
 ]
 requires-python = ">=3.10,<3.13"
 readme = "README.md"
