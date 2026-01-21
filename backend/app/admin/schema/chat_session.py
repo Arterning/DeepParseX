@@ -11,7 +11,7 @@ from backend.common.schema import SchemaBase
 # Chunk 信息 Schema
 class ChunkInfo(SchemaBase):
     """RAG上下文片段信息"""
-    chunk_id: int | None = None
+    chunk_id: str | None = None
     chunk_text: str | None = None
     doc_id: int | None = None
     doc_name: str | None = None
