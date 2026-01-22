@@ -46,8 +46,12 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
 
         if tokens:
             # 使用 doc_vector 列直接查询，利用 GIN 索引 ix_sys_doc_vector
+            # ts_headline 用于高亮匹配内容
             query = """
-            SELECT id, name, title, type, content
+            SELECT id, name, title, type, content,
+                   ts_headline('simple', content, plainto_tsquery('simple', :tokens),
+                               'StartSel=<mark>, StopSel=</mark>, MaxWords=50, MinWords=20, MaxFragments=3')
+                   AS highlight
             FROM sys_doc
             WHERE doc_vector @@ plainto_tsquery('simple', :tokens)
             ORDER BY ts_rank(doc_vector, plainto_tsquery('simple', :tokens)) DESC
@@ -66,7 +70,8 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
                 "name": doc.name,
                 "type": doc.type,
                 "title": doc.title,
-                "content": doc.content
+                "content": doc.content,
+                "highlight": doc.highlight
             } for doc in docs]
 
             # 执行总记录数查询
@@ -198,24 +203,31 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
         db.add(doc)
         return doc
 
-    async def update_tokens(self, db: AsyncSession, doc: SysDoc, title_tokens: str, content_tokens: str, doc_tokens: str):
+    async def update_tokens(self, db: AsyncSession, doc: SysDoc, doc_vector_str: str, doc_tokens: str):
+        """
+        更新文档的分词向量
+
+        Args:
+            db: 数据库会话
+            doc: 文档对象
+            doc_vector_str: tsvector 格式字符串，如 "'词1':1A '词2':2B"
+            doc_tokens: 空格分隔的分词结果（用于调试和其他用途）
+        """
         update_sql = """
             UPDATE sys_doc
-            SET doc_vector = setweight(to_tsvector('simple', :title_tokens), 'A') ||
-                        setweight(to_tsvector('simple', :content_tokens), 'B'),
-                doc_tokens=:doc_tokens
+            SET doc_vector = CAST(:doc_vector_str AS tsvector),
+                doc_tokens = :doc_tokens
             WHERE id = :doc_id
         """
         result = await db.execute(
-            text(update_sql), 
+            text(update_sql),
             {
-                "title_tokens": title_tokens,
-                "content_tokens": content_tokens,
+                "doc_vector_str": doc_vector_str,
                 "doc_tokens": doc_tokens,
                 "doc_id": doc.id
             }
         )
-        await db.commit()  # 提交事务
+        await db.commit()
         return result
 
 
