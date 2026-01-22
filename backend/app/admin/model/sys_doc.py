@@ -20,6 +20,7 @@ class SysDoc(Base):
     __table_args__ = (
         Index('ix_sys_document_created_time', 'created_time'),
         Index('ix_sys_document_updated_time', 'updated_time'),
+        Index('ix_sys_doc_vector', 'doc_vector', postgresql_using='gin'),
     )
 
     id: Mapped[id_key] = mapped_column(init=False)

@@ -33,64 +33,28 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
         )
         return doc.scalars().first()
 
-    # async def token_search(self, db: AsyncSession, tokens: str = None) -> list[int]:
-    #     if tokens:
-    #         query = f"""
-    #         SELECT DISTINCT doc_id
-    #         FROM sys_doc_data
-    #         WHERE to_tsvector('simple', tokens::text) @@ plainto_tsquery('{tokens}');
-    #         """
-    #         result = await db.execute(text(query))
-    #         ids = result.scalars().all()
-    #         print("token search ids", ids)
-    #         return ids
-    #     else:
-    #         return None
-
-    async def search_hit(self, db: AsyncSession, tokens: str = None):
-        if tokens:
-            query = f"""
-            SELECT id, name, title, type,
-            ts_headline('simple', doc_tokens, plainto_tsquery(:tokens)) AS hit
-            FROM sys_doc
-            WHERE doc_tokens @@ plainto_tsquery(:tokens);
-            """
-            result = await db.execute(text(query), {"tokens": tokens})
-            # 使用 fetchall() 来获取完整的行
-            docs = result.fetchall()  # 返回所有行
-
-            # 将每一行转为字典格式，便于查看
-            docs_list = [{
-                "id": doc.id, 
-                "name": doc.name, 
-                "type": doc.type,
-                "title": doc.title,
-                "hit": doc.hit,
-            } for doc in docs]
-            
-            return docs_list
-        else:
-            return []
-    
+ 
     async def search(self, db: AsyncSession, tokens: str = None, page: int = None, size: int = None):
         # 初始化分页参数
         if page is None:
             page = 1
         if size is None:
             size = 10
-            
+
         # 计算偏移量
         offset = (page - 1) * size
 
         if tokens:
-            query = f"""
+            # 使用 doc_vector 列直接查询，利用 GIN 索引 ix_sys_doc_vector
+            query = """
             SELECT id, name, title, type, content
             FROM sys_doc
-            WHERE doc_tokens @@ plainto_tsquery(:tokens)
+            WHERE doc_vector @@ plainto_tsquery('simple', :tokens)
+            ORDER BY ts_rank(doc_vector, plainto_tsquery('simple', :tokens)) DESC
             LIMIT :limit OFFSET :offset;
             """
             result = await db.execute(
-                text(query), 
+                text(query),
                 {"tokens": tokens, "limit": size, "offset": offset}
             )
             # 使用 fetchall() 来获取完整的行
@@ -98,22 +62,22 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
 
             # 将每一行转为字典格式，便于查看
             docs_list = [{
-                "id": doc.id, 
-                "name": doc.name, 
+                "id": doc.id,
+                "name": doc.name,
                 "type": doc.type,
                 "title": doc.title,
                 "content": doc.content
             } for doc in docs]
 
             # 执行总记录数查询
-            count_query = f"""
+            count_query = """
             SELECT count(*)
             FROM sys_doc
-            WHERE doc_tokens @@ plainto_tsquery(:tokens);
+            WHERE doc_vector @@ plainto_tsquery('simple', :tokens);
             """
             count_result = await db.execute(text(count_query), {"tokens": tokens})
             total = count_result.scalar()
-            
+
             # 返回包含分页信息的结果
             return {
                 "items": docs_list,

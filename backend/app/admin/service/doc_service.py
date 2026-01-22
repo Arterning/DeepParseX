@@ -26,7 +26,9 @@ from backend.utils.oss_client import minio_client
 from backend.core.conf import settings
 import asyncio
 import jieba
+import jieba.analyse
 import duckdb
+from collections import defaultdict
 import pandas as pd
 import pyarrow.parquet as pq
 from io import BytesIO
@@ -138,59 +140,210 @@ def extract_text_from_html(html_content: str) -> str:
 PREDICATE_PROPERTY_MAPPING = {
     # 人物相关
     "职务": {
+        "entity": "subject",      # 给subject实体设置属性
         "property_key": "position",  # 属性键名
-        "mode": "update"  # 更新模式：直接更新属性值
+        "value_from": "object"    # 属性值来自object
     },
     "就职": {
+        "entity": "subject",
         "property_key": "organization",
-        "mode": "update"
+        "value_from": "object"
     },
     "毕业于": {
+        "entity": "subject",
         "property_key": "education",
-        "mode": "update"
+        "value_from": "object"
     },
     "居住在": {
+        "entity": "subject",
         "property_key": "residence",
+        "value_from": "object",
         "mode": "update"
     },
 
     # 组织相关
     "成立于": {
+        "entity": "subject",
+        "value_from": "object",
         "property_key": "founded_date",
         "mode": "update"
     },
     "位于": {
+        "entity": "subject",
+        "value_from": "object",
         "property_key": "location",
         "mode": "update"
     },
     "属于": {
+        "entity": "subject",
+        "value_from": "object",
         "property_key": "parent_organization",
         "mode": "update"
     },
     "法人": {
+        "entity": "subject",
+        "value_from": "object",
         "property_key": "legal_representative",
         "mode": "update"
     },
     "注册资本": {
+        "entity": "subject",
+        "value_from": "object",
         "property_key": "registered_capital",
         "mode": "update"
     },
 
     # 事件相关
     "地点": {
+        "entity": "subject",
+        "value_from": "object",
         "property_key": "location",
         "mode": "update"
     },
     "时间": {
+        "entity": "subject",
+        "value_from": "object",
         "property_key": "time",
         "mode": "update"
     },
     "参与者": {
+        "entity": "object",
+        "value_from": "subject",
         "property_key": "participants",
         "mode": "append"  # 累积模式：用逗号分隔追加多个参与者
     },
-    # 可以继续扩展其他谓词...
+    "参与": {
+        "entity": "object",
+        "value_from": "subject",
+        "property_key": "participants",
+        "mode": "append"  # 累积模式：用逗号分隔追加多个参与者
+    },
+    "涉及": {
+        "entity": "object",
+        "value_from": "subject",
+        "property_key": "participants",
+        "mode": "append"  # 累积模式：用逗号分隔追加多个参与者
+    },
 }
+
+
+def text_to_tsvector(text: str, mode: str = 'search') -> str:
+    """
+    将文本转换为 PostgreSQL tsvector 格式字符串，保留原文字符位置
+
+    Args:
+        text: 要转换的文本
+        mode: 分词模式，'search' 使用 cut_for_search，'accurate' 使用 cut
+
+    Returns:
+        tsvector 格式字符串，如 "'北京':3 '天安门':5"
+
+    注意:
+        - 位置使用字符位置+1（tsvector 位置从 1 开始）
+        - PostgreSQL tsvector 位置最大值为 16383，超过的位置会被截断
+    """
+    if not text:
+        return ''
+
+    # 使用 jieba.tokenize 获取词和位置
+    # tokenize 返回: [(word, start, end), ...]
+    if mode == 'search':
+        tokens = list(jieba.tokenize(text, mode='search'))
+    else:
+        tokens = list(jieba.tokenize(text, mode='default'))
+
+    if not tokens:
+        return ''
+
+    # 收集每个词元的所有位置（同一个词可能出现多次）
+    # tsvector 格式: '词元':位置1,位置2
+    word_positions = defaultdict(list)
+
+    for word, start, end in tokens:
+        # 跳过空白和标点
+        word = word.strip()
+        if not word or len(word) == 0:
+            continue
+
+        # tsvector 位置从 1 开始，最大 16383
+        pos = start + 1
+        if pos > 16383:
+            pos = 16383
+
+        word_positions[word].append(pos)
+
+    # 生成 tsvector 格式字符串
+    # 格式: '词1':1,5,10 '词2':2,8
+    tsvector_parts = []
+    for word, positions in word_positions.items():
+        # 转义单引号
+        escaped_word = word.replace("'", "''")
+        # 位置去重并排序
+        unique_positions = sorted(set(positions))
+        pos_str = ','.join(str(p) for p in unique_positions)
+        tsvector_parts.append(f"'{escaped_word}':{pos_str}")
+
+    return ' '.join(tsvector_parts)
+
+
+def text_to_weighted_tsvector(title: str, content: str, doc_type: str = None) -> str:
+    """
+    将标题和内容转换为带权重的 tsvector 格式字符串
+
+    Args:
+        title: 标题文本（权重 A）
+        content: 内容文本（权重 B）
+        doc_type: 文档类型（权重 A，附加到标题）
+
+    Returns:
+        tsvector 格式字符串，带权重，如 "'标题':1A '内容':2B"
+    """
+    result_parts = []
+
+    # 处理标题（权重 A）
+    if title:
+        tokens = list(jieba.tokenize(title, mode='search'))
+        word_positions = defaultdict(list)
+
+        for word, start, end in tokens:
+            word = word.strip()
+            if not word:
+                continue
+            pos = min(start + 1, 16383)
+            word_positions[word].append(pos)
+
+        for word, positions in word_positions.items():
+            escaped_word = word.replace("'", "''")
+            # 添加权重 A
+            pos_str = ','.join(f"{p}A" for p in sorted(set(positions)))
+            result_parts.append(f"'{escaped_word}':{pos_str}")
+
+    # 处理文档类型（权重 A）
+    if doc_type:
+        escaped_type = doc_type.replace("'", "''")
+        # 文档类型放在一个固定位置
+        result_parts.append(f"'{escaped_type}':1A")
+
+    # 处理内容（权重 B）
+    if content:
+        tokens = list(jieba.tokenize(content, mode='search'))
+        word_positions = defaultdict(list)
+
+        for word, start, end in tokens:
+            word = word.strip()
+            if not word:
+                continue
+            pos = min(start + 1, 16383)
+            word_positions[word].append(pos)
+
+        for word, positions in word_positions.items():
+            escaped_word = word.replace("'", "''")
+            # 添加权重 B
+            pos_str = ','.join(f"{p}B" for p in sorted(set(positions)))
+            result_parts.append(f"'{escaped_word}':{pos_str}")
+
+    return ' '.join(result_parts)
+
 
 class SysDocService:
 
@@ -456,29 +609,24 @@ class SysDocService:
                 if not subject_name or not object_name or not predicate:
                     continue
 
-                # 检查谓词是否需要给subject设置属性（属性值来自object）
+                # 检查谓词是否需要设置实体属性
                 subject_properties = None
-                subject_property_modes = None
+                object_properties = None
 
                 if predicate in PREDICATE_PROPERTY_MAPPING:
                     mapping = PREDICATE_PROPERTY_MAPPING[predicate]
                     property_key = mapping["property_key"]
-                    property_mode = mapping.get("mode", "update")
 
-                    # 给subject设置属性，属性值来自object
-                    subject_properties = {property_key: object_name}
-                    subject_property_modes = {property_key: property_mode}
+                    # 根据配置决定给哪个实体设置属性
+                    if mapping["entity"] == "subject" and mapping["value_from"] == "object":
+                        # 给subject设置属性，属性值来自object
+                        subject_properties = {property_key: object_name}
+                    elif mapping["entity"] == "object" and mapping["value_from"] == "subject":
+                        # 给object设置属性，属性值来自subject
+                        object_properties = {property_key: subject_name}
 
-                subject_entity = await get_or_create_entity(
-                    subject_name,
-                    subject_type,
-                    subject_properties,
-                    subject_property_modes
-                )
-                object_entity = await get_or_create_entity(
-                    object_name,
-                    object_type
-                )
+                subject_entity = await get_or_create_entity(subject_name, subject_type, subject_properties)
+                object_entity = await get_or_create_entity(object_name, object_type, object_properties)
 
                 # Create relationship
                 if subject_entity and object_entity:
@@ -592,23 +740,37 @@ class SysDocService:
             tag_ids=tag_ids,
         )
 
+    @staticmethod
     def highlight_text(original: str, keywords: List[str], start_tag='<b>', end_tag='</b>') -> str:
+        if not original or not keywords:
+            return original or ''
         sorted_keywords = sorted(keywords, key=len, reverse=True)
         for kw in sorted_keywords:
-            pattern = re.escape(kw)
-            original = re.sub(pattern, f'{start_tag}{kw}{end_tag}', original)
+            if kw:  # 跳过空关键词
+                pattern = re.escape(kw)
+                original = re.sub(pattern, f'{start_tag}{kw}{end_tag}', original)
         return original
-    
+
+    @staticmethod
     def highlight_text_window(
-        original: str, 
-        keywords: List[str], 
-        start_tag='<b>', 
-        end_tag='</b>', 
-        window=30, 
+        original: str,
+        keywords: List[str],
+        start_tag='<b>',
+        end_tag='</b>',
+        window=30,
         max_snippets=3
     ) -> str:
-        # 合并所有关键词构造整体正则模式
-        sorted_keywords = sorted(set(keywords), key=len, reverse=True)
+        # 处理空值情况
+        if not original:
+            return ''
+        if not keywords:
+            return original[:200] + ('...' if len(original) > 200 else '')
+
+        # 过滤空关键词并按长度排序
+        sorted_keywords = sorted([kw for kw in set(keywords) if kw], key=len, reverse=True)
+        if not sorted_keywords:
+            return original[:200] + ('...' if len(original) > 200 else '')
+
         keyword_pattern = '|'.join(map(re.escape, sorted_keywords))
 
         matches = list(re.finditer(keyword_pattern, original))
@@ -643,12 +805,8 @@ class SysDocService:
         snippets = []
         for start, end in merged_windows:
             snippet = original[start:end]
-
             # 高亮所有关键词（每段内）
-            def replacer(match):
-                return f"{start_tag}{match.group(0)}{end_tag}"
-
-            highlighted = re.sub(keyword_pattern, replacer, snippet)
+            highlighted = re.sub(keyword_pattern, lambda m: f"{start_tag}{m.group(0)}{end_tag}", snippet)
             snippets.append(highlighted)
 
         return " ... ".join(snippets)
@@ -656,8 +814,8 @@ class SysDocService:
 
     
     @staticmethod
-    async def search(*, tokens: str = None, page: int = None, size: int = None):
-        cut = jieba.cut_for_search(tokens)
+    async def search(*, keyword: str = None, page: int = None, size: int = None):
+        cut = jieba.cut_for_search(keyword)
         seg_list = list(cut)  # 立即转换为列表
         # print("seg_list:", seg_list)
         async with async_db_session() as db:
@@ -713,27 +871,47 @@ class SysDocService:
             return doc
 
 
+    # tsvector 最大限制约 1MB，中文 UTF-8 约 3 字节/字符
+    # 安全起见限制在 300,000 字符（约 900KB）
+    TSVECTOR_MAX_CHARS = 300000
+
     @staticmethod
     async def create_doc_tokens(*, id: int) -> SysDoc:
         doc = await sys_doc_service.get(pk=id)
         title = doc.title
         content = doc.content
+        doc_type = doc.type
+
+        # 对于大文档，只索引前 N 个字符
+        if content and len(content) > SysDocService.TSVECTOR_MAX_CHARS:
+            content = content[:SysDocService.TSVECTOR_MAX_CHARS]
+
+        # 使用 run_in_executor 在线程池中执行分词（避免阻塞事件循环）
+        loop = asyncio.get_running_loop()
+
+        # 生成带权重的 tsvector 格式字符串（保留原文字符位置）
+        doc_vector_str = await loop.run_in_executor(
+            None, text_to_weighted_tsvector, title, content, doc_type
+        )
+
+        # 同时生成空格分隔的分词结果（用于 doc_tokens 字段，便于调试和其他用途）
         title_tokens = ''
         content_tokens = ''
-        loop = asyncio.get_event_loop()
         if title:
-            a_seg_list = await loop.run_in_executor(None, jieba.cut, title)
-            # a_seg_list = jieba.cut(title, cut_all=True)
-            title_tokens =  " ".join(a_seg_list) + " " + doc.type
+            title_seg = await loop.run_in_executor(None, lambda: list(jieba.cut_for_search(title)))
+            title_tokens = " ".join(title_seg) + " " + (doc_type or '')
         if content:
-            b_seg_list = await loop.run_in_executor(None, jieba.cut_for_search, content)
-            # b_seg_list = jieba.cut_for_search(content)
-            content_tokens = " ".join(b_seg_list)
-        all_tokens = title_tokens + " " + content_tokens
+            content_seg = await loop.run_in_executor(None, lambda: list(jieba.cut_for_search(content)))
+            content_tokens = " ".join(content_seg)
+
+        all_tokens = (title_tokens + " " + content_tokens).strip()
+        # 确保总长度不超限
+        if len(all_tokens) > SysDocService.TSVECTOR_MAX_CHARS:
+            all_tokens = all_tokens[:SysDocService.TSVECTOR_MAX_CHARS]
+
         async with async_db_session() as db:
-            res = await sys_doc_dao.update_tokens(db, doc, title_tokens, content_tokens, all_tokens)
+            res = await sys_doc_dao.update_tokens(db, doc, doc_vector_str, all_tokens)
             return res
-        return doc
 
     @staticmethod
     async def create_doc_data(*, obj_list: CreateSysDocDataParam) -> SysDocData:

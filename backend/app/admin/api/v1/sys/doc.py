@@ -178,12 +178,12 @@ async def preview_pdf(obj_name: str):
 )
 async def search(
     tokens: Annotated[str | None, Query()] = None,
-    query: Annotated[str | None, Query()] = None,
+    keyword: Annotated[str | None, Query()] = None,
     page: Annotated[int | None, Query()] = None,
     size: Annotated[int | None, Query()] = None
 ) -> ResponseModel:
-    tokens = tokens or query
-    docs = await sys_doc_service.search(tokens=tokens, page=page, size=size)
+    keyword = keyword or tokens
+    docs = await sys_doc_service.search(keyword=keyword, page=page, size=size)
     return response_base.success(data=docs)
 
 
