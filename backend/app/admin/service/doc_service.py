@@ -241,7 +241,11 @@ def text_to_tsvector(text: str, mode: str = 'search') -> str:
     注意:
         - 位置使用字符位置+1（tsvector 位置从 1 开始）
         - PostgreSQL tsvector 位置最大值为 16383，超过的位置会被截断
+        - 单词最大长度为 2046 字节，超过的词会被跳过
     """
+    # PostgreSQL tsvector 单词最大长度限制（字节）
+    MAX_WORD_BYTES = 2046
+
     if not text:
         return ''
 
@@ -263,6 +267,10 @@ def text_to_tsvector(text: str, mode: str = 'search') -> str:
         # 跳过空白和标点
         word = word.strip()
         if not word or len(word) == 0:
+            continue
+
+        # 跳过过长的词（PostgreSQL tsvector 限制）
+        if len(word.encode('utf-8')) > MAX_WORD_BYTES:
             continue
 
         # tsvector 位置从 1 开始，最大 16383
@@ -298,6 +306,18 @@ def text_to_weighted_tsvector(title: str, content: str, doc_type: str = None) ->
     Returns:
         tsvector 格式字符串，带权重，如 "'标题':1A '内容':2B"
     """
+    # PostgreSQL tsvector 单词最大长度限制（字节）
+    MAX_WORD_BYTES = 2046
+
+    def is_valid_word(word: str) -> bool:
+        """检查词是否有效（不为空且长度不超限）"""
+        if not word:
+            return False
+        # 检查 UTF-8 编码后的字节长度
+        if len(word.encode('utf-8')) > MAX_WORD_BYTES:
+            return False
+        return True
+
     result_parts = []
 
     # 处理标题（权重 A）
@@ -307,7 +327,7 @@ def text_to_weighted_tsvector(title: str, content: str, doc_type: str = None) ->
 
         for word, start, end in tokens:
             word = word.strip()
-            if not word:
+            if not is_valid_word(word):
                 continue
             pos = min(start + 1, 16383)
             word_positions[word].append(pos)
@@ -331,7 +351,7 @@ def text_to_weighted_tsvector(title: str, content: str, doc_type: str = None) ->
 
         for word, start, end in tokens:
             word = word.strip()
-            if not word:
+            if not is_valid_word(word):
                 continue
             pos = min(start + 1, 16383)
             word_positions[word].append(pos)
@@ -530,10 +550,13 @@ class SysDocService:
 
                 if not entity:
                     # Create entity with properties（新建时直接设置，无需append）
+                    # 设置首次发现来源文档信息
                     entity_to_create = Entity(
                         name=name,
                         entity_type=entity_type,
-                        properties=properties_to_add if properties_to_add else None
+                        properties=properties_to_add if properties_to_add else None,
+                        source_doc_id=pk,
+                        source_doc_name=doc.name
                     )
                     db.add(entity_to_create)
                     await db.flush()
