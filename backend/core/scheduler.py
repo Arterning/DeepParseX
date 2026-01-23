@@ -31,7 +31,7 @@ def register_scheduled_jobs():
             misfire_grace_time=3600,  # 允许1小时的延迟执行
         )
 
-    log.info("已注册定时任务: 每日新闻简报 (每天 07:00)")
+        log.info("已注册定时任务: 每日新闻简报 (每天 07:00)")
 
 
 async def start_scheduler():

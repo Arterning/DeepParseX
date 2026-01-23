@@ -4,6 +4,7 @@ WORKDIR /fba
 
 COPY backend /fba/backend
 COPY deploy /fba/deploy
+COPY models /fba/models
 
 RUN mv backend/.env.docker /fba/backend/.env
 
