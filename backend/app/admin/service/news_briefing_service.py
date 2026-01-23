@@ -213,6 +213,7 @@ class NewsBriefingService:
                 doc_time=article["published"] or timezone.now(),
                 status=1,
                 created_by=1,
+                created_user="admin",
             )
 
             session.add(doc)

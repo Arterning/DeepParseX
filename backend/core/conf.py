@@ -172,6 +172,9 @@ class Settings(BaseSettings):
         'confirm_password',
     ]
 
+    # RSS_BRIEF
+    RSS_BRIEF_ENABLED: bool = False
+
     # Minio 
     MINIO_URL: str = 'http://localhost:9000'
     ACCESS_KEY: str = ''
