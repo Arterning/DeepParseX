@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from datetime import datetime
-from pydantic import ConfigDict
+from pydantic import ConfigDict, field_validator
 
 from backend.common.schema import SchemaBase
 from backend.app.admin.schema.mail_msg import GetMailMsgDetails
@@ -40,6 +40,13 @@ class GetSysDocPage(SysDocSchemaBase):
     created_time: datetime
     is_collected: bool = False
     tags: list[GetTagSimple] = []
+
+    @field_validator('content', mode='before')
+    @classmethod
+    def truncate_content(cls, v: str | None) -> str | None:
+        if v and len(v) > 500:
+            return v[:500] + '...'
+        return v
 
 
 class CreateSysDocParam(SysDocSchemaBase):
