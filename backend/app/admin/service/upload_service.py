@@ -12,6 +12,7 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 import asyncio
+from functools import partial
 from io import BytesIO
 import traceback
 import zipfile
@@ -58,7 +59,149 @@ from backend.utils.upload_utils import (
 bucket_name = settings.BUCKET_NAME
 
 class UploadService:
-    
+
+    # ============ 异步包装器方法 ============
+    @staticmethod
+    async def _run_in_thread(func, *args, **kwargs):
+        """将同步函数放到线程池中执行，避免阻塞事件循环"""
+        if kwargs:
+            func = partial(func, **kwargs)
+        return await asyncio.to_thread(func, *args)
+
+    @staticmethod
+    async def _minio_get_object(bucket_name: str, obj_name: str) -> bytes:
+        """异步获取 MinIO 对象"""
+        def _sync_get():
+            response = minio_client.get_object(bucket_name, obj_name)
+            return response.read()
+        return await asyncio.to_thread(_sync_get)
+
+    @staticmethod
+    async def _minio_put_object(bucket_name: str, obj_name: str, data: bytes, content_type: str):
+        """异步上传对象到 MinIO"""
+        def _sync_put():
+            file_stream = io.BytesIO(data)
+            object_size = len(data)
+            minio_client.put_object(bucket_name, obj_name, file_stream, object_size, content_type)
+        await asyncio.to_thread(_sync_put)
+
+    @staticmethod
+    def _extract_zip_files_sync(file_bytes: bytes) -> list[dict]:
+        """同步解压 zip 文件，返回文件信息列表"""
+        import mimetypes
+        extracted_files = []
+        zip_buffer = io.BytesIO(file_bytes)
+        with zipfile.ZipFile(zip_buffer, 'r') as zip_ref:
+            for file_info in zip_ref.infolist():
+                if file_info.is_dir():
+                    continue
+                try:
+                    filename = file_info.filename.encode('cp437').decode('gbk')
+                except Exception:
+                    filename = file_info.filename
+                # 清理文件名中的空字节
+                if filename:
+                    filename = filename.replace('\x00', '').encode('utf-8', errors='ignore').decode('utf-8')
+                if not filename or filename.startswith('__MACOSX'):
+                    continue
+                file_content_bytes = zip_ref.read(file_info.filename)
+                unique_id = str(uuid.uuid4())
+                file_suffix = get_file_suffix(filename)
+                new_filename_minio = f"{unique_id}{file_suffix}"
+                content_type, _ = mimetypes.guess_type(filename)
+                if content_type is None:
+                    content_type = 'application/octet-stream'
+                extracted_files.append({
+                    'filename': filename,
+                    'file_content_bytes': file_content_bytes,
+                    'unique_id': unique_id,
+                    'file_suffix': file_suffix,
+                    'new_filename_minio': new_filename_minio,
+                    'content_type': content_type,
+                    'file_type': get_file_type(file_suffix),
+                    'date_time': file_info.date_time,
+                    'file_size': file_info.file_size,
+                })
+            total_count = len(zip_ref.infolist())
+        return extracted_files, total_count
+
+    @staticmethod
+    def _extract_rar_files_sync(file_bytes: bytes) -> list[dict]:
+        """同步解压 rar 文件，返回文件信息列表"""
+        import mimetypes
+        extracted_files = []
+        rar_buffer = io.BytesIO(file_bytes)
+        with rarfile.RarFile(rar_buffer, 'r') as rar_ref:
+            for file_info in rar_ref.infolist():
+                if file_info.is_dir():
+                    continue
+                try:
+                    filename = file_info.filename.encode('cp437').decode('gbk')
+                except Exception:
+                    filename = file_info.filename
+                # 清理文件名中的空字节
+                if filename:
+                    filename = filename.replace('\x00', '').encode('utf-8', errors='ignore').decode('utf-8')
+                if not filename or filename.startswith('__MACOSX'):
+                    continue
+                try:
+                    file_content_bytes = rar_ref.read(file_info.filename)
+                except rarfile.BadRarFile as e:
+                    log.error(f"Failed to read file {filename} from RAR archive: {e}")
+                    continue
+                unique_id = str(uuid.uuid4())
+                file_suffix = get_file_suffix(filename)
+                new_filename_minio = f"{unique_id}{file_suffix}"
+                content_type, _ = mimetypes.guess_type(filename)
+                if content_type is None:
+                    content_type = 'application/octet-stream'
+                extracted_files.append({
+                    'filename': filename,
+                    'file_content_bytes': file_content_bytes,
+                    'unique_id': unique_id,
+                    'file_suffix': file_suffix,
+                    'new_filename_minio': new_filename_minio,
+                    'content_type': content_type,
+                    'file_type': get_file_type(file_suffix),
+                    'date_time': file_info.date_time,
+                    'file_size': file_info.file_size,
+                })
+            total_count = len(rar_ref.infolist())
+        return extracted_files, total_count
+
+    @staticmethod
+    def _extract_mbox_emails_sync(file_bytes: bytes) -> list[dict]:
+        """同步解析 mbox 文件，返回邮件信息列表"""
+        import tempfile
+        extracted_emails = []
+        # 创建临时文件来存储 mbox 内容
+        with tempfile.NamedTemporaryFile(suffix='.mbox', delete=False) as temp_file:
+            temp_file.write(file_bytes)
+            temp_file_path = temp_file.name
+        try:
+            mbox = mailbox.mbox(temp_file_path)
+            email_count = 0
+            for message in mbox:
+                email_count += 1
+                email_bytes = message.as_bytes()
+                subject = message.get('Subject', f'邮件_{email_count}')
+                if not subject:
+                    subject = f'邮件_{email_count}'
+                # 清理 subject 中的空字节
+                if subject:
+                    subject = subject.replace('\x00', '').encode('utf-8', errors='ignore').decode('utf-8')
+                unique_id = str(uuid.uuid4())
+                new_filename_minio = f"{unique_id}.eml"
+                extracted_emails.append({
+                    'subject': subject,
+                    'email_bytes': email_bytes,
+                    'unique_id': unique_id,
+                    'new_filename_minio': new_filename_minio,
+                })
+        finally:
+            os.unlink(temp_file_path)
+        return extracted_emails
+
     @staticmethod
     def ensure_bucket_exists(bucket_name):
         """确保bucket存在，如果不存在则创建并设置为public权限"""
@@ -88,10 +231,10 @@ class UploadService:
         doc = await sys_doc_service.get(pk=pk)
         bucket_name = settings.BUCKET_NAME
         obj_name = doc.file
-        # 确保bucket存在
-        UploadService.ensure_bucket_exists(bucket_name)
-        response = minio_client.get_object(bucket_name, obj_name)
-        file_bytes = response.read()
+        # 确保bucket存在（放到线程池执行）
+        await asyncio.to_thread(UploadService.ensure_bucket_exists, bucket_name)
+        # 异步获取文件内容
+        file_bytes = await UploadService._minio_get_object(bucket_name, obj_name)
         content = await upload_service.request_content(title=doc.title, file_bytes=file_bytes)
         await sys_doc_service.base_update(pk=doc.id, obj={
             "content": content
@@ -132,11 +275,10 @@ class UploadService:
         new_filename = f"{unique_id}{file_suffix}"
 
         file_content = await file.read()
-        file_stream = io.BytesIO(file_content)
-        object_size = len(file_stream.getbuffer())
-        # 确保bucket存在
-        UploadService.ensure_bucket_exists(bucket_name)
-        minio_client.put_object(bucket_name, new_filename, file_stream, object_size, file.content_type)
+        # 确保bucket存在（放到线程池执行）
+        await asyncio.to_thread(UploadService.ensure_bucket_exists, bucket_name)
+        # 异步上传到 MinIO
+        await UploadService._minio_put_object(bucket_name, new_filename, file_content, file.content_type)
 
 
         file_type = get_file_type(file_suffix)
@@ -185,208 +327,130 @@ class UploadService:
     async def read_file_content(doc: SysDoc):
         if doc.content:
             return
-        
+
         content = ''
         desc = ''
 
-        # 确保bucket存在
-        UploadService.ensure_bucket_exists(bucket_name)
-        response = minio_client.get_object(bucket_name, doc.file)
-        file_bytes = response.read()
+        # 确保bucket存在（放到线程池执行）
+        await asyncio.to_thread(UploadService.ensure_bucket_exists, bucket_name)
+        # 异步获取文件内容
+        file_bytes = await UploadService._minio_get_object(bucket_name, doc.file)
 
         if is_zip_file(doc.file_suffix):
-            zip_buffer = io.BytesIO(file_bytes)
-            with zipfile.ZipFile(zip_buffer, 'r') as zip_ref:
-                for file_info in zip_ref.infolist():
-                    if file_info.is_dir():
-                        continue
+            # 在线程池中执行同步解压操作
+            extracted_files, total_count = await asyncio.to_thread(
+                UploadService._extract_zip_files_sync, file_bytes
+            )
+            # 异步处理每个解压出的文件
+            for file_data in extracted_files:
+                # 异步上传到 MinIO
+                await UploadService._minio_put_object(
+                    bucket_name,
+                    file_data['new_filename_minio'],
+                    file_data['file_content_bytes'],
+                    file_data['content_type']
+                )
+                obj = CreateSysDocParam(
+                    title=file_data['filename'],
+                    name=file_data['filename'],
+                    type=file_data['file_type'],
+                    file=file_data['new_filename_minio'],
+                    uuid=file_data['unique_id'],
+                    file_suffix=file_data['file_suffix'],
+                    doc_time=datetime(*file_data['date_time']) if file_data['date_time'] else None,
+                    size=file_data['file_size'],
+                    status=0,
+                    belong=doc.id,
+                    dept_id=doc.dept_id,
+                    created_by=doc.created_by,
+                    created_user=doc.created_user,
+                )
+                new_doc = await sys_doc_service.create(obj=obj)
 
-                    try:
-                        filename = file_info.filename.encode('cp437').decode('gbk')
-                    except Exception:
-                        filename = file_info.filename
-                    
-                    if not filename or filename.startswith('__MACOSX'):
-                        continue
-
-                    file_content_bytes = zip_ref.read(file_info.filename)
-
-                    unique_id = str(uuid.uuid4())
-                    file_suffix = get_file_suffix(filename)
-                    new_filename_minio = f"{unique_id}{file_suffix}"
-
-                    file_stream = io.BytesIO(file_content_bytes)
-                    object_size = len(file_stream.getbuffer())
-                    
-                    import mimetypes
-                    content_type, _ = mimetypes.guess_type(filename)
-                    if content_type is None:
-                        content_type = 'application/octet-stream'
-
-                    # 确保bucket存在
-                    UploadService.ensure_bucket_exists(bucket_name)
-                    minio_client.put_object(bucket_name, new_filename_minio, file_stream, object_size, content_type)
-
-                    file_type = get_file_type(file_suffix)
-
-                    obj = CreateSysDocParam(
-                        title=filename, 
-                        name=filename, 
-                        type=file_type,
-                        file=new_filename_minio, 
-                        uuid=unique_id, 
-                        file_suffix=file_suffix,
-                        doc_time=datetime(*file_info.date_time) if file_info.date_time else None,
-                        size=file_info.file_size,
-                        status=0,
-                        belong=doc.id,
-                        dept_id=doc.dept_id,
-                        created_by=doc.created_by,
-                        created_user=doc.created_user,
-                    )
-                    
-                    new_doc = await sys_doc_service.create(obj=obj)
-                    
-                    # Process content for the new doc
-                    await upload_service.read_file_content(new_doc)
-            
             # Update the zip file doc itself
-            content = f"这是一个压缩包，包含 {len(zip_ref.infolist())} 个文件。"
+            content = f"这是一个压缩包，包含 {total_count} 个文件。"
             obj_dict = {
                 'content': content,
-                'status': 1, # Processed
+                'status': 1,  # Processed
             }
             await sys_doc_service.base_update(pk=doc.id, obj=obj_dict)
             return
 
         if is_rar_file(doc.file_suffix):
-            rar_buffer = io.BytesIO(file_bytes)
-            with rarfile.RarFile(rar_buffer, 'r') as rar_ref:
-                for file_info in rar_ref.infolist():
-                    if file_info.is_dir():
-                        continue
+            # 在线程池中执行同步解压操作
+            extracted_files, total_count = await asyncio.to_thread(
+                UploadService._extract_rar_files_sync, file_bytes
+            )
+            # 异步处理每个解压出的文件
+            for file_data in extracted_files:
+                # 异步上传到 MinIO
+                await UploadService._minio_put_object(
+                    bucket_name,
+                    file_data['new_filename_minio'],
+                    file_data['file_content_bytes'],
+                    file_data['content_type']
+                )
+                obj = CreateSysDocParam(
+                    title=file_data['filename'],
+                    name=file_data['filename'],
+                    type=file_data['file_type'],
+                    file=file_data['new_filename_minio'],
+                    uuid=file_data['unique_id'],
+                    file_suffix=file_data['file_suffix'],
+                    doc_time=datetime(*file_data['date_time']) if file_data['date_time'] else None,
+                    size=file_data['file_size'],
+                    status=0,
+                    belong=doc.id,
+                    dept_id=doc.dept_id,
+                    created_by=doc.created_by,
+                    created_user=doc.created_user,
+                )
+                new_doc = await sys_doc_service.create(obj=obj)
 
-                    try:
-                        filename = file_info.filename.encode('cp437').decode('gbk')
-                    except Exception:
-                        filename = file_info.filename
-                    
-                    if not filename or filename.startswith('__MACOSX'):
-                        continue
-
-                    try:
-                        file_content_bytes = rar_ref.read(file_info.filename)
-                    except rarfile.BadRarFile as e:
-                        log.error(f"Failed to read file {filename} from RAR archive: {e}")
-                        continue  # 跳过当前文件，继续处理下一个文件
-
-                    unique_id = str(uuid.uuid4())
-                    file_suffix = get_file_suffix(filename)
-                    new_filename_minio = f"{unique_id}{file_suffix}"
-
-                    file_stream = io.BytesIO(file_content_bytes)
-                    object_size = len(file_stream.getbuffer())
-                    
-                    import mimetypes
-                    content_type, _ = mimetypes.guess_type(filename)
-                    if content_type is None:
-                        content_type = 'application/octet-stream'
-
-                    minio_client.put_object(bucket_name, new_filename_minio, file_stream, object_size, content_type)
-
-                    file_type = get_file_type(file_suffix)
-
-                    obj = CreateSysDocParam(
-                        title=filename, 
-                        name=filename, 
-                        type=file_type,
-                        file=new_filename_minio, 
-                        uuid=unique_id, 
-                        file_suffix=file_suffix,
-                        doc_time=datetime(*file_info.date_time) if file_info.date_time else None,
-                        size=file_info.file_size,
-                        status=0,
-                        belong=doc.id,
-                        dept_id=doc.dept_id,
-                        created_by=doc.created_by,
-                        created_user=doc.created_user,
-                    )
-                    
-                    new_doc = await sys_doc_service.create(obj=obj)
-                    
-                    # Process content for the new doc
-                    await upload_service.read_file_content(new_doc)
-            
             # Update the rar file doc itself
-            content = f"这是一个压缩包，包含 {len(rar_ref.infolist())} 个文件。"
+            content = f"这是一个压缩包，包含 {total_count} 个文件。"
             obj_dict = {
                 'content': content,
-                'status': 1, # Processed
+                'status': 1,  # Processed
             }
             await sys_doc_service.base_update(pk=doc.id, obj=obj_dict)
             return
 
         if is_mbox_file(doc.file_suffix):
             try:
-                # 创建临时文件来存储 mbox 内容
-                import tempfile
-                with tempfile.NamedTemporaryFile(suffix='.mbox', delete=False) as temp_file:
-                    temp_file.write(file_bytes)
-                    temp_file_path = temp_file.name
-
-                # 使用 mailbox 库读取 mbox 文件
-                mbox = mailbox.mbox(temp_file_path)
-                email_count = 0
-
-                for message in mbox:
-                    email_count += 1
-                    # 将邮件对象转换为字节格式
-                    email_bytes = message.as_bytes()
-
-                    # 生成邮件标题，如果没有主题则使用默认名称
-                    subject = message.get('Subject', f'邮件_{email_count}')
-                    if not subject:
-                        subject = f'邮件_{email_count}'
-
-                    # 为邮件创建一个唯一的文件名
-                    unique_id = str(uuid.uuid4())
-                    new_filename_minio = f"{unique_id}.eml"
-
-                    # 将邮件上传到 MinIO
-                    file_stream = io.BytesIO(email_bytes)
-                    object_size = len(file_stream.getbuffer())
-
-                    # 确保bucket存在
-                    UploadService.ensure_bucket_exists(bucket_name)
-                    minio_client.put_object(bucket_name, new_filename_minio, file_stream, object_size, 'message/rfc822')
-
+                # 在线程池中执行同步的 mbox 解析操作
+                extracted_emails = await asyncio.to_thread(
+                    UploadService._extract_mbox_emails_sync, file_bytes
+                )
+                # 异步处理每封邮件
+                for email_data in extracted_emails:
+                    # 异步上传到 MinIO
+                    await UploadService._minio_put_object(
+                        bucket_name,
+                        email_data['new_filename_minio'],
+                        email_data['email_bytes'],
+                        'message/rfc822'
+                    )
                     # 创建新的 SysDoc 记录
                     obj = CreateSysDocParam(
-                        title=subject,
-                        name=subject,
+                        title=email_data['subject'],
+                        name=email_data['subject'],
                         type='邮件',
-                        file=new_filename_minio,
-                        uuid=unique_id,
+                        file=email_data['new_filename_minio'],
+                        uuid=email_data['unique_id'],
                         file_suffix='.eml',
                         doc_time=datetime.now(),
-                        size=len(email_bytes),
+                        size=len(email_data['email_bytes']),
                         status=0,
                         belong=doc.id,
                         dept_id=doc.dept_id,
                         created_by=doc.created_by,
                         created_user=doc.created_user,
                     )
-
                     new_doc = await sys_doc_service.create(obj=obj)
 
-                    # 处理邮件内容
-                    await upload_service.read_file_content(new_doc)
-
-                # 删除临时文件
-                os.unlink(temp_file_path)
-
                 # 更新 mbox 文件本身的记录
-                content = f"这是一个 MBOX 邮箱文件，包含 {email_count} 封邮件。"
+                content = f"这是一个 MBOX 邮箱文件，包含 {len(extracted_emails)} 封邮件。"
                 obj_dict = {
                     'content': content,
                     'status': 1,  # Processed
@@ -406,25 +470,25 @@ class UploadService:
                 return
 
         if is_text_file(doc.file_suffix):
-            content = upload_service.decode_content_with_chardet(file_bytes)
+            # 在线程池中执行编码检测（chardet 是 CPU 密集型操作）
+            content = await asyncio.to_thread(upload_service.decode_content_with_chardet, file_bytes)
 
         if is_excel_file(doc.file_suffix):
             content = await upload_service.read_excel_data(doc=doc, file_bytes=file_bytes)
-        
+
         if is_parquet_file(doc.file_suffix):
             content = await upload_service.read_parquet_data(doc=doc, file_bytes=file_bytes)
-        
+
         if is_email_file(doc.file_suffix):
             content = await upload_service.read_email_data(doc=doc, file_bytes=file_bytes)
 
         if is_picture_file(doc.file_suffix):
             content = "图片文件无法直接读取内容，请查看附件。"
             content = await upload_service.request_content(title=doc.title, file_bytes=file_bytes)
-        
-        
+
         if is_pdf_file(doc.file_suffix):
-            # 先尝试提取文字型 PDF 的内容
-            pdf_text = upload_service.extract_pdf_text(file_bytes)
+            # 在线程池中执行 PDF 文字提取（pdfplumber/PyPDF2 是同步阻塞操作）
+            pdf_text = await asyncio.to_thread(upload_service.extract_pdf_text, file_bytes)
             if pdf_text and len(pdf_text.strip()) > 100:
                 # 如果提取到足够的文字内容（超过100字符），直接使用
                 content = pdf_text
@@ -433,14 +497,20 @@ class UploadService:
                 # 否则调用 OCR 服务
                 log.info(f"PDF文件 {doc.title} 为扫描型或文字过少，调用OCR服务")
                 content = await upload_service.request_content(title=doc.title, file_bytes=file_bytes)
-        
+
         if is_docx_file(doc.file_suffix) or is_media_file(doc.file_suffix) or is_pptx_file(doc.file_suffix):
             content = await upload_service.request_content(title=doc.title, file_bytes=file_bytes)
 
         # 其他文件方式的兜底方案
         if content == '':
-            content = upload_service.decode_content_with_chardet(file_bytes)
+            # 在线程池中执行编码检测
+            content = await asyncio.to_thread(upload_service.decode_content_with_chardet, file_bytes)
 
+        # 清理内容中的空字节和非法字符，避免 PostgreSQL 编码错误
+        if content:
+            content = upload_service.sanitize_text(content)
+        if desc:
+            desc = upload_service.sanitize_text(desc)
 
         obj_dict = {
             'content': content,
@@ -707,6 +777,14 @@ class UploadService:
         time = result_dict.get('parsed_date', datetime.now())
         body = result_dict.get('body', '')
 
+        # 清理文本中的空字节，避免 PostgreSQL 编码错误
+        if subject:
+            subject = upload_service.sanitize_text(subject)
+        if body:
+            body = upload_service.sanitize_text(body)
+        if doc_name:
+            doc_name = upload_service.sanitize_text(doc_name)
+
         # 提取真正的邮箱地址和名称
         from_name, from_email = upload_service.extract_email_address(from_email_raw)
         # 处理多个收件人邮箱地址和名称
@@ -827,149 +905,164 @@ class UploadService:
 
 
     @staticmethod
+    def _parse_email_sync(file_bytes: bytes) -> tuple[dict, list]:
+        """同步解析邮件，返回邮件数据和附件列表"""
+        import email
+        from email.parser import BytesParser
+        from email.policy import default
+        import datetime as dt_module
+        import mimetypes
+
+        # 解析邮件
+        parser = BytesParser(policy=default)
+        msg = parser.parsebytes(file_bytes)
+
+        # 获取基本信息
+        email_data = {
+            'subject': msg.get('Subject', ''),
+            'from': msg.get('From', ''),
+            'to': msg.get('To', ''),
+            'cc': msg.get('Cc', ''),
+            'bcc': msg.get('Bcc', ''),
+            'date': msg.get('Date', ''),
+            'content_type': msg.get_content_type(),
+            'attachments': [],
+        }
+
+        # 处理日期格式
+        if email_data['date']:
+            try:
+                date_tuple = email.utils.parsedate_tz(email_data['date'])
+                if date_tuple:
+                    timestamp = email.utils.mktime_tz(date_tuple)
+                    dt = dt_module.datetime.fromtimestamp(timestamp)
+                    email_data['parsed_date'] = dt
+            except Exception as e:
+                print(f"解析日期时发生错误: {e}")
+                email_data['parsed_date'] = None
+
+        # 获取邮件正文
+        email_data['body'] = ''
+        plain_text = None
+        html_content = None
+
+        # 附件列表
+        attachment_list = []
+
+        # 获取邮件内容
+        if msg.is_multipart():
+            for part in msg.walk():
+                content_disposition = str(part.get("Content-Disposition", ""))
+                filename = part.get_filename()
+                content_type = str(part.get_content_type())
+
+                is_attachment = ("attachment" in content_disposition or
+                                (filename and not content_type.startswith('text/')))
+
+                if is_attachment and filename:
+                    file_content_bytes = part.get_payload(decode=True)
+                    unique_id = str(uuid.uuid4())
+                    file_suffix = get_file_suffix(filename)
+                    new_filename_minio = f"{unique_id}{file_suffix}"
+                    content_type_mime, _ = mimetypes.guess_type(filename)
+                    if content_type_mime is None:
+                        content_type_mime = 'application/octet-stream'
+                    attachment_list.append({
+                        'filename': filename,
+                        'file_content_bytes': file_content_bytes,
+                        'unique_id': unique_id,
+                        'file_suffix': file_suffix,
+                        'new_filename_minio': new_filename_minio,
+                        'content_type': content_type_mime,
+                        'file_type': get_file_type(file_suffix),
+                    })
+                    continue
+
+                content_type = part.get_content_type()
+                if content_type == "text/plain" and not plain_text:
+                    plain_text = part.get_payload(decode=True).decode(part.get_content_charset() or 'utf-8', errors='replace')
+                elif content_type == "text/html" and not html_content:
+                    html_content = part.get_payload(decode=True).decode(part.get_content_charset() or 'utf-8', errors='replace')
+        else:
+            content_type = msg.get_content_type()
+            if content_type == "text/plain":
+                plain_text = msg.get_payload(decode=True).decode(msg.get_content_charset() or 'utf-8', errors='replace')
+            elif content_type == "text/html":
+                html_content = msg.get_payload(decode=True).decode(msg.get_content_charset() or 'utf-8', errors='replace')
+
+        email_data['body'] = plain_text or html_content or ''
+
+        # 清理文本中的空字节，避免 PostgreSQL 编码错误
+        def _sanitize(text):
+            if text:
+                return text.replace('\x00', '').encode('utf-8', errors='ignore').decode('utf-8')
+            return text
+
+        email_data['subject'] = _sanitize(email_data.get('subject', ''))
+        email_data['body'] = _sanitize(email_data.get('body', ''))
+        # 清理附件文件名
+        for att in attachment_list:
+            att['filename'] = _sanitize(att.get('filename', ''))
+
+        return email_data, attachment_list
+
+    @staticmethod
     async def do_read_email(doc: SysDoc, file_bytes: bytes):
-        
+
         if not file_bytes:
             return None
-        
+
         try:
-            import email
-            from email.parser import BytesParser
-            from email.policy import default
             import datetime
-            
-            # 解析邮件
-            parser = BytesParser(policy=default)
-            msg = parser.parsebytes(file_bytes)
-            
-            # 获取基本信息
-            email_data = {
-                'subject': msg.get('Subject', ''),
-                'from': msg.get('From', ''),
-                'to': msg.get('To', ''),
-                'cc': msg.get('Cc', ''),
-                'bcc': msg.get('Bcc', ''),
-                'date': msg.get('Date', ''),
-                'content_type': msg.get_content_type(),
-                'attachments': [],
-            }
-            
-            # 处理日期格式
-            if email_data['date']:
-                try:
-                    # 尝试解析邮件日期为datetime对象
-                    date_tuple = email.utils.parsedate_tz(email_data['date'])
-                    if date_tuple:
-                        timestamp = email.utils.mktime_tz(date_tuple)
-                        dt = datetime.datetime.fromtimestamp(timestamp)
-                        email_data['parsed_date'] = dt
-                except Exception as e:
-                    print(f"解析日期时发生错误: {e}")
-                    email_data['parsed_date'] = None
-            
-            # 获取邮件正文
-            email_data['body'] = ''
-            
-            # 处理纯文本内容
-            plain_text = None
-            html_content = None
-            
-            # 获取邮件内容
-            if msg.is_multipart():
-                # 多部分邮件
-                for part in msg.walk():
-                    content_disposition = str(part.get("Content-Disposition", ""))
-                    filename = part.get_filename()
-                    
-                    # 获取Content-Type
-                    content_type = str(part.get_content_type())
-                    
-                    # 判断是否为附件：1. 明确标识为附件 或 2. 有文件名且非文本类型
-                    is_attachment = ("attachment" in content_disposition or 
-                                    (filename and not content_type.startswith('text/')))
-                    
-                    print("part content type:", part.get_content_type(), filename)
-                    print("Content-Disposition:", content_disposition)
-                    
-                    if is_attachment and filename:
-                        file_content_bytes = part.get_payload(decode=True)
-                        
-                        unique_id = str(uuid.uuid4())
-                        file_suffix = get_file_suffix(filename)
-                        new_filename_minio = f"{unique_id}{file_suffix}"
 
-                        file_stream = io.BytesIO(file_content_bytes)
-                        object_size = len(file_stream.getbuffer())
-                        
-                        import mimetypes
-                        content_type_mime, _ = mimetypes.guess_type(filename)
-                        if content_type_mime is None:
-                            content_type_mime = 'application/octet-stream'
+            # 在线程池中执行同步的邮件解析
+            email_data, attachment_list = await asyncio.to_thread(
+                UploadService._parse_email_sync, file_bytes
+            )
 
-                        # 确保bucket存在
-                        UploadService.ensure_bucket_exists(bucket_name)
-                        minio_client.put_object(bucket_name, new_filename_minio, file_stream, object_size, content_type_mime)
+            # 异步处理附件
+            for att_data in attachment_list:
+                # 异步上传到 MinIO
+                await UploadService._minio_put_object(
+                    bucket_name,
+                    att_data['new_filename_minio'],
+                    att_data['file_content_bytes'],
+                    att_data['content_type']
+                )
 
-                        file_type = get_file_type(file_suffix)
+                obj = CreateSysDocParam(
+                    title=att_data['filename'],
+                    name=att_data['filename'],
+                    type=att_data['file_type'],
+                    file=att_data['new_filename_minio'],
+                    uuid=att_data['unique_id'],
+                    file_suffix=att_data['file_suffix'],
+                    doc_time=datetime.datetime.now(),
+                    size=len(att_data['file_content_bytes']),
+                    status=0,
+                    belong=doc.id,
+                    dept_id=doc.dept_id,
+                    created_by=doc.created_by,
+                    created_user=doc.created_user,
+                )
 
-                        obj = CreateSysDocParam(
-                            title=filename, 
-                            name=filename, 
-                            type=file_type,
-                            file=new_filename_minio, 
-                            uuid=unique_id, 
-                            file_suffix=file_suffix,
-                            doc_time=datetime.datetime.now(),
-                            size=len(file_content_bytes),
-                            status=0,
-                            belong=doc.id,
-                            dept_id=doc.dept_id,
-                            created_by=doc.created_by,
-                            created_user=doc.created_user,
-                        )
-                        
-                        new_doc = await sys_doc_service.create(obj=obj)
-                        
-                        # 将附件信息添加到email_data['attachments']
-                        email_data['attachments'].append({
-                            'id': new_doc.id,
-                            'name': filename
-                        })
-                        
-                        # Process content for the new doc
-                        try:
-                            await upload_service.read_file_content(new_doc)
-                        except Exception as e:
-                            print(f"处理附件 {filename} 时发生错误: {e}")
-                            traceback.print_exc()
-                            continue
+                new_doc = await sys_doc_service.create(obj=obj)
 
-                        await sys_doc_service.create_doc_tokens(id=new_doc.id)
+                # 将附件信息添加到email_data['attachments']
+                email_data['attachments'].append({
+                    'id': new_doc.id,
+                    'name': att_data['filename']
+                })
 
-                        await sys_doc_service.base_update(pk=new_doc.id, obj={
-                            'status': 1,
-                        })
-                        continue
-                    
-                    content_type = part.get_content_type()
-                    # 获取正文
-                    if content_type == "text/plain" and not plain_text:
-                        plain_text = part.get_payload(decode=True).decode(part.get_content_charset() or 'utf-8', errors='replace')
-                    elif content_type == "text/html" and not html_content:
-                        html_content = part.get_payload(decode=True).decode(part.get_content_charset() or 'utf-8', errors='replace')
-            else:
-                # 单部分邮件
-                content_type = msg.get_content_type()
-                if content_type == "text/plain":
-                    plain_text = msg.get_payload(decode=True).decode(msg.get_content_charset() or 'utf-8', errors='replace')
-                elif content_type == "text/html":
-                    html_content = msg.get_payload(decode=True).decode(msg.get_content_charset() or 'utf-8', errors='replace')
-            
-            # 优先使用纯文本内容，如果没有则使用HTML内容
-            email_data['body'] = plain_text or html_content or ''
-            
+
+                await sys_doc_service.create_doc_tokens(id=new_doc.id)
+
+                await sys_doc_service.base_update(pk=new_doc.id, obj={
+                    'status': 1,
+                })
+
             return email_data
-        
+
         except Exception as e:
             print(f"解析邮件时发生错误：{e}")
             raise e
@@ -977,8 +1070,8 @@ class UploadService:
 
 
     @staticmethod
-    async def read_excel_data(doc: SysDoc, file_bytes: bytes):
-
+    def _read_excel_sync(file_bytes: bytes) -> tuple[list, str]:
+        """同步读取 Excel 文件，返回数据和内容字符串"""
         # 用 mimetypes 和文件头判断格式
         buffer = BytesIO(file_bytes)
         file_start = buffer.read(8)
@@ -995,10 +1088,8 @@ class UploadService:
         else:
             raise ValueError("不支持的 Excel 文件格式，请上传 .xls 或 .xlsx 文件")
 
-
         # 读取文件内容
         df = pd.read_excel(BytesIO(file_bytes), nrows=10, header=None, engine=engine)
-        
 
         head = 0
         for i, row in df.iterrows():
@@ -1015,13 +1106,18 @@ class UploadService:
         data_json = df.to_dict(orient="records")
 
         content = ''
-        
         for excel_data in data_json:
-            # print("excel_data",excel_data)
-            strings = upload_service.dict_to_string(excel_data)
+            strings = UploadService.dict_to_string(excel_data)
             row = strings + '\n'
             content += row
         content = content.replace("Unnamed", "").replace("None", "")
+        return data_json, content
+
+    @staticmethod
+    async def read_excel_data(doc: SysDoc, file_bytes: bytes):
+        # 在线程池中执行同步的 Excel 读取操作
+        data_json, content = await asyncio.to_thread(UploadService._read_excel_sync, file_bytes)
+
         doc_id = doc.id
         obj_list = []
         for excel_data in data_json:
@@ -1031,15 +1127,15 @@ class UploadService:
         return content
 
     @staticmethod
-    async def read_parquet_data(doc: SysDoc, file_bytes: bytes):
+    def _read_parquet_sync(file_bytes: bytes) -> tuple[list, str]:
+        """同步读取 Parquet 文件，返回数据和内容字符串"""
         import pyarrow.parquet as pq
-        from io import BytesIO
-        
+
         # 读取 parquet 文件
         buffer = BytesIO(file_bytes)
         table = pq.read_table(buffer)
         df = table.to_pandas()
-        
+
         # 限制行数以避免内容过大
         if len(df) > 100:
             df_sample = df.head(100)
@@ -1047,34 +1143,41 @@ class UploadService:
         else:
             df_sample = df
             content = f"Parquet文件包含 {len(df)} 行，{len(df.columns)} 列。完整数据如下：\n\n"
-        
+
         # 添加列信息
         content += "列信息：\n"
         for col in df.columns:
             content += f"- {col}: {str(df[col].dtype)}\n"
         content += "\n"
-        
+
         # 替换 NaN 为 None
         df_sample = df_sample.where(pd.notnull(df_sample), None)
         df_sample.replace([np.nan, np.inf, -np.inf], None, inplace=True)
-        
+
         # 将 DataFrame 转换为字符串格式
         for index, row in df_sample.iterrows():
             row_data = {}
             for col in df_sample.columns:
                 row_data[col] = row[col]
-            strings = upload_service.dict_to_string(row_data)
+            strings = UploadService.dict_to_string(row_data)
             content += strings + '\n'
-        
+
+        data_json = df_sample.to_dict(orient="records")
+        return data_json, content
+
+    @staticmethod
+    async def read_parquet_data(doc: SysDoc, file_bytes: bytes):
+        # 在线程池中执行同步的 Parquet 读取操作
+        data_json, content = await asyncio.to_thread(UploadService._read_parquet_sync, file_bytes)
+
         # 将数据保存到数据库
         doc_id = doc.id
         obj_list = []
-        data_json = df_sample.to_dict(orient="records")
         for parquet_data in data_json:
             param = CreateSysDocDataParam(doc_id=doc_id, excel_data=parquet_data)
             obj_list.append(param)
         await sys_doc_service.create_doc_data(obj_list=obj_list)
-        
+
         return content
 
 

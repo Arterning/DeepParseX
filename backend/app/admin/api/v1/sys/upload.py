@@ -32,52 +32,58 @@ class ParseParams(BaseModel):
 
 router = APIRouter()
 
+def _count_compressed_files_sync(bucket_name: str, file_path: str, file_suffix: str) -> int:
+    """同步函数：获取并解析压缩包文件数量"""
+    from backend.utils.upload_utils import is_zip_file, is_rar_file, is_7z_file
+    from backend.utils.oss_client import minio_client
+    import io
+    import zipfile
+    import rarfile
+
+    response = minio_client.get_object(bucket_name, file_path)
+    file_bytes = response.read()
+
+    if is_zip_file(file_suffix):
+        zip_buffer = io.BytesIO(file_bytes)
+        with zipfile.ZipFile(zip_buffer, 'r') as zip_ref:
+            valid_files = [f for f in zip_ref.infolist() if not f.is_dir() and not f.filename.startswith('__MACOSX')]
+            return len(valid_files)
+    elif is_rar_file(file_suffix):
+        rar_buffer = io.BytesIO(file_bytes)
+        with rarfile.RarFile(rar_buffer, 'r') as rar_ref:
+            valid_files = [f for f in rar_ref.infolist() if not f.is_dir() and not f.filename.startswith('__MACOSX')]
+            return len(valid_files)
+    elif is_7z_file(file_suffix):
+        return 1
+    return 1
+
+
 async def get_compressed_file_count(doc_id: int) -> int:
     """获取压缩包中的文件数量"""
     from backend.app.admin.service.doc_service import sys_doc_service
     from backend.utils.upload_utils import get_file_suffix, is_zip_file, is_rar_file, is_7z_file
-    from backend.utils.oss_client import minio_client
     from backend.core.conf import settings
-    import io
-    import zipfile
-    import rarfile
-    
+
     # 首先获取文档信息
     doc = await sys_doc_service.get(pk=doc_id)
     file_suffix = get_file_suffix(doc.file)
-    
+
     # 非压缩包文件返回1
     if not (is_zip_file(file_suffix) or is_rar_file(file_suffix) or is_7z_file(file_suffix)):
         return 1
-    
-    # 获取文件内容
+
+    # 在线程池中执行同步的压缩包读取操作
     try:
         bucket_name = settings.BUCKET_NAME
-        response = minio_client.get_object(bucket_name, doc.file)
-        file_bytes = response.read()
-        
-        # 根据文件类型计算文件数量
-        if is_zip_file(file_suffix):
-            zip_buffer = io.BytesIO(file_bytes)
-            with zipfile.ZipFile(zip_buffer, 'r') as zip_ref:
-                # 过滤掉目录和系统文件
-                valid_files = [f for f in zip_ref.infolist() if not f.is_dir() and not f.filename.startswith('__MACOSX')]
-                return len(valid_files)
-        elif is_rar_file(file_suffix):
-            rar_buffer = io.BytesIO(file_bytes)
-            with rarfile.RarFile(rar_buffer, 'r') as rar_ref:
-                # 过滤掉目录和系统文件
-                valid_files = [f for f in rar_ref.infolist() if not f.is_dir() and not f.filename.startswith('__MACOSX')]
-                return len(valid_files)
-        elif is_7z_file(file_suffix):
-            # 对于7z文件，我们需要一个库来读取，这里返回默认值1
-            # 实际项目中可以使用py7zr库来读取7z文件
-            return 1
+        count = await asyncio.to_thread(
+            _count_compressed_files_sync, bucket_name, doc.file, file_suffix
+        )
+        return count
     except Exception as e:
         log.error(f"读取压缩包文件数量失败: {e}")
         import traceback
         traceback.print_exc()
-    
+
     # 出现异常时返回默认值1
     return 1
 
@@ -168,6 +174,29 @@ async def run_parse_task(pk: int):
 
         await upload_service.read_file_content(doc=doc)
 
+        sub_docs = []
+
+        # 处理压缩包中的文件
+        async with async_db_session() as db:
+            # 查询所有belong等于当前文档ID的文件
+            stmt = select(SysDoc).where(SysDoc.belong == doc.id)
+            result = await db.execute(stmt)
+            sub_docs = result.scalars().all()
+
+
+        for sub_doc in sub_docs:
+            await upload_service.read_file_content(doc=sub_doc)
+
+            await redis_client.set(
+                redis_key, json.dumps({
+                    'status': 'doing',
+                    'stage': f'读取内容-({sub_doc.name})', 
+                    'progress': 2/5
+                }), 
+                ex = 60 * 5
+            )
+
+
         await redis_client.set(
             redis_key, json.dumps({
                 'status': 'doing',
@@ -179,22 +208,16 @@ async def run_parse_task(pk: int):
 
         await sys_doc_service.create_doc_tokens(id=doc.id)
 
-        # 处理压缩包中的文件
-        async with async_db_session() as db:
-            # 查询所有belong等于当前文档ID的文件
-            stmt = select(SysDoc).where(SysDoc.belong == doc.id)
-            result = await db.execute(stmt)
-            sub_docs = result.scalars().all()
-            for sub_doc in sub_docs:
-                await redis_client.set(
-                    redis_key, json.dumps({
-                        'status': 'doing',
-                        'stage': f'创建索引({sub_doc.name})', 
-                        'progress': 3/5
-                    }), 
-                    ex = 60 * 5
-                )
-                await sys_doc_service.create_doc_tokens(id=sub_doc.id)
+        for sub_doc in sub_docs:
+            await redis_client.set(
+                redis_key, json.dumps({
+                    'status': 'doing',
+                    'stage': f'创建索引-({sub_doc.name})', 
+                    'progress': 3/5
+                }), 
+                ex = 60 * 5
+            )
+            await sys_doc_service.create_doc_tokens(id=sub_doc.id)
         
         
         await redis_client.set(
