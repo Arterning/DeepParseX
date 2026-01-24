@@ -249,13 +249,36 @@ class UploadService:
         encoding = result['encoding']
 
         log.info(f"encoding: {encoding}")
-        
+
+        # GB2312/GBK/GB18030 兼容性处理：GB18030 > GBK > GB2312
+        # 如果检测到 GB2312，优先尝试 GBK 和 GB18030，因为它们是 GB2312 的超集
+        gb_encodings = ['gb2312', 'gbk', 'gb18030']
+        if encoding and encoding.lower() in gb_encodings:
+            # 按兼容性从高到低尝试
+            for enc in ['gb18030', 'gbk', 'gb2312']:
+                try:
+                    content_str = content.decode(enc)
+                    log.info(f"使用 {enc} 解码成功")
+                    return content_str
+                except (UnicodeDecodeError, LookupError):
+                    continue
+
+        # 常规解码尝试
         try:
             content_str = content.decode(encoding)
-        except (UnicodeDecodeError, TypeError) as e:
-            log.error(f"解码失败，尝试使用UTF-8")
+        except (UnicodeDecodeError, TypeError, LookupError) as e:
+            log.error(f"使用 {encoding} 解码失败，尝试其他编码")
+            # 尝试常见编码
+            for fallback_enc in ['utf-8', 'gb18030', 'gbk', 'latin-1']:
+                try:
+                    content_str = content.decode(fallback_enc)
+                    log.info(f"使用 {fallback_enc} 解码成功")
+                    return content_str
+                except (UnicodeDecodeError, LookupError):
+                    continue
+            # 最后使用 UTF-8 忽略错误
             content_str = content.decode('UTF-8', errors='ignore')
-        
+
         return content_str
 
     @staticmethod
