@@ -12,10 +12,30 @@ from backend.app.admin.schema.doc_embdding import CreateSysDocEmbeddingParam
 
 class CRUDSysDocEmbedding(CRUDPlus[SysDocEmbedding]):
 
-    async def search_chunk_vector(self, db: AsyncSession, query_vector: list[float] = None, limit: int = 0)->list:
+    async def search_chunk_vector(
+        self,
+        db: AsyncSession,
+        query_vector: list[float] = None,
+        limit: int = 0,
+        distance_threshold: float = None
+    ) -> list:
+        """
+        向量相似度搜索
+
+        :param db: 数据库会话
+        :param query_vector: 查询向量
+        :param limit: 返回结果数量限制
+        :param distance_threshold: 距离阈值，只返回距离小于此值的结果（距离越小越相似）
+                                   建议值：0.8-1.5，默认为 1.2
+        :return: 相似文档列表
+        """
         # 构建向量搜索SQL语句
         if not query_vector or limit <= 0:
             return []
+
+        # 设置默认阈值
+        if distance_threshold is None:
+            distance_threshold = 1.2
 
         # 获取向量维度
         vector_dim = len(query_vector)
@@ -34,24 +54,27 @@ class CRUDSysDocEmbedding(CRUDPlus[SysDocEmbedding]):
 
         vector_str = json.dumps(query_vector)
 
+        # 添加距离阈值过滤条件
         sql = f"""
         SELECT id, chunk_id, doc_id, doc_name, chunk_text, {embedding_column} <-> :query_vector AS distance
         FROM sys_doc_embedding
         WHERE {embedding_column} IS NOT NULL
+          AND ({embedding_column} <-> :query_vector) < :distance_threshold
         ORDER BY {embedding_column} <-> :query_vector
         LIMIT :limit
         """
-        
+
         result = await db.execute(
             text(sql),
             {
                 "query_vector": vector_str,
-                "limit": limit
+                "limit": limit,
+                "distance_threshold": distance_threshold
             }
         )
-        
+
         similar_docs = result.fetchall()
-        
+
         return similar_docs
 
     # async def get(self, db: AsyncSession, pk: int) -> SysDocEmbedding | None:

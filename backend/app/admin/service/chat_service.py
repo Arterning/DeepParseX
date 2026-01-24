@@ -8,6 +8,8 @@ from backend.app.admin.service.mail_msg_service import mail_msg_service
 from backend.app.admin.utils.text_processor import embed_text_chunks
 from backend.database.db_pg import async_db_session
 from backend.app.admin.model.mail_msg import MailMsg
+from backend.app.admin.model.sys_chat_message import ChatMessage
+from backend.app.admin.model.sys_chat_session import ChatSession
 from sqlalchemy import select
 
 
@@ -86,6 +88,25 @@ class ChatService:
     
     @staticmethod
     async def rag_chat(obj: ChatParam, max_length = 512, check_topk = 10):
+        # 获取历史对话记录
+        history_context = ""
+        if obj.session_id:
+            async with async_db_session() as db:
+                # 查询该会话的所有历史消息（排除当前这条）
+                result = await db.execute(
+                    select(ChatMessage)
+                    .where(ChatMessage.session_id == obj.session_id)
+                    .order_by(ChatMessage.created_time.asc())
+                )
+                messages = result.scalars().all()
+
+                # 格式化历史对话
+                if messages:
+                    history_lines = []
+                    for msg in messages:
+                        role = "用户" if msg.sender == "user" else "助手"
+                        history_lines.append(f"{role}: {msg.content}")
+                    history_context = "\n".join(history_lines)
 
         if obj.doc_id:
             # 如果指定了文档ID，则只查询该文档的相关片段
@@ -96,14 +117,41 @@ class ChatService:
                     "chunks": []
                 }
             context = doc.content if doc.content else ""
-            system_context = (
-                "上下文信息如下。\n"
-                "---\n"
-                f"{context}\n"
-                "---\n"
-                "请根据上下文信息而不是先验知识来回答以下的查询。"
-                "作为一个人工智能助手，你的回答要尽可能严谨。"
-            )
+
+            # 构建系统提示词
+            system_context_parts = []
+
+            # 添加历史对话
+            if history_context:
+                system_context_parts.append(
+                    "## 对话历史\n"
+                    f"{history_context}\n"
+                )
+
+            # 添加知识库上下文
+            if context:
+                system_context_parts.append(
+                    "## 知识库上下文\n"
+                    "---\n"
+                    f"{context}\n"
+                    "---\n"
+                )
+
+            # 添加指导说明
+            if context:
+                system_context_parts.append(
+                    "请基于以上知识库上下文提供详细、深入的分析和回答。"
+                    "如果知识库中有相关信息，请充分引用并展开说明；"
+                    "如果知识库中没有相关信息，可以结合你自己的知识给出专业建议。"
+                    "作为一个人工智能助手，你的回答要尽可能严谨、全面、有深度。"
+                )
+            else:
+                system_context_parts.append(
+                    "知识库上下文为空，请根据你自己的知识和专业能力提供详细、深入的分析和回答。"
+                    "作为一个人工智能助手，你的回答要尽可能严谨、全面、有深度。"
+                )
+
+            system_context = "\n".join(system_context_parts)
             response = await llm_service.get_llm_response(system_context, obj.question)
 
             return {
@@ -113,7 +161,12 @@ class ChatService:
         else:
             question_text_emb = await embed_text_chunks(obj.question)
             query_vector = question_text_emb[0]["embs"]
-            similar_docs = await sys_doc_service.search_similar_docs(query_vector=query_vector, limit=check_topk)
+            # 使用距离阈值过滤不相关的结果（距离越小越相似，默认1.2）
+            similar_docs = await sys_doc_service.search_similar_docs(
+                query_vector=query_vector,
+                limit=check_topk,
+                distance_threshold=1.2  # 可根据实际效果调整，建议范围 0.8-1.5
+            )
 
             context_list = []
             sources = {}  # 存储编号与超链接映射
@@ -122,7 +175,7 @@ class ChatService:
             for idx, doc in enumerate(similar_docs):
                 if doc.chunk_text:
                     # 构建超链接，使用 chunk_id 代替 chunk_text
-                    link = f"[{idx + 1}] <a href=\"javascript:void(0)\" data-doc-id=\"{doc.doc_id}\" data-chunk-id=\"{doc.chunk_id}\" data-doc-name=\"{doc.doc_name}\" onclick=\"openDrawer(this)\">{doc.doc_name}</a>"
+                    link = f"[{idx + 1}] <doclink data-doc-id=\"{doc.doc_id}\" data-chunk-id=\"{doc.chunk_id}\" data-doc-name=\"{doc.doc_name}\" >{doc.doc_name}</doclink>"
                     # 存储编号与超链接的映射
                     sources[f"[{idx + 1}]"] = link
                     source_entry = f"来源：[{idx + 1}] \n内容: {doc.chunk_text}"
@@ -139,15 +192,40 @@ class ChatService:
 
             context = "\n".join(context_list)
 
-            system_context = (
-                "上下文信息如下。\n"
-                "---\n"
-                f"{context}\n"
-                "---\n"
-                "请根据上下文信息而不是先验知识来回答以下的查询。并在回答中用 [编号] 标注引用的来源。"
-                "作为一个人工智能助手，你的回答要尽可能严谨。"
-            )
+            # 构建系统提示词
+            system_context_parts = []
 
+            # 添加历史对话
+            if history_context:
+                system_context_parts.append(
+                    "## 对话历史\n"
+                    f"{history_context}\n"
+                )
+
+            # 添加知识库上下文
+            if context:
+                system_context_parts.append(
+                    "## 知识库上下文\n"
+                    "---\n"
+                    f"{context}\n"
+                    "---\n"
+                )
+
+            # 添加指导说明
+            if context:
+                system_context_parts.append(
+                    "请基于以上知识库上下文提供详细、深入的分析和回答。"
+                    "如果知识库中有相关信息，请充分引用并展开说明，并在回答中用 [编号] 标注引用的来源；"
+                    "如果知识库中没有相关信息，可以结合你自己的知识给出专业建议。"
+                    "作为一个人工智能助手，你的回答要尽可能严谨、全面、有深度。"
+                )
+            else:
+                system_context_parts.append(
+                    "知识库中未找到相关上下文信息，请根据你自己的知识和专业能力提供详细、深入的分析和回答。"
+                    "作为一个人工智能助手，你的回答要尽可能严谨、全面、有深度。"
+                )
+
+            system_context = "\n".join(system_context_parts)
 
             response = await llm_service.get_llm_response(system_context, obj.question)
 

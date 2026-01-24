@@ -856,16 +856,26 @@ class SysDocService:
     async def similar_search(query: str = None, page: int = None, size: int = None):
         text_emb = await embed_text_chunks(query)
         query_vector = text_emb[0]["embs"]
-        async with async_db_session() as db:
-            res = await SysDocService.search_similar_docs(db, query_vector, limit=size)
-            return res
+        res = await SysDocService.search_similar_docs(
+            query_vector=query_vector,
+            limit=size,
+            distance_threshold=1.2
+        )
+        return res
 
 
 
     @staticmethod
-    async def search_similar_docs(*, query_vector: list[float] = None, limit: int = None):
+    async def search_similar_docs(
+        *,
+        query_vector: list[float] = None,
+        limit: int = None,
+        distance_threshold: float = None
+    ):
         async with async_db_session() as db:
-            res = await sys_doc_embedding_dao.search_chunk_vector(db, query_vector, limit)
+            res = await sys_doc_embedding_dao.search_chunk_vector(
+                db, query_vector, limit, distance_threshold
+            )
             return res
 
     @staticmethod
