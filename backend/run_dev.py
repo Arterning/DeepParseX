@@ -34,6 +34,7 @@ def main():
     import uvicorn
     uvicorn.run(
         "backend.main:app",
+        workers=5,
         host=args.host,
         port=args.port,
         reload=True,
