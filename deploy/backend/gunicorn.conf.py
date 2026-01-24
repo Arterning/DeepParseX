@@ -6,7 +6,7 @@ bind = '0.0.0.0:8001'
 chdir = '/fba/backend/'
 
 # 并行工作进程数
-workers = 1
+workers = 5
 
 # 指定每个工作者的线程数
 threads = 4
