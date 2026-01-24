@@ -1,3 +1,4 @@
+import asyncio
 import numpy as np
 from backend.core.conf import settings
 from backend.common.log import log
@@ -13,9 +14,25 @@ from backend.app.admin.utils.text_splitter import (
 
 # 全局嵌入模型缓存（支持多个模型）
 _embedding_models = {}
+_embedding_model_lock = None
 
 # 全局标签向量缓存
 _tag_embeddings_cache = {}
+_tag_embeddings_lock = None
+
+def _get_model_lock():
+    """延迟初始化模型锁，避免在模块导入时创建（可能事件循环还未运行）"""
+    global _embedding_model_lock
+    if _embedding_model_lock is None:
+        _embedding_model_lock = asyncio.Lock()
+    return _embedding_model_lock
+
+def _get_tag_lock():
+    """延迟初始化标签锁，避免在模块导入时创建（可能事件循环还未运行）"""
+    global _tag_embeddings_lock
+    if _tag_embeddings_lock is None:
+        _tag_embeddings_lock = asyncio.Lock()
+    return _tag_embeddings_lock
 
 # 预设标签列表（标签名称 -> 描述性关键词，用于计算向量）
 PRESET_TAGS = {
@@ -39,9 +56,9 @@ PRESET_TAGS = {
 }
 
 
-def get_embedding_model(model_name: str, model_path: str = None):
+async def get_embedding_model(model_name: str, model_path: str = None):
     """
-    获取嵌入模型（按模型标识缓存）
+    获取嵌入模型（按模型标识缓存，带锁保护避免重复加载）
 
     :param model_name: 模型名称（用于从网络下载，如 BAAI/bge-large-zh-v1.5）
     :param model_path: 本地模型路径，优先使用；为空时从网络下载
@@ -52,14 +69,23 @@ def get_embedding_model(model_name: str, model_path: str = None):
     # 使用本地路径或模型名称作为缓存 key
     cache_key = model_path if model_path else model_name
 
-    if cache_key not in _embedding_models:
-        from sentence_transformers import SentenceTransformer
+    # 快速路径：如果已缓存，直接返回
+    if cache_key in _embedding_models:
+        return _embedding_models[cache_key]
 
-        # 优先使用本地路径
-        load_path = model_path if model_path else model_name
-        log.info(f"正在加载嵌入模型: {load_path}")
-        _embedding_models[cache_key] = SentenceTransformer(load_path)
-        log.info(f"嵌入模型加载完成: {load_path}")
+    # 加锁保护，避免并发时重复加载模型
+    async with _get_model_lock():
+        # 双重检查：获取锁后再次检查缓存
+        if cache_key not in _embedding_models:
+            from sentence_transformers import SentenceTransformer
+
+            # 优先使用本地路径
+            load_path = model_path if model_path else model_name
+            log.info(f"正在加载嵌入模型: {load_path}")
+            # 模型加载是阻塞操作，放到线程池执行
+            model = await asyncio.to_thread(SentenceTransformer, load_path)
+            _embedding_models[cache_key] = model
+            log.info(f"嵌入模型加载完成: {load_path}")
 
     return _embedding_models[cache_key]
 
@@ -96,10 +122,11 @@ async def embed_text_chunks(text, max_length=1000):
     embeddings = []
 
     try:
-        model = get_embedding_model(model_name, model_path)
+        # 获取模型（内部已处理并发和线程池）
+        model = await get_embedding_model(model_name, model_path)
 
-        # 批量计算嵌入向量
-        vectors = model.encode(texts, normalize_embeddings=True)
+        # 批量计算嵌入向量（CPU密集型），放到线程池执行
+        vectors = await asyncio.to_thread(model.encode, texts, normalize_embeddings=True)
 
         for i, chunk in enumerate(texts):
             embeddings.append({
@@ -173,20 +200,27 @@ async def get_tag_embeddings(model_name: str = None, model_path: str = None) -> 
 
     cache_key = model_path if model_path else model_name
 
-    if cache_key not in _tag_embeddings_cache:
-        log.info(f"正在计算预设标签的嵌入向量...")
-        model = get_embedding_model(model_name, model_path)
+    # 快速路径：如果已缓存，直接返回
+    if cache_key in _tag_embeddings_cache:
+        return _tag_embeddings_cache[cache_key]
 
-        tag_names = list(PRESET_TAGS.keys())
-        tag_descriptions = list(PRESET_TAGS.values())
+    # 加锁保护，避免并发时重复计算
+    async with _get_tag_lock():
+        # 双重检查
+        if cache_key not in _tag_embeddings_cache:
+            log.info(f"正在计算预设标签的嵌入向量...")
+            model = await get_embedding_model(model_name, model_path)
 
-        # 批量计算标签描述的嵌入向量
-        vectors = model.encode(tag_descriptions, normalize_embeddings=True)
+            tag_names = list(PRESET_TAGS.keys())
+            tag_descriptions = list(PRESET_TAGS.values())
 
-        _tag_embeddings_cache[cache_key] = {
-            tag_names[i]: vectors[i] for i in range(len(tag_names))
-        }
-        log.info(f"预设标签嵌入向量计算完成，共 {len(tag_names)} 个标签")
+            # 批量计算标签描述的嵌入向量（CPU密集型），放到线程池执行
+            vectors = await asyncio.to_thread(model.encode, tag_descriptions, normalize_embeddings=True)
+
+            _tag_embeddings_cache[cache_key] = {
+                tag_names[i]: vectors[i] for i in range(len(tag_names))
+            }
+            log.info(f"预设标签嵌入向量计算完成，共 {len(tag_names)} 个标签")
 
     return _tag_embeddings_cache[cache_key]
 
@@ -213,11 +247,12 @@ async def classify_text_tags(text: str, threshold: float = 0.5, max_length: int 
         model_path = getattr(merged_settings, 'EMBEDDING_MODEL_PATH', None) or None
 
         # 获取模型和标签向量
-        model = get_embedding_model(model_name, model_path)
+        model = await get_embedding_model(model_name, model_path)
         tag_embeddings = await get_tag_embeddings(model_name, model_path)
 
-        # 计算文本的嵌入向量
-        text_vector = model.encode([text_sample], normalize_embeddings=True)[0]
+        # 计算文本的嵌入向量（CPU密集型，放到线程池执行）
+        text_vectors = await asyncio.to_thread(model.encode, [text_sample], normalize_embeddings=True)
+        text_vector = text_vectors[0]
 
         # 计算文本与各标签的余弦相似度
         matched_tags = []
