@@ -21,4 +21,4 @@ class SysDocData(Base):
 
     doc: Mapped[Union['SysDoc', None]] = relationship(init=False, back_populates='doc_data')
 
-    excel_data: Mapped[JSON | None] = mapped_column(JSON, default=None, comment='excel数据')
+    row: Mapped[JSON | None] = mapped_column(JSON, default=None, comment='行数据')

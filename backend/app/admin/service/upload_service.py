@@ -38,6 +38,7 @@ from backend.app.admin.service.mail_box_service import mail_box_service
 from backend.app.admin.utils.text_processor import process_file, classify_text_tags
 from backend.app.admin.utils.spam_detector import spam_detector
 from backend.app.admin.service.tag_service import tag_service
+from backend.app.admin.utils.tabular_processor import tabular_processor
 from backend.utils.oss_client import minio_client
 from backend.utils.upload_utils import (
     get_file_suffix,
@@ -53,7 +54,8 @@ from backend.utils.upload_utils import (
     is_zip_file,
     is_rar_file,
     is_parquet_file,
-    is_mbox_file
+    is_mbox_file,
+    is_csv_file
     )
 
 bucket_name = settings.BUCKET_NAME
@@ -498,6 +500,9 @@ class UploadService:
 
         if is_excel_file(doc.file_suffix):
             content = await upload_service.read_excel_data(doc=doc, file_bytes=file_bytes)
+
+        if is_csv_file(doc.file_suffix):
+            content = await upload_service.read_csv_data(doc=doc, file_bytes=file_bytes)
 
         if is_parquet_file(doc.file_suffix):
             content = await upload_service.read_parquet_data(doc=doc, file_bytes=file_bytes)
@@ -1093,58 +1098,29 @@ class UploadService:
 
 
     @staticmethod
-    def _read_excel_sync(file_bytes: bytes) -> tuple[list, str]:
-        """同步读取 Excel 文件，返回数据和内容字符串"""
-        # 用 mimetypes 和文件头判断格式
-        buffer = BytesIO(file_bytes)
-        file_start = buffer.read(8)
-        buffer.seek(0)
-
-        # 判断格式：前8字节可识别是 xls 还是 xlsx
-        is_xlsx = file_start.startswith(b'PK')  # zip格式，xlsx 本质上是压缩包
-        is_xls = file_start[:2] == b'\xD0\xCF'  # ole2格式，xls 特征头
-
-        if is_xlsx:
-            engine = "openpyxl"
-        elif is_xls:
-            engine = "xlrd"
-        else:
-            raise ValueError("不支持的 Excel 文件格式，请上传 .xls 或 .xlsx 文件")
-
-        # 读取文件内容
-        df = pd.read_excel(BytesIO(file_bytes), nrows=10, header=None, engine=engine)
-
-        head = 0
-        for i, row in df.iterrows():
-            if not row.isna().any():
-                head = i
-                break
-        df = pd.read_excel(BytesIO(file_bytes), header=head, engine=engine)
-
-        # 替换 NaN 为 None（可以避免 PostgreSQL 插入错误）
-        df = df.where(pd.notnull(df), None)
-        df.replace([np.nan, np.inf, -np.inf], None, inplace=True)
-
-        # 将 DataFrame 转换为 JSON 格式
-        data_json = df.to_dict(orient="records")
-
-        content = ''
-        for excel_data in data_json:
-            strings = UploadService.dict_to_string(excel_data)
-            row = strings + '\n'
-            content += row
-        content = content.replace("Unnamed", "").replace("None", "")
-        return data_json, content
-
-    @staticmethod
     async def read_excel_data(doc: SysDoc, file_bytes: bytes):
-        # 在线程池中执行同步的 Excel 读取操作
-        data_json, content = await asyncio.to_thread(UploadService._read_excel_sync, file_bytes)
+        """读取 Excel 文件并保存数据"""
+        # 使用 tabular_processor 读取 Excel
+        data_json, content = await tabular_processor.read_excel(file_bytes)
 
         doc_id = doc.id
         obj_list = []
-        for excel_data in data_json:
-            param = CreateSysDocDataParam(doc_id=doc_id, excel_data=excel_data)
+        for row_data in data_json:
+            param = CreateSysDocDataParam(doc_id=doc_id, row=row_data)
+            obj_list.append(param)
+        await sys_doc_service.create_doc_data(obj_list=obj_list)
+        return content
+
+    @staticmethod
+    async def read_csv_data(doc: SysDoc, file_bytes: bytes):
+        """读取 CSV 文件并保存数据"""
+        # 使用 tabular_processor 读取 CSV
+        data_json, content = await tabular_processor.read_csv(file_bytes)
+
+        doc_id = doc.id
+        obj_list = []
+        for row_data in data_json:
+            param = CreateSysDocDataParam(doc_id=doc_id, row=row_data)
             obj_list.append(param)
         await sys_doc_service.create_doc_data(obj_list=obj_list)
         return content
@@ -1182,7 +1158,9 @@ class UploadService:
             row_data = {}
             for col in df_sample.columns:
                 row_data[col] = row[col]
-            strings = UploadService.dict_to_string(row_data)
+            # 使用 tabular_processor 的工具方法
+            from backend.app.admin.utils.tabular_processor import TabularProcessor
+            strings = TabularProcessor.dict_to_string(row_data)
             content += strings + '\n'
 
         data_json = df_sample.to_dict(orient="records")
@@ -1196,18 +1174,12 @@ class UploadService:
         # 将数据保存到数据库
         doc_id = doc.id
         obj_list = []
-        for parquet_data in data_json:
-            param = CreateSysDocDataParam(doc_id=doc_id, excel_data=parquet_data)
+        for row_data in data_json:
+            param = CreateSysDocDataParam(doc_id=doc_id, row=row_data)
             obj_list.append(param)
         await sys_doc_service.create_doc_data(obj_list=obj_list)
 
         return content
-
-
-
-    @staticmethod
-    def dict_to_string(input_dict: dict) -> str:
-        return ' '.join(f"{key} {value}" for key, value in input_dict.items())
 
 
 

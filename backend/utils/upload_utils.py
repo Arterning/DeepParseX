@@ -20,7 +20,7 @@ def is_compressed_file(file_suffix: str) -> bool:
     return is_zip_file(file_suffix) or is_rar_file(file_suffix) or is_7z_file(file_suffix)
 
 def is_excel_file(file_suffix: str) -> bool:
-    return file_suffix in ['.xls', '.xlsx', '.csv']
+    return file_suffix in ['.xls', '.xlsx']
 
 def is_csv_file(file_suffix: str) -> bool:
     return file_suffix in ['.csv']

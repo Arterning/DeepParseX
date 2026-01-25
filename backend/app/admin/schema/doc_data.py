@@ -7,7 +7,7 @@ from backend.common.schema import SchemaBase
 
 
 class SysDocDataSchemaBase(SchemaBase):
-    excel_data: dict
+    row: dict
     doc_id: int
 
 
