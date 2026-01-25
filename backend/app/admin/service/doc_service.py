@@ -7,6 +7,7 @@ from typing import List
 from backend.app.admin.service.knowledge_graph.kg_service import kg_service
 from backend.app.admin.crud.crud_doc import sys_doc_dao
 from backend.app.admin.crud.crud_doc_data import sys_doc_data_dao
+from backend.app.admin.crud.crud_doc_chunk import sys_doc_chunk_dao
 from backend.app.admin.crud.crud_doc_embedding import sys_doc_embedding_dao
 from backend.app.admin.crud.crud_tag import tag_dao
 from backend.app.admin.model import SysDoc
@@ -14,11 +15,13 @@ from backend.app.admin.model import SubjectPredictObject
 from backend.app.admin.model.sys_entity import Entity
 from backend.app.admin.model.sys_entity_relationship import EntityRelation
 from backend.app.admin.model import SysDocData
+from backend.app.admin.model.sys_doc_chunk import SysDocChunk
 from backend.app.admin.model.sys_star_doc import sys_star_doc
 from backend.app.admin.schema.doc import CreateSysDocParam, UpdateSysDocParam
 from backend.common.exception import errors
 from backend.database.db_pg import async_db_session
 from backend.app.admin.schema.doc_data import CreateSysDocDataParam
+from backend.app.admin.schema.doc_chunk import CreateSysDocChunkParam
 from backend.app.admin.schema.doc_embdding import CreateSysDocEmbeddingParam
 from backend.app.admin.utils.text_processor import embed_text_chunks
 from backend.app.admin.service.llm_service import llm_service
@@ -838,18 +841,48 @@ class SysDocService:
     
     @staticmethod
     async def search(*, keyword: str = None, page: int = None, size: int = None):
+        """
+        在文档分块中搜索关键词
+
+        :param keyword: 搜索关键词
+        :param page: 页码
+        :param size: 每页大小
+        :return: 搜索结果
+        """
+        if not keyword:
+            return {
+                "items": [],
+                "page": page or 1,
+                "size": size or 10,
+                "total": 0
+            }
+
         cut = jieba.cut_for_search(keyword)
         seg_list = list(cut)  # 立即转换为列表
-        # print("seg_list:", seg_list)
+
         async with async_db_session() as db:
             tokens = ' '.join(seg_list)
-            res = await sys_doc_dao.search(db, tokens, page, size)
+            # 使用分块搜索
+            res = await sys_doc_chunk_dao.search_chunks(
+                db,
+                tokens,
+                page or 1,
+                size or 10,
+                search_translation=False
+            )
+
+            # 高亮处理
             items = res.get("items")
             for item in items:
-                # 对每个文档的内容进行高亮处理
-                hit = SysDocService.highlight_text_window(item.get("content"), seg_list)
-                item["title"] = SysDocService.highlight_text(item.get("title"), seg_list)
-                item["hit"] = hit
+                # 高亮文档标题
+                item["doc_title"] = SysDocService.highlight_text(item.get("doc_title"), seg_list)
+
+                # 处理分块的高亮
+                for chunk in item.get("chunks", []):
+                    # highlight 字段已经由数据库的 ts_headline 处理过了
+                    # 这里不需要再次高亮
+                    pass
+
             return res
 
     @staticmethod
@@ -904,32 +937,85 @@ class SysDocService:
             return doc
 
 
-    # tsvector 最大限制约 1MB，中文 UTF-8 约 3 字节/字符
-    # 安全起见限制在 300,000 字符（约 900KB）
-    TSVECTOR_MAX_CHARS = 300000
+    # 分块大小（字符数）
+    CHUNK_SIZE = 8000
 
     @staticmethod
     async def create_doc_tokens(*, id: int) -> SysDoc:
+        """
+        为文档创建分块并生成分词向量
+
+        :param id: 文档ID
+        :return: 文档对象
+        """
         doc = await sys_doc_service.get(pk=id)
         title = doc.title
         content = doc.content
         doc_type = doc.type
 
-        # 对于大文档，只索引前 N 个字符
-        if content and len(content) > SysDocService.TSVECTOR_MAX_CHARS:
-            content = content[:SysDocService.TSVECTOR_MAX_CHARS]
+        if not content:
+            return doc
 
-        # 使用 run_in_executor 在线程池中执行分词（避免阻塞事件循环）
-        loop = asyncio.get_running_loop()
+        # 处理内容：如果是 HTML 则提取纯文本
+        if is_html_content(content):
+            content = extract_text_from_html(content)
 
-        # 生成带权重的 tsvector 格式字符串（保留原文字符位置）
-        doc_vector_str = await loop.run_in_executor(
-            None, text_to_weighted_tsvector, title, content, doc_type
-        )
+        if not content or not content.strip():
+            return doc
 
-        async with async_db_session() as db:
-            res = await sys_doc_dao.update_tokens(db, doc, doc_vector_str)
-            return res
+        # 先删除该文档的旧分块记录
+        async with async_db_session.begin() as db:
+            await sys_doc_chunk_dao.delete_by_doc_id(db, [id])
+
+        # 分块处理
+        chunks = []
+        content_length = len(content)
+        chunk_index = 0
+
+        for i in range(0, content_length, SysDocService.CHUNK_SIZE):
+            chunk_text = content[i:i + SysDocService.CHUNK_SIZE]
+
+            # 为第一个分块添加标题和文档类型权重
+            if chunk_index == 0:
+                # 使用 run_in_executor 在线程池中执行分词
+                loop = asyncio.get_running_loop()
+                chunk_vector_str = await loop.run_in_executor(
+                    None, text_to_weighted_tsvector, title, chunk_text, doc_type
+                )
+            else:
+                # 其他分块只索引内容
+                loop = asyncio.get_running_loop()
+                chunk_vector_str = await loop.run_in_executor(
+                    None, text_to_tsvector, chunk_text, 'search'
+                )
+
+            # 创建分块对象
+            chunk_param = CreateSysDocChunkParam(
+                doc_id=id,
+                chunk_index=chunk_index,
+                chunk_text=chunk_text
+            )
+            chunks.append((chunk_param, chunk_vector_str))
+            chunk_index += 1
+
+        # 批量创建分块并更新向量
+        async with async_db_session.begin() as db:
+            # 先创建分块记录
+            chunk_objects = await sys_doc_chunk_dao.create_bulk(
+                db,
+                [chunk_param for chunk_param, _ in chunks]
+            )
+
+            # 更新每个分块的向量
+            for chunk_obj, (_, vector_str) in zip(chunk_objects, chunks):
+                await sys_doc_chunk_dao.update_chunk_vector(
+                    db,
+                    chunk_obj.id,
+                    vector_str,
+                    is_translation=False
+                )
+
+        return doc
 
     @staticmethod
     async def create_doc_data(*, obj_list: CreateSysDocDataParam) -> SysDocData:
@@ -974,7 +1060,13 @@ class SysDocService:
         async with async_db_session.begin() as db:
             count = await sys_doc_data_dao.delete(db, doc_id)
             return count
-        
+
+    @staticmethod
+    async def delete_doc_chunks(*, doc_id: list[int]) -> int:
+        async with async_db_session.begin() as db:
+            count = await sys_doc_chunk_dao.delete_by_doc_id(db, doc_id)
+            return count
+
     @staticmethod
     async def delete_doc_embeddings(*, doc_id: list[int]) -> int:
         async with async_db_session.begin() as db:

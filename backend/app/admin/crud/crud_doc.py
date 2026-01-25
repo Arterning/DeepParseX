@@ -33,72 +33,6 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
         )
         return doc.scalars().first()
 
- 
-    async def search(self, db: AsyncSession, tokens: str = None, page: int = None, size: int = None):
-        # 初始化分页参数
-        if page is None:
-            page = 1
-        if size is None:
-            size = 10
-
-        # 计算偏移量
-        offset = (page - 1) * size
-
-        if tokens:
-            # 使用 doc_vector 列直接查询，利用 GIN 索引 ix_sys_doc_vector
-            # ts_headline 用于高亮匹配内容
-            query = """
-            SELECT id, name, title, type, content,
-                   ts_headline('simple', content, plainto_tsquery('simple', :tokens),
-                               'StartSel=<mark>, StopSel=</mark>, MaxWords=50, MinWords=20, MaxFragments=3')
-                   AS highlight
-            FROM sys_doc
-            WHERE doc_vector @@ plainto_tsquery('simple', :tokens)
-            ORDER BY ts_rank(doc_vector, plainto_tsquery('simple', :tokens)) DESC
-            LIMIT :limit OFFSET :offset;
-            """
-            result = await db.execute(
-                text(query),
-                {"tokens": tokens, "limit": size, "offset": offset}
-            )
-            # 使用 fetchall() 来获取完整的行
-            docs = result.fetchall()  # 返回所有行
-
-            # 将每一行转为字典格式，便于查看
-            docs_list = [{
-                "id": doc.id,
-                "name": doc.name,
-                "type": doc.type,
-                "title": doc.title,
-                "content": doc.content,
-                "highlight": doc.highlight
-            } for doc in docs]
-
-            # 执行总记录数查询
-            count_query = """
-            SELECT count(*)
-            FROM sys_doc
-            WHERE doc_vector @@ plainto_tsquery('simple', :tokens);
-            """
-            count_result = await db.execute(text(count_query), {"tokens": tokens})
-            total = count_result.scalar()
-
-            # 返回包含分页信息的结果
-            return {
-                "items": docs_list,
-                "page": page,
-                "size": size,
-                "total": total
-            }
-        else:
-            return {
-                "items": [],
-                "page": page,
-                "size": size,
-                "total": 0
-            }
-
-
     async def get_list(self, name: str = None, doc_type: str = None,
                        title: str = None, source: str = None,
                         content: str = None, ids: list[int] = None,
@@ -202,31 +136,6 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
         doc = self.model(**dict_obj)
         db.add(doc)
         return doc
-
-    async def update_tokens(self, db: AsyncSession, doc: SysDoc, doc_vector_str: str):
-        """
-        更新文档的分词向量
-
-        Args:
-            db: 数据库会话
-            doc: 文档对象
-            doc_vector_str: tsvector 格式字符串，如 "'词1':1A '词2':2B"
-        """
-        update_sql = """
-            UPDATE sys_doc
-            SET doc_vector = CAST(:doc_vector_str AS tsvector)
-            WHERE id = :doc_id
-        """
-        result = await db.execute(
-            text(update_sql),
-            {
-                "doc_vector_str": doc_vector_str,
-                "doc_id": doc.id
-            }
-        )
-        await db.commit()
-        return result
-
 
     async def update(self, db: AsyncSession, pk: int, obj_in: UpdateSysDocParam) -> int:
         """

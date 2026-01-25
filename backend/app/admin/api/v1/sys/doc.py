@@ -307,9 +307,10 @@ async def delete_sys_doc(pk: Annotated[list[int], Query(...)]) -> ResponseModel:
     count = await sys_doc_service.delete(pk=pk)
     if count > 0:
         await sys_doc_service.delete_doc_data(doc_id=pk)
+        await sys_doc_service.delete_doc_chunks(doc_id=pk)
         await sys_doc_service.delete_doc_embeddings(doc_id=pk)
         return response_base.success()
-    
+
     for id in pk:
         doc = await sys_doc_service.get(pk=id)
         if not doc:

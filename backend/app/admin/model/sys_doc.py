@@ -3,7 +3,7 @@
 from datetime import datetime
 from sqlalchemy import UUID, String, ForeignKey
 from sqlalchemy.schema import Index
-from sqlalchemy.dialects.postgresql import TEXT, TSVECTOR
+from sqlalchemy.dialects.postgresql import TEXT
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import TIMESTAMP
@@ -20,7 +20,6 @@ class SysDoc(Base):
     __table_args__ = (
         Index('ix_sys_document_created_time', 'created_time'),
         Index('ix_sys_document_updated_time', 'updated_time'),
-        Index('ix_sys_doc_vector', 'doc_vector', postgresql_using='gin'),
     )
 
     id: Mapped[id_key] = mapped_column(init=False)
@@ -32,7 +31,6 @@ class SysDoc(Base):
     desc: Mapped[str | None] = mapped_column(TEXT, default=None, comment='摘要')
     translation: Mapped[str | None] = mapped_column(TEXT, default=None, comment='翻译内容')
     file: Mapped[str | None] = mapped_column(TEXT, default=None, comment='文件原件')
-    doc_vector: Mapped[TSVECTOR | None] = mapped_column(TSVECTOR, default=None, comment='分词向量')
     error_msg: Mapped[str | None] = mapped_column(TEXT, default=None, comment='错误信息')
     source: Mapped[str | None] = mapped_column(TEXT, default=None, comment='文件来源')
     belong: Mapped[int | None] = mapped_column(default=None, comment='文件属于')
@@ -62,6 +60,7 @@ class SysDoc(Base):
     doc_dir: Mapped['SysDocDir'] = relationship(init=False, back_populates='docs')
     email_msg: Mapped['MailMsg'] = relationship(init=False, back_populates='doc')
     doc_data: Mapped[list['SysDocData']] = relationship(init=False, back_populates='doc')
+    doc_chunks: Mapped[list['SysDocChunk']] = relationship(init=False, back_populates='doc')
     doc_desc: Mapped[list['SysDocEmbedding']] = relationship(init=False, back_populates='doc')
     doc_spos: Mapped[list['SubjectPredictObject']] = relationship(init=False, back_populates='doc')
 
