@@ -32,7 +32,6 @@ class SysDoc(Base):
     desc: Mapped[str | None] = mapped_column(TEXT, default=None, comment='摘要')
     translation: Mapped[str | None] = mapped_column(TEXT, default=None, comment='翻译内容')
     file: Mapped[str | None] = mapped_column(TEXT, default=None, comment='文件原件')
-    doc_tokens: Mapped[str | None] = mapped_column(TEXT, default=None, comment='分词内容')
     doc_vector: Mapped[TSVECTOR | None] = mapped_column(TSVECTOR, default=None, comment='分词向量')
     error_msg: Mapped[str | None] = mapped_column(TEXT, default=None, comment='错误信息')
     source: Mapped[str | None] = mapped_column(TEXT, default=None, comment='文件来源')

@@ -12,7 +12,6 @@ class SysDocSchemaBase(SchemaBase):
     type: str | None = None
     file_suffix: str | None = None
     content: str | None = None
-    doc_tokens: str | None = None
     desc: str | None = None
     translation: str | None = None
     file: str | None = None

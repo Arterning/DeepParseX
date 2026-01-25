@@ -927,23 +927,8 @@ class SysDocService:
             None, text_to_weighted_tsvector, title, content, doc_type
         )
 
-        # 同时生成空格分隔的分词结果（用于 doc_tokens 字段，便于调试和其他用途）
-        title_tokens = ''
-        content_tokens = ''
-        if title:
-            title_seg = await loop.run_in_executor(None, lambda: list(jieba.cut_for_search(title)))
-            title_tokens = " ".join(title_seg) + " " + (doc_type or '')
-        if content:
-            content_seg = await loop.run_in_executor(None, lambda: list(jieba.cut_for_search(content)))
-            content_tokens = " ".join(content_seg)
-
-        all_tokens = (title_tokens + " " + content_tokens).strip()
-        # 确保总长度不超限
-        if len(all_tokens) > SysDocService.TSVECTOR_MAX_CHARS:
-            all_tokens = all_tokens[:SysDocService.TSVECTOR_MAX_CHARS]
-
         async with async_db_session() as db:
-            res = await sys_doc_dao.update_tokens(db, doc, doc_vector_str, all_tokens)
+            res = await sys_doc_dao.update_tokens(db, doc, doc_vector_str)
             return res
 
     @staticmethod
