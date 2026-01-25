@@ -874,14 +874,12 @@ class SysDocService:
             # 高亮处理
             items = res.get("items")
             for item in items:
-                # 高亮文档标题
-                item["doc_title"] = SysDocService.highlight_text(item.get("doc_title"), seg_list)
+                item["title"] = SysDocService.highlight_text(item.get("doc_title"), seg_list)
+                chunks = item.get("chunks", [])
+                chunk = chunks[0] if chunks else None
+                chunk_text = chunk.get("chunk_text", "") if chunk else ""
+                item["hit"] = SysDocService.highlight_text_window(chunk_text, seg_list)
 
-                # 处理分块的高亮
-                for chunk in item.get("chunks", []):
-                    # highlight 字段已经由数据库的 ts_headline 处理过了
-                    # 这里不需要再次高亮
-                    pass
 
             return res
 
@@ -938,7 +936,7 @@ class SysDocService:
 
 
     # 分块大小（字符数）
-    CHUNK_SIZE = 8000
+    CHUNK_SIZE = 5000
 
     @staticmethod
     async def create_doc_tokens(*, id: int) -> SysDoc:
