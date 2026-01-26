@@ -50,7 +50,7 @@ class ChatService:
             # 检索该文档的相关片段（限定doc_id）
             similar_docs = await sys_doc_service.search_similar_docs(
                 query_vector=query_vector,
-                limit=20,
+                limit=10,
                 distance_threshold=1.2,
                 doc_id=id
             )
@@ -162,14 +162,49 @@ class ChatService:
                     history_context = "\n".join(history_lines)
 
         if obj.doc_id:
-            # 如果指定了文档ID，则只查询该文档的相关片段
+            # 如果指定了文档ID，则使用向量检索该文档的相关片段
+            # 验证文档是否存在
             doc = await sys_doc_service.get(pk=obj.doc_id)
             if not doc:
                 return {
                     "answer": "指定的文档不存在。",
                     "chunks": []
                 }
-            context = doc.content if doc.content else ""
+
+            # 对用户问题进行向量化
+            question_text_emb = await embed_text_chunks(obj.question)
+            query_vector = question_text_emb[0]["embs"]
+
+            # 使用向量检索，限定 doc_id
+            similar_docs = await sys_doc_service.search_similar_docs(
+                query_vector=query_vector,
+                limit=check_topk,
+                distance_threshold=1.2,
+                doc_id=obj.doc_id
+            )
+
+            context_list = []
+            sources = {}  # 存储编号与超链接映射
+            chunks = []  # 存储文本片段列表
+
+            for idx, doc_chunk in enumerate(similar_docs):
+                if doc_chunk.chunk_text:
+                    # 构建超链接
+                    link = f"[{idx + 1}] <doclink data-doc-id=\"{doc_chunk.doc_id}\" data-chunk-id=\"{doc_chunk.chunk_id}\" data-doc-name=\"{doc_chunk.doc_name}\" >{doc_chunk.doc_name}</doclink>"
+                    # 存储编号与超链接的映射
+                    sources[f"[{idx + 1}]"] = link
+                    source_entry = f"来源：[{idx + 1}] \n内容: {doc_chunk.chunk_text}"
+                    context_list.append(source_entry)
+
+                    # 将 chunk 信息添加到列表中
+                    chunks.append({
+                        "chunk_id": doc_chunk.chunk_id,
+                        "chunk_text": doc_chunk.chunk_text,
+                        "doc_id": doc_chunk.doc_id,
+                        "doc_name": doc_chunk.doc_name
+                    })
+
+            context = "\n".join(context_list)
 
             # 构建系统提示词
             system_context_parts = []
@@ -194,22 +229,27 @@ class ChatService:
             if context:
                 system_context_parts.append(
                     "请基于以上知识库上下文提供详细、深入的分析和回答。"
-                    "如果知识库中有相关信息，请充分引用并展开说明；"
+                    "如果知识库中有相关信息，请充分引用并展开说明，并在回答中用 [编号] 标注引用的来源；"
                     "如果知识库中没有相关信息，可以结合你自己的知识给出专业建议。"
                     "作为一个人工智能助手，你的回答要尽可能严谨、全面、有深度。"
                 )
             else:
                 system_context_parts.append(
-                    "知识库上下文为空，请根据你自己的知识和专业能力提供详细、深入的分析和回答。"
+                    "知识库中未找到相关上下文信息，请根据你自己的知识和专业能力提供详细、深入的分析和回答。"
                     "作为一个人工智能助手，你的回答要尽可能严谨、全面、有深度。"
                 )
 
             system_context = "\n".join(system_context_parts)
             response = await llm_service.get_llm_response(system_context, obj.question)
 
+            # 替换回答中的 [编号] 为超链接
+            for ref, link in sources.items():
+                if response:
+                    response = response.replace(ref, f"{link}")
+
             return {
                 "answer": response,
-                "chunks": []
+                "chunks": chunks
             }
         else:
             question_text_emb = await embed_text_chunks(obj.question)
