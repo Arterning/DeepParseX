@@ -875,7 +875,7 @@ class SysDocService:
             # 高亮处理
             items = res.get("items")
             for item in items:
-                item["title"] = SysDocService.highlight_text(item.get("doc_title"), seg_list)
+                item["doc_title"] = SysDocService.highlight_text(item.get("doc_title"), seg_list)
                 chunks = item.get("chunks", [])
                 chunk = chunks[0] if chunks else None
                 chunk_text = chunk.get("chunk_text", "") if chunk else ""
