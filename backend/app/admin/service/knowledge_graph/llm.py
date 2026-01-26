@@ -201,7 +201,10 @@ async def call_llm(user_prompt: str, system_prompt: Optional[str] = None,
     }
 
     adapter = LLMFactory.create_adapter(provider, **adapter_kwargs)
-    return adapter.call(user_prompt, system_prompt, config)
+
+    # 使用 asyncio.to_thread 在线程池中执行同步的 HTTP 请求，避免阻塞事件循环
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, adapter.call, user_prompt, system_prompt, config)
 
 
 def extract_json_from_text(text):
