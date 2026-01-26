@@ -455,6 +455,7 @@ class SysDocService:
                 "max_tokens": 1000,
                 "temperature": 0.7
             },
+            "max_chunks": 3,
             "chunking": {
                 "chunk_size": 1000,
                 "overlap": 50

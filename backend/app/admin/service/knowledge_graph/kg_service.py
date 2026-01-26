@@ -182,6 +182,7 @@ async def process_text_in_chunks(config: dict, full_text, debug=False):
     
     # Process each chunk
     all_results = []
+    text_chunks = text_chunks[:config.get("max_chunks", len(text_chunks))]  # Limit number of chunks if specified
     for i, chunk in enumerate(text_chunks):
         print(f"Processing chunk {i+1}/{len(text_chunks)} ({len(chunk.split())} words)")
         
@@ -288,8 +289,6 @@ class KnowledgeGraphService:
 
     @staticmethod
     async def generate_knowledge_graph(input_text: str, config: dict, debug: bool = False) -> None:
-        # loop = asyncio.get_event_loop()
-        # result = await loop.run_in_executor(None, process_text_in_chunks, config, input_text, debug)
         result = await process_text_in_chunks(config, input_text, debug)
         if result:
             print("Knowledge graph generation completed successfully.")
