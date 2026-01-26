@@ -62,7 +62,7 @@ def get_file_suffix(filename: str):
 
 
 file_type_handlers = {
-    '表格': lambda suffix: is_excel_file(suffix) or is_parquet_file(suffix),
+    '表格': lambda suffix: is_excel_file(suffix) or is_parquet_file(suffix) or is_csv_file(suffix),
     '图片': is_picture_file,
     '媒体': is_media_file,
     '文本': is_text_file,
