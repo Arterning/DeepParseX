@@ -309,7 +309,7 @@ class UploadService:
         # 直接await调用异步版本的process_file
         response = await process_file(title, file_bytes)
         if not response or 'content' not in response:
-            return '无法获取文件解析结果'
+            return ""
         raw_content = response.get('content', '')
         clean_content = upload_service.sanitize_text(raw_content)
         return clean_content
@@ -483,16 +483,23 @@ class UploadService:
             content = await upload_service.request_content(title=doc.title, file_bytes=file_bytes)
 
         if is_pdf_file(doc.file_suffix):
-            # 在线程池中执行 PDF 文字提取（pdfplumber/PyPDF2 是同步阻塞操作）
-            pdf_text = await asyncio.to_thread(upload_service.extract_pdf_text, file_bytes)
-            if pdf_text and len(pdf_text.strip()) > 100:
-                # 如果提取到足够的文字内容（超过100字符），直接使用
-                content = pdf_text
-                log.info(f"PDF文件 {doc.title} 为文字型，直接提取文字内容，长度: {len(content)}")
-            else:
-                # 否则调用 OCR 服务
-                log.info(f"PDF文件 {doc.title} 为扫描型或文字过少，调用OCR服务")
+            try:
                 content = await upload_service.request_content(title=doc.title, file_bytes=file_bytes)
+                if content and len(content.strip()) > 0:
+                    log.info(f"PDF文件 {doc.title} OCR 处理成功，内容长度: {len(content)}")
+                else:
+                    log.warning(f"PDF文件 {doc.title} OCR 返回内容为空，尝试使用 pdfplumber/PyPDF2 fallback")
+                    raise ValueError("OCR 返回内容为空")
+            except Exception as e:
+                # OCR 调用失败，使用 pdfplumber/PyPDF2 作为 fallback
+                log.warning(f"PDF文件 {doc.title} OCR 服务调用失败: {str(e)}，使用 pdfplumber/PyPDF2 fallback")
+                pdf_text = await asyncio.to_thread(upload_service.extract_pdf_text, file_bytes)
+                if pdf_text and len(pdf_text.strip()) > 0:
+                    content = pdf_text
+                    log.info(f"PDF文件 {doc.title} 使用 pdfplumber/PyPDF2 提取文字成功，长度: {len(content)}")
+                else:
+                    content = ''
+                    log.error(f"PDF文件 {doc.title} OCR 和 pdfplumber/PyPDF2 均无法提取有效内容")
 
         if is_docx_file(doc.file_suffix) or is_media_file(doc.file_suffix) or is_pptx_file(doc.file_suffix):
             content = await upload_service.request_content(title=doc.title, file_bytes=file_bytes)
