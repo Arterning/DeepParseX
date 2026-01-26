@@ -901,11 +901,12 @@ class SysDocService:
         *,
         query_vector: list[float] = None,
         limit: int = None,
-        distance_threshold: float = None
+        distance_threshold: float = None,
+        doc_id: int = None
     ):
         async with async_db_session() as db:
             res = await sys_doc_embedding_dao.search_chunk_vector(
-                db, query_vector, limit, distance_threshold
+                db, query_vector, limit, distance_threshold, doc_id
             )
             return res
 

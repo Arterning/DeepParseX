@@ -17,7 +17,8 @@ class CRUDSysDocEmbedding(CRUDPlus[SysDocEmbedding]):
         db: AsyncSession,
         query_vector: list[float] = None,
         limit: int = 0,
-        distance_threshold: float = None
+        distance_threshold: float = None,
+        doc_id: int = None
     ) -> list:
         """
         向量相似度搜索
@@ -27,6 +28,7 @@ class CRUDSysDocEmbedding(CRUDPlus[SysDocEmbedding]):
         :param limit: 返回结果数量限制
         :param distance_threshold: 距离阈值，只返回距离小于此值的结果（距离越小越相似）
                                    建议值：0.8-1.5，默认为 1.2
+        :param doc_id: 文档ID，如果指定则只搜索该文档的分块
         :return: 相似文档列表
         """
         # 构建向量搜索SQL语句
@@ -54,24 +56,34 @@ class CRUDSysDocEmbedding(CRUDPlus[SysDocEmbedding]):
 
         vector_str = json.dumps(query_vector)
 
+        # 构建WHERE条件
+        where_conditions = [
+            f"{embedding_column} IS NOT NULL",
+            f"({embedding_column} <-> :query_vector) < :distance_threshold"
+        ]
+        params = {
+            "query_vector": vector_str,
+            "limit": limit,
+            "distance_threshold": distance_threshold
+        }
+
+        # 如果指定了doc_id，添加过滤条件
+        if doc_id is not None:
+            where_conditions.append("doc_id = :doc_id")
+            params["doc_id"] = doc_id
+
+        where_clause = " AND ".join(where_conditions)
+
         # 添加距离阈值过滤条件
         sql = f"""
         SELECT id, chunk_id, doc_id, doc_name, chunk_text, {embedding_column} <-> :query_vector AS distance
         FROM sys_doc_embedding
-        WHERE {embedding_column} IS NOT NULL
-          AND ({embedding_column} <-> :query_vector) < :distance_threshold
+        WHERE {where_clause}
         ORDER BY {embedding_column} <-> :query_vector
         LIMIT :limit
         """
 
-        result = await db.execute(
-            text(sql),
-            {
-                "query_vector": vector_str,
-                "limit": limit,
-                "distance_threshold": distance_threshold
-            }
-        )
+        result = await db.execute(text(sql), params)
 
         similar_docs = result.fetchall()
 

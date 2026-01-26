@@ -23,14 +23,67 @@ class ChatService:
         doc = await sys_doc_service.get(pk=id)
         if not doc.content:
             return ""
-        system_context = "你是一个专业的文档摘要生成器。请根据以下文件内容生成一个简洁的摘要。"
-        question = (
-            "请根据以下文件内容生成一个简洁的摘要：\n"
-            "---\n"
-            f"{doc.content}\n"
-            "---\n"
-            "作为一个人工智能助手，你的回答要尽可能严谨。"
-        )
+
+        # 字符限制阈值
+        CONTENT_LENGTH_THRESHOLD = 5000
+
+        # 检查文档内容长度
+        if len(doc.content) <= CONTENT_LENGTH_THRESHOLD:
+            # 内容未超限，直接生成摘要
+            system_context = "你是一个专业的文档摘要生成器。请根据以下文件内容生成一个简洁的摘要。"
+            question = (
+                "请根据以下文件内容生成一个简洁的摘要：\n"
+                "---\n"
+                f"{doc.content}\n"
+                "---\n"
+                "作为一个人工智能助手，你的回答要尽可能严谨。"
+            )
+        else:
+            # 内容超限，使用向量检索方式
+            # 固定查询词
+            summary_query = "请总结这个文档的核心内容、主要观点和关键信息"
+
+            # 对查询词进行向量化
+            question_text_emb = await embed_text_chunks(summary_query)
+            query_vector = question_text_emb[0]["embs"]
+
+            # 检索该文档的相关片段（限定doc_id）
+            similar_docs = await sys_doc_service.search_similar_docs(
+                query_vector=query_vector,
+                limit=20,
+                distance_threshold=1.2,
+                doc_id=id
+            )
+
+            # 构建上下文
+            context_list = []
+            for idx, doc_chunk in enumerate(similar_docs):
+                if doc_chunk.chunk_text:
+                    context_list.append(f"片段{idx + 1}: {doc_chunk.chunk_text}")
+
+            context = "\n\n".join(context_list)
+
+            # 构建系统提示词
+            if context:
+                system_context = "你是一个专业的文档摘要生成器。请根据以下文档片段生成一个简洁、全面的摘要。"
+                question = (
+                    "请根据以下文档片段生成一个简洁、全面的摘要：\n"
+                    "---\n"
+                    f"{context}\n"
+                    "---\n"
+                    "作为一个人工智能助手，你的回答要尽可能严谨、准确，并综合所有片段的关键信息。"
+                )
+            else:
+                # 如果没有检索到相关片段，使用文档的前N个字符
+                system_context = "你是一个专业的文档摘要生成器。请根据以下文件内容生成一个简洁的摘要。"
+                question = (
+                    "请根据以下文件内容生成一个简洁的摘要：\n"
+                    "---\n"
+                    f"{doc.content[:CONTENT_LENGTH_THRESHOLD]}\n"
+                    "---\n"
+                    "作为一个人工智能助手，你的回答要尽可能严谨。"
+                )
+
         response = await llm_service.get_llm_response(system_context, question)
         await sys_doc_service.base_update(pk=id, obj={
             'desc': response
