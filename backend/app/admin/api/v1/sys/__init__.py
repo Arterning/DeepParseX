@@ -18,6 +18,7 @@ from backend.app.admin.api.v1.sys.doc_dir import router as doc_dir_router
 from backend.app.admin.api.v1.sys.upload import router as upload_router
 from backend.app.admin.api.v1.sys.chat import router as chat_router
 from backend.app.admin.api.v1.sys.entity import router as entity_router
+from backend.app.admin.api.v1.sys.entity_type import router as entity_type_router
 from backend.app.admin.api.v1.sys.tag import router as tag_router
 from backend.app.admin.api.v1.sys.star_collect import router as star_collect_router
 from backend.app.admin.api.v1.sys.mail_box import router as mail_box_router
@@ -46,6 +47,7 @@ router.include_router(doc_dir_router, prefix='/doc_dirs', tags=['文件目录'])
 router.include_router(upload_router, prefix='/upload', tags=['上传文件'])
 router.include_router(chat_router, prefix='/chat', tags=['对话'])
 router.include_router(entity_router,prefix='/entity',tags=['实体'])
+router.include_router(entity_type_router,prefix='/entity_type',tags=['实体类型'])
 router.include_router(tag_router,prefix='/tags',tags=['标签'])
 router.include_router(star_collect_router, prefix='/star_collect', tags=['收藏'])
 router.include_router(mail_box_router,prefix='/mailbox',tags=['邮箱'])
