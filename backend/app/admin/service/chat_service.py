@@ -171,6 +171,73 @@ class ChatService:
                     "chunks": []
                 }
 
+            # 检查是否为数据文件类型
+            data_file_types = ['.parquet', '.csv', '.xlsx', '.xls']
+            if doc.file_suffix in data_file_types:
+                # 使用数据分析方法
+                analysis_result = await sys_doc_service.analyze_data_with_ai(
+                    pk=obj.doc_id,
+                    question=obj.question
+                )
+
+                # 检查是否有错误
+                if "error" in analysis_result:
+                    return {
+                        "answer": f"数据分析失败：{analysis_result['error']}",
+                        "chunks": []
+                    }
+
+                # 构建系统提示词，让LLM生成自然语言回答
+                system_context_parts = []
+
+                # 添加历史对话
+                if history_context:
+                    system_context_parts.append(
+                        "## 对话历史\n"
+                        f"{history_context}\n"
+                    )
+
+                # 添加数据分析结果
+                system_context_parts.append(
+                    "## 数据分析结果\n"
+                    f"用户问题：{analysis_result['question']}\n"
+                    f"执行的SQL查询：\n```sql\n{analysis_result['sql_query']}\n```\n\n"
+                    f"查询结果（共{analysis_result['result']['row_count']}行）：\n"
+                    f"列名：{', '.join(analysis_result['result']['columns'])}\n"
+                )
+
+                # 格式化查询结果数据
+                if analysis_result['result']['data']:
+                    import json
+                    result_data_str = json.dumps(
+                        analysis_result['result']['data'],
+                        ensure_ascii=False,
+                        indent=2
+                    )
+                    system_context_parts.append(f"数据内容：\n```json\n{result_data_str}\n```\n")
+
+                # 添加指导说明
+                system_context_parts.append(
+                    "\n请基于以上数据分析结果，用自然语言回答用户的问题。"
+                    "回答要求：\n"
+                    "1. 清晰、准确地解读查询结果\n"
+                    "2. 如果有数值统计，请明确说明\n"
+                    "3. 必要时可以总结关键发现\n"
+                    "4. 保持专业和严谨的态度\n"
+                )
+
+                system_context = "\n".join(system_context_parts)
+                response = await llm_service.get_llm_response(system_context, obj.question)
+
+                return {
+                    "answer": response,
+                    "chunks": [],
+                    "data_analysis": {
+                        "sql_query": analysis_result['sql_query'],
+                        "result_count": analysis_result['result']['row_count']
+                    }
+                }
+
             # 对用户问题进行向量化
             question_text_emb = await embed_text_chunks(obj.question)
             query_vector = question_text_emb[0]["embs"]
