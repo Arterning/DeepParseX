@@ -125,4 +125,10 @@ class CollectDocParam(SchemaBase):
 
 class ParseEntityParams(SchemaBase):
     model_config = ConfigDict(from_attributes=True)
-    entity_types: list[str] | None = None 
+    entity_types: list[str] | None = None
+
+
+class ExtractEntitiesParams(SchemaBase):
+    """提取实体参数"""
+    model_config = ConfigDict(from_attributes=True)
+    entity_type_ids: list[int] 

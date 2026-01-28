@@ -1281,6 +1281,193 @@ class SysDocService:
                 "error": f"数据分析出错: {str(e)}"
             }
 
+    @staticmethod
+    async def extract_entities_by_types(pk: int, entity_type_ids: List[int]):
+        """根据实体类型定义提取实体
+
+        Args:
+            pk (int): 文档ID
+            entity_type_ids (List[int]): 实体类型ID列表
+
+        Returns:
+            int: 提取到的实体数量
+        """
+        from backend.app.admin.crud.crud_entity_type import entity_type_dao
+        from backend.app.admin.crud.crud_entity import entity_dao
+        from backend.app.admin.model.sys_entity_doc import sys_entity_doc
+        import json
+
+        # 获取文档
+        doc = await sys_doc_service.get(pk=pk)
+        if not doc.content:
+            raise errors.ForbiddenError(msg='文档内容为空')
+
+        # 处理内容：如果是 HTML 则提取纯文本
+        content = doc.content
+        if is_html_content(content):
+            content = extract_text_from_html(content)
+
+        # 如果提取后内容为空，返回错误
+        if not content or not content.strip():
+            raise errors.ForbiddenError(msg='文档内容为空')
+
+        # 限制内容长度（避免 token 超限）
+        max_content_length = 8000
+        if len(content) > max_content_length:
+            content = content[:max_content_length] + "..."
+
+        async with async_db_session.begin() as db:
+            # 获取实体类型定义
+            entity_types = []
+            for type_id in entity_type_ids:
+                entity_type = await entity_type_dao.get(db, type_id)
+                if entity_type:
+                    entity_types.append(entity_type)
+
+            if not entity_types:
+                raise errors.NotFoundError(msg='未找到指定的实体类型')
+
+            # 构造提示词
+            type_definitions = []
+            for et in entity_types:
+                fields = et.field_definition if et.field_definition else []
+                type_definitions.append({
+                    "type_name": et.name,
+                    "description": et.description or "",
+                    "fields": fields
+                })
+
+            system_prompt = f"""你是一个专业的实体提取助手。请从给定的文本中提取实体信息。
+
+实体类型定义：
+{json.dumps(type_definitions, ensure_ascii=False, indent=2)}
+
+请严格按照以下JSON格式返回提取结果：
+{{
+  "entities": [
+    {{
+      "type": "实体类型名称",
+      "name": "实体名称",
+      "description": "实体描述（可选）",
+      "properties": {{
+        "字段名1": "值1",
+        "字段名2": "值2"
+      }}
+    }}
+  ]
+}}
+
+注意事项：
+1. 只提取明确出现在文本中的实体
+2. properties 中的字段必须严格按照实体类型定义的 fields 来提取
+3. 如果某个字段在文本中没有找到对应信息，则不要包含该字段
+4. 确保返回的是合法的JSON格式
+5. name 字段是必填的，description 可选
+"""
+
+            user_prompt = f"请从以下文本中提取实体：\n\n{content}"
+
+            # 调用 AI
+            try:
+                response = await llm_service.get_llm_response(system_prompt, user_prompt)
+
+                # 解析 AI 返回的结果
+                # 尝试提取 JSON（可能被包裹在 markdown 代码块中）
+                response_text = response.strip()
+                if "```json" in response_text:
+                    json_start = response_text.find("```json") + 7
+                    json_end = response_text.find("```", json_start)
+                    response_text = response_text[json_start:json_end].strip()
+                elif "```" in response_text:
+                    json_start = response_text.find("```") + 3
+                    json_end = response_text.find("```", json_start)
+                    response_text = response_text[json_start:json_end].strip()
+
+                result = json.loads(response_text)
+                entities_data = result.get("entities", [])
+
+                if not entities_data:
+                    return 0
+
+                # 保存实体到数据库
+                entity_count = 0
+                for entity_data in entities_data:
+                    entity_type_name = entity_data.get("type")
+                    entity_name = entity_data.get("name")
+                    entity_description = entity_data.get("description")
+                    entity_properties = entity_data.get("properties", {})
+
+                    if not entity_name or not entity_type_name:
+                        continue
+
+                    # 查找对应的实体类型
+                    matching_type = None
+                    for et in entity_types:
+                        if et.name == entity_type_name:
+                            matching_type = et
+                            break
+
+                    if not matching_type:
+                        continue
+
+                    # 检查是否已存在同名实体
+                    existing_entities = await db.execute(
+                        select(Entity).where(
+                            Entity.name == entity_name,
+                            Entity.entity_type == entity_type_name
+                        )
+                    )
+                    existing_entity = existing_entities.scalars().first()
+
+                    if existing_entity:
+                        # 更新已存在的实体（合并属性）
+                        if existing_entity.properties:
+                            existing_entity.properties.update(entity_properties)
+                        else:
+                            existing_entity.properties = entity_properties
+
+                        if entity_description and not existing_entity.description:
+                            existing_entity.description = entity_description
+
+                        entity_id = existing_entity.id
+                    else:
+                        # 创建新实体
+                        new_entity = Entity(
+                            name=entity_name,
+                            description=entity_description,
+                            entity_type=entity_type_name,
+                            entity_type_id=matching_type.id,
+                            properties=entity_properties,
+                            source_doc_id=pk,
+                            source_doc_name=doc.name or doc.title
+                        )
+                        db.add(new_entity)
+                        await db.flush()
+                        entity_id = new_entity.id
+                        entity_count += 1
+
+                    # 关联实体和文档
+                    existing_relation = await db.execute(
+                        select(sys_entity_doc).where(
+                            sys_entity_doc.c.entity_id == entity_id,
+                            sys_entity_doc.c.doc_id == pk
+                        )
+                    )
+                    if not existing_relation.first():
+                        await db.execute(
+                            sys_entity_doc.insert().values(
+                                entity_id=entity_id,
+                                doc_id=pk
+                            )
+                        )
+
+                await db.commit()
+                return entity_count
+
+            except json.JSONDecodeError as e:
+                raise errors.ServerError(msg=f"AI 返回的结果格式错误: {str(e)}")
+            except Exception as e:
+                raise errors.ServerError(msg=f"提取实体失败: {str(e)}")
 
 
 sys_doc_service = SysDocService()

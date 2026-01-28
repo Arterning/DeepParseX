@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.exceptions import HTTPException
 
 from backend.core.conf import settings
-from backend.app.admin.schema.doc import CreateSysDocParam, CollectDocParam, GetSysDocListDetails, GetSysDocPage, UpdateSysDocParam, GetDocDetail, ParseEntityParams
+from backend.app.admin.schema.doc import CreateSysDocParam, CollectDocParam, GetSysDocListDetails, GetSysDocPage, UpdateSysDocParam, GetDocDetail, ParseEntityParams, ExtractEntitiesParams
 from backend.app.admin.service.doc_service import sys_doc_service
 from backend.app.admin.service.upload_service import upload_service
 from backend.common.pagination import DependsPagination, paging_data
@@ -57,6 +57,25 @@ async def build_graph(
     return response_base.success(data=visualize_knowledge_graph)
 
 
+# 根据实体类型提取实体
+@router.post('/extract_entities/{pk}', summary='根据实体类型提取实体',
+    tags=['文档管理'],
+    dependencies=[DependsJwtAuth]
+)
+async def extract_entities(
+    pk: Annotated[int, Path(...)],
+    obj: ExtractEntitiesParams
+) -> ResponseModel:
+    try:
+        entity_count = await sys_doc_service.extract_entities_by_types(
+            pk=pk,
+            entity_type_ids=obj.entity_type_ids
+        )
+        return response_base.success(data={"count": entity_count}, message=f"成功提取 {entity_count} 个实体")
+    except Exception as e:
+        return response_base.fail(data=str(e))
+
+
 # 提取内容
 @router.get('/extract_text/{pk}', summary='提取文本',
     dependencies=[DependsJwtAuth]
@@ -72,7 +91,7 @@ async def extract_text(pk: Annotated[int, Path(...)]) -> ResponseModel:
 async def get_recent_docs(request: Request) -> ResponseModel:
     user_id = request.user.id
     docs = await sys_doc_service.get_hot_docs(user_id)
-    hot_docs = [GetSysDocListDetails(**select_as_dict(doc)) for doc in docs]
+    hot_docs = [GetSysDocPage(**select_as_dict(doc)) for doc in docs]
     return response_base.success(data=hot_docs)
 
 
