@@ -1121,12 +1121,14 @@ class SysDocService:
             }
 
     @staticmethod
-    async def extract_entities_by_types(pk: int, entity_type_ids: List[int]):
+    async def extract_entities_by_types(pk: int, entity_type_ids: List[int] = None, type_definitions: List[dict] = None):
         """根据实体类型定义提取实体
 
         Args:
             pk (int): 文档ID
-            entity_type_ids (List[int]): 实体类型ID列表
+            entity_type_ids (List[int]): 实体类型ID列表（可选）
+            type_definitions (List[dict]): 直接传入的类型定义列表（可选）
+                格式: [{"type_name": "人物", "fields": ["性别", "国籍"], "description": ""}]
 
         Returns:
             int: 提取到的实体数量
@@ -1156,25 +1158,65 @@ class SysDocService:
             content = content[:max_content_length] + "..."
 
         async with async_db_session.begin() as db:
-            # 获取实体类型定义
-            entity_types = []
-            for type_id in entity_type_ids:
-                entity_type = await entity_type_dao.get(db, type_id)
-                if entity_type:
-                    entity_types.append(entity_type)
+            # 如果传入了 type_definitions，需要与数据库中的字段定义合并
+            if type_definitions:
+                from backend.app.admin.model.sys_entity_type import EntityType
 
-            if not entity_types:
-                raise errors.NotFoundError(msg='未找到指定的实体类型')
+                # 读取数据库中对应的实体类型定义
+                merged_type_definitions = []
 
-            # 构造提示词
-            type_definitions = []
-            for et in entity_types:
-                fields = et.field_definition if et.field_definition else []
-                type_definitions.append({
-                    "type_name": et.name,
-                    "description": et.description or "",
-                    "fields": fields
-                })
+                for type_def in type_definitions:
+                    type_name = type_def.get("type_name")
+                    provided_fields = type_def.get("fields", [])
+
+                    # 从数据库查询同名的实体类型
+                    stmt = select(EntityType).where(EntityType.name == type_name)
+                    result = await db.execute(stmt)
+                    entity_type_obj = result.scalar_one_or_none()
+
+                    # 合并字段定义
+                    if entity_type_obj and entity_type_obj.field_definition:
+                        db_fields = entity_type_obj.field_definition
+                        # 合并并去重（保持顺序：先数据库字段，后传入字段）
+                        all_fields = []
+                        seen = set()
+                        for field in db_fields + provided_fields:
+                            if field not in seen:
+                                all_fields.append(field)
+                                seen.add(field)
+
+                        merged_type_definitions.append({
+                            "type_name": type_name,
+                            "description": entity_type_obj.description or type_def.get("description", ""),
+                            "fields": all_fields
+                        })
+                    else:
+                        # 数据库中没有该类型，直接使用传入的定义
+                        merged_type_definitions.append(type_def)
+
+                type_definitions = merged_type_definitions
+            # 否则从数据库读取实体类型定义
+            elif entity_type_ids:
+                entity_types = []
+                for type_id in entity_type_ids:
+                    entity_type = await entity_type_dao.get(db, type_id)
+                    if entity_type:
+                        entity_types.append(entity_type)
+
+                if not entity_types:
+                    raise errors.NotFoundError(msg='未找到指定的实体类型')
+
+                # 构造提示词
+                type_definitions = []
+                for et in entity_types:
+                    fields = et.field_definition if et.field_definition else []
+                    type_definitions.append({
+                        "type_name": et.name,
+                        "description": et.description or "",
+                        "fields": fields
+                    })
+            else:
+                raise errors.RequestError(msg='必须提供 entity_type_ids 或 type_definitions 参数')
 
             system_prompt = f"""你是一个专业的实体提取助手。请从给定的文本中提取实体信息。
 
@@ -1307,6 +1349,67 @@ class SysDocService:
                 raise errors.ServerError(msg=f"AI 返回的结果格式错误: {str(e)}")
             except Exception as e:
                 raise errors.ServerError(msg=f"提取实体失败: {str(e)}")
+
+    @staticmethod
+    async def auto_extract_entities_for_docs():
+        """定时任务：自动为没有关联实体的文档提取实体
+
+        每次处理10个文档，提取人物、组织、事件实体
+        """
+        from backend.app.admin.model.sys_entity_doc import sys_entity_doc
+        from backend.common.log import log
+
+        # 预设的实体类型定义
+        DEFAULT_ENTITY_TYPE_DEFINITIONS = [
+            {
+                "type_name": "事件",
+                "description": "事件实体",
+                "fields": ["时间", "地点", "参与者"]
+            }
+        ]
+
+        try:
+            async with async_db_session() as db:
+                # 查询没有关联实体的文档
+                # 使用 LEFT JOIN 找出在 sys_entity_doc 中没有记录的文档
+                stmt = (
+                    select(SysDoc.id)
+                    .outerjoin(sys_entity_doc, SysDoc.id == sys_entity_doc.c.doc_id)
+                    .where(sys_entity_doc.c.doc_id.is_(None))
+                    .where(SysDoc.status == 1)  # 只处理状态正常的文档
+                    .where(SysDoc.content.isnot(None))  # 必须有内容
+                    .limit(10)
+                )
+
+                result = await db.execute(stmt)
+                doc_ids = [row[0] for row in result.all()]
+
+                if not doc_ids:
+                    log.info("没有需要提取实体的文档")
+                    return
+
+                log.info(f"开始为 {len(doc_ids)} 个文档提取实体")
+
+                # 对每个文档提取实体
+                success_count = 0
+                error_count = 0
+
+                for doc_id in doc_ids:
+                    try:
+                        entity_count = await SysDocService.extract_entities_by_types(
+                            pk=doc_id,
+                            type_definitions=DEFAULT_ENTITY_TYPE_DEFINITIONS
+                        )
+                        success_count += 1
+                        log.info(f"文档 {doc_id} 提取了 {entity_count} 个实体")
+                    except Exception as e:
+                        error_count += 1
+                        log.error(f"文档 {doc_id} 提取实体失败: {str(e)}")
+
+                log.info(f"实体提取完成: 成功 {success_count} 个，失败 {error_count} 个")
+
+        except Exception as e:
+            log.error(f"自动提取实体任务失败: {str(e)}")
 
 
 sys_doc_service = SysDocService()

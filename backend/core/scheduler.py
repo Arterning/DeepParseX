@@ -19,6 +19,7 @@ scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
 def register_scheduled_jobs():
     """注册所有定时任务"""
     from backend.app.admin.service.news_briefing_service import news_briefing_service
+    from backend.app.admin.service.doc_service import sys_doc_service
 
     if settings.RSS_BRIEF_ENABLED:
         # 每日新闻简报任务 - 每天上午7点执行
@@ -32,6 +33,18 @@ def register_scheduled_jobs():
         )
 
         log.info("已注册定时任务: 每日新闻简报 (每天 07:00)")
+
+    # 自动提取实体任务 - 每小时执行一次
+    scheduler.add_job(
+        sys_doc_service.auto_extract_entities_for_docs,
+        trigger=CronTrigger(minute=0),  # 每小时的第0分钟执行
+        id="auto_extract_entities",
+        name="自动提取实体",
+        replace_existing=True,
+        misfire_grace_time=1800,  # 允许30分钟的延迟执行
+    )
+
+    log.info("已注册定时任务: 自动提取实体 (每小时一次)")
 
 
 async def start_scheduler():
