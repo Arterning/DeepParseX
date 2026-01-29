@@ -104,6 +104,13 @@ class EntityService:
             count = await entity_dao.delete(db, pk)
             return count
 
+    # 预设字段映射
+    DEFAULT_EDITABLE_FIELDS = {
+        '人物': ['性别', '国籍', '组织', '职位', '联系方式'],
+        '组织': ['类型', '国家'],
+        '事件': ['时间', '地点', '参与者']
+    }
+
     @staticmethod
     async def generate_properties_by_ai(*, pk: int) -> Dict[str, Any]:
         """
@@ -112,21 +119,52 @@ class EntityService:
         :param pk: 实体ID
         :return: 生成的属性字典
         """
+        from backend.app.admin.crud.crud_entity_type import entity_type_dao
+        from sqlalchemy import select
+        from backend.app.admin.model.sys_entity_type import EntityType
+
         async with async_db_session.begin() as db:
             # 获取实体（包含关联文档）
             entity = await entity_dao.get(db, pk)
             if not entity:
                 raise errors.NotFoundError(msg='实体不存在')
 
-            # 目前只支持"人物"类型
-            if entity.entity_type != '人物':
-                raise errors.RequestError(msg=f'暂不支持类型: {entity.entity_type}，目前仅支持"人物"类型')
+            # 获取预设字段
+            default_fields = EntityService.DEFAULT_EDITABLE_FIELDS.get(entity.entity_type, [])
+
+            # 从数据库读取用户配置的字段
+            custom_fields = []
+            stmt = select(EntityType).where(EntityType.name == entity.entity_type)
+            result = await db.execute(stmt)
+            entity_type_obj = result.scalar_one_or_none()
+
+            if entity_type_obj and entity_type_obj.field_definition:
+                custom_fields = entity_type_obj.field_definition
+
+            # 合并字段并去重（保持顺序）
+            all_fields = []
+            seen = set()
+            for field in default_fields + custom_fields:
+                if field not in seen:
+                    all_fields.append(field)
+                    seen.add(field)
+
+            if not all_fields:
+                raise errors.RequestError(
+                    msg=f'实体类型 {entity.entity_type} 没有配置任何字段'
+                )
+
+            # 构建字段的 JSON 模板（字段名为中文）
+            json_template_fields = [f'    "{field}": "字段值"' for field in all_fields]
+            json_template_fields.append('    "描述": "实体简要描述（一两句话概括关键信息）"')
+            json_template = '{\n' + ',\n'.join(json_template_fields) + '\n}'
 
             # 构建上下文信息
             context_parts = []
             context_parts.append(f'实体名称: {entity.name}')
+            context_parts.append(f'实体类型: {entity.entity_type}')
             if entity.description:
-                context_parts.append(f'实体描述: {entity.description}')
+                context_parts.append(f'现有描述: {entity.description}')
 
             # 获取关联文档内容
             if entity.docs:
@@ -142,21 +180,17 @@ class EntityService:
             user_input = '\n'.join(context_parts)
 
             # 构建 system prompt
-            system_prompt = '''你是一个信息提取专家。根据提供的实体信息和相关文档内容，提取人物的属性信息。
+            system_prompt = f'''你是一个信息提取专家。根据提供的实体信息和相关文档内容，提取{entity.entity_type}的属性信息。
 
 请严格按照以下JSON格式输出，只输出JSON，不要有其他内容：
-{
-    "gender": "性别（男/女/未知）",
-    "nationality": "国籍",
-    "organization": "所属组织",
-    "position": "职位",
-    "contact": "联系方式"
-}
+{json_template}
 
 注意：
 1. 如果某个属性无法从提供的信息中推断出来，请填写"未知"
 2. 只输出JSON格式，不要有任何其他文字说明
-3. 确保输出是有效的JSON格式'''
+3. 确保输出是有效的JSON格式
+4. "描述" 字段必须填写，用于简要描述此{entity.entity_type}的关键信息
+5. JSON的key必须使用中文，严格按照上述模板中的字段名'''
 
             try:
                 # 调用 AI 服务
@@ -181,12 +215,19 @@ class EntityService:
                             json_lines.append(line)
                     response_text = '\n'.join(json_lines)
 
-                properties = json.loads(response_text)
+                result = json.loads(response_text)
 
-                # 更新实体的 properties 字段
-                await entity_dao.update_properties(db, pk, properties)
+                # 提取 "描述" 字段
+                description = result.pop('描述', None)
 
-                return properties
+                # 剩余的作为 properties
+                properties = result
+
+                # 更新实体的 properties 和 description 字段
+                await entity_dao.update_properties(db, pk, properties, description)
+
+                # 返回结果包含 properties 和 description
+                return {'properties': properties, 'description': description}
 
             except json.JSONDecodeError as e:
                 log.error(f'AI 响应解析失败: {ai_response}, 错误: {e}')

@@ -138,96 +138,6 @@ def extract_text_from_html(html_content: str) -> str:
         return text.strip()
 
 
-# 谓词到属性的映射配置
-# 规则：给subject实体设置属性，属性值来自object
-PREDICATE_PROPERTY_MAPPING = {
-    # 人物相关
-    "职务": {
-        "entity": "subject",      # 给subject实体设置属性
-        "property_key": "position",  # 属性键名
-        "value_from": "object"    # 属性值来自object
-    },
-    "就职": {
-        "entity": "subject",
-        "property_key": "organization",
-        "value_from": "object"
-    },
-    "毕业于": {
-        "entity": "subject",
-        "property_key": "education",
-        "value_from": "object"
-    },
-    "居住在": {
-        "entity": "subject",
-        "property_key": "residence",
-        "value_from": "object",
-        "mode": "update"
-    },
-
-    # 组织相关
-    "成立于": {
-        "entity": "subject",
-        "value_from": "object",
-        "property_key": "founded_date",
-        "mode": "update"
-    },
-    "位于": {
-        "entity": "subject",
-        "value_from": "object",
-        "property_key": "location",
-        "mode": "update"
-    },
-    "属于": {
-        "entity": "subject",
-        "value_from": "object",
-        "property_key": "parent_organization",
-        "mode": "update"
-    },
-    "法人": {
-        "entity": "subject",
-        "value_from": "object",
-        "property_key": "legal_representative",
-        "mode": "update"
-    },
-    "注册资本": {
-        "entity": "subject",
-        "value_from": "object",
-        "property_key": "registered_capital",
-        "mode": "update"
-    },
-
-    # 事件相关
-    "地点": {
-        "entity": "subject",
-        "value_from": "object",
-        "property_key": "location",
-        "mode": "update"
-    },
-    "时间": {
-        "entity": "subject",
-        "value_from": "object",
-        "property_key": "time",
-        "mode": "update"
-    },
-    "参与者": {
-        "entity": "object",
-        "value_from": "subject",
-        "property_key": "participants",
-        "mode": "append"  # 累积模式：用逗号分隔追加多个参与者
-    },
-    "参与": {
-        "entity": "object",
-        "value_from": "subject",
-        "property_key": "participants",
-        "mode": "append"  # 累积模式：用逗号分隔追加多个参与者
-    },
-    "涉及": {
-        "entity": "object",
-        "value_from": "subject",
-        "property_key": "participants",
-        "mode": "append"  # 累积模式：用逗号分隔追加多个参与者
-    },
-}
 
 
 def text_to_tsvector(text: str, mode: str = 'search') -> str:
@@ -486,17 +396,13 @@ class SysDocService:
 
             async def get_or_create_entity(
                 name: str,
-                entity_type: str,
-                properties_to_add: dict = None,
-                property_modes: dict = None
+                entity_type: str
             ) -> Entity:
-                """获取或创建实体，并更新属性
+                """获取或创建实体
 
                 Args:
                     name: 实体名称
                     entity_type: 实体类型
-                    properties_to_add: 需要添加的属性字典
-                    property_modes: 属性更新模式字典，key为属性名，value为"update"或"append"
                 """
                 if name in entity_cache:
                     entity = entity_cache[name]
@@ -520,31 +426,6 @@ class SysDocService:
                             )
                             await db.flush()
 
-                    # 如果有新属性需要添加
-                    if properties_to_add:
-                        if entity.properties is None:
-                            entity.properties = {}
-
-                        # 根据mode处理每个属性
-                        for prop_key, prop_value in properties_to_add.items():
-                            mode = property_modes.get(prop_key, "update") if property_modes else "update"
-
-                            if mode == "append":
-                                # 累积模式：用逗号分隔追加
-                                if prop_key in entity.properties and entity.properties[prop_key]:
-                                    # 检查是否已包含该值，避免重复
-                                    existing_values = entity.properties[prop_key].split(',')
-                                    existing_values = [v.strip() for v in existing_values]
-                                    if prop_value not in existing_values:
-                                        entity.properties[prop_key] += f",{prop_value}"
-                                else:
-                                    entity.properties[prop_key] = prop_value
-                            else:
-                                # 更新模式：直接更新属性值
-                                entity.properties[prop_key] = prop_value
-
-                        await db.flush()
-
                     return entity
 
                 # Check if entity exists
@@ -553,12 +434,11 @@ class SysDocService:
                 entity = result.scalar_one_or_none()
 
                 if not entity:
-                    # Create entity with properties（新建时直接设置，无需append）
+                    # Create entity
                     # 设置首次发现来源文档信息
                     entity_to_create = Entity(
                         name=name,
                         entity_type=entity_type,
-                        properties=properties_to_add if properties_to_add else None,
                         source_doc_id=pk,
                         source_doc_name=doc.name
                     )
@@ -566,31 +446,6 @@ class SysDocService:
                     await db.flush()
                     await db.refresh(entity_to_create)
                     entity = entity_to_create
-                else:
-                    # 如果实体已存在，但有新属性需要添加
-                    if properties_to_add:
-                        if entity.properties is None:
-                            entity.properties = {}
-
-                        # 根据mode处理每个属性
-                        for prop_key, prop_value in properties_to_add.items():
-                            mode = property_modes.get(prop_key, "update") if property_modes else "update"
-
-                            if mode == "append":
-                                # 累积模式：用逗号分隔追加
-                                if prop_key in entity.properties and entity.properties[prop_key]:
-                                    # 检查是否已包含该值，避免重复
-                                    existing_values = entity.properties[prop_key].split(',')
-                                    existing_values = [v.strip() for v in existing_values]
-                                    if prop_value not in existing_values:
-                                        entity.properties[prop_key] += f",{prop_value}"
-                                else:
-                                    entity.properties[prop_key] = prop_value
-                            else:
-                                # 更新模式：直接更新属性值
-                                entity.properties[prop_key] = prop_value
-
-                        await db.flush()
 
                 # 记录实体ID并向sys_entity_doc表中插入记录
                 if entity.id not in doc_entities:
@@ -636,24 +491,8 @@ class SysDocService:
                 if not subject_name or not object_name or not predicate:
                     continue
 
-                # 检查谓词是否需要设置实体属性
-                subject_properties = None
-                object_properties = None
-
-                if predicate in PREDICATE_PROPERTY_MAPPING:
-                    mapping = PREDICATE_PROPERTY_MAPPING[predicate]
-                    property_key = mapping["property_key"]
-
-                    # 根据配置决定给哪个实体设置属性
-                    if mapping["entity"] == "subject" and mapping["value_from"] == "object":
-                        # 给subject设置属性，属性值来自object
-                        subject_properties = {property_key: object_name}
-                    elif mapping["entity"] == "object" and mapping["value_from"] == "subject":
-                        # 给object设置属性，属性值来自subject
-                        object_properties = {property_key: subject_name}
-
-                subject_entity = await get_or_create_entity(subject_name, subject_type, subject_properties)
-                object_entity = await get_or_create_entity(object_name, object_type, object_properties)
+                subject_entity = await get_or_create_entity(subject_name, subject_type)
+                object_entity = await get_or_create_entity(object_name, object_type)
 
                 # Create relationship
                 if subject_entity and object_entity:
