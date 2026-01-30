@@ -25,11 +25,12 @@ from backend.app.admin.schema.doc_chunk import CreateSysDocChunkParam
 from backend.app.admin.schema.doc_embdding import CreateSysDocEmbeddingParam
 from backend.app.admin.utils.text_processor import embed_text_chunks
 from backend.app.admin.service.llm_service import llm_service
+from backend.common.log import log
 from backend.utils.oss_client import minio_client
 from backend.core.conf import settings
 import asyncio
 import jieba
-import jieba.analyse
+import json
 import duckdb
 from collections import defaultdict
 import pandas as pd
@@ -1157,6 +1158,8 @@ class SysDocService:
         if len(content) > max_content_length:
             content = content[:max_content_length] + "..."
 
+        entity_types = []
+
         async with async_db_session.begin() as db:
             # 如果传入了 type_definitions，需要与数据库中的字段定义合并
             if type_definitions:
@@ -1197,7 +1200,6 @@ class SysDocService:
                 type_definitions = merged_type_definitions
             # 否则从数据库读取实体类型定义
             elif entity_type_ids:
-                entity_types = []
                 for type_id in entity_type_ids:
                     entity_type = await entity_type_dao.get(db, type_id)
                     if entity_type:
@@ -1266,6 +1268,8 @@ class SysDocService:
 
                 result = json.loads(response_text)
                 entities_data = result.get("entities", [])
+                print("AI response text:", response_text)
+                print("Extracted entities data:", entities_data)
 
                 if not entities_data:
                     return 0
@@ -1282,14 +1286,12 @@ class SysDocService:
                         continue
 
                     # 查找对应的实体类型
-                    matching_type = None
+                    matching_type_id = None
                     for et in entity_types:
                         if et.name == entity_type_name:
-                            matching_type = et
+                            matching_type_id = et.id
                             break
 
-                    if not matching_type:
-                        continue
 
                     # 检查是否已存在同名实体
                     existing_entities = await db.execute(
@@ -1317,7 +1319,7 @@ class SysDocService:
                             name=entity_name,
                             description=entity_description,
                             entity_type=entity_type_name,
-                            entity_type_id=matching_type.id,
+                            entity_type_id=matching_type_id,
                             properties=entity_properties,
                             source_doc_id=pk,
                             source_doc_name=doc.name or doc.title
