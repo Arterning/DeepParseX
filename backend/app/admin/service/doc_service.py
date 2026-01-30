@@ -1268,8 +1268,6 @@ class SysDocService:
 
                 result = json.loads(response_text)
                 entities_data = result.get("entities", [])
-                print("AI response text:", response_text)
-                print("Extracted entities data:", entities_data)
 
                 if not entities_data:
                     return 0
