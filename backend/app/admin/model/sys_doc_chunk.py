@@ -15,7 +15,6 @@ class SysDocChunk(Base):
     __tablename__ = 'sys_doc_chunk'
 
     __table_args__ = (
-        Index('ix_sys_doc_chunk_doc_id', 'doc_id'),
         Index('ix_sys_doc_chunk_vector', 'chunk_vector', postgresql_using='gin'),
         Index('ix_sys_doc_chunk_translation_vector', 'chunk_translation_vector', postgresql_using='gin'),
     )
