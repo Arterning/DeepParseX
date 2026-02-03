@@ -344,7 +344,7 @@ class NewsBriefingService:
             briefing.content = response
             briefing.status = 1  # 已完成
             briefing.generation_time = timezone.now()
-            briefing.model_used = "default"
+            briefing.llm_model = "default"
 
             # 提取关键要点
             key_points = []

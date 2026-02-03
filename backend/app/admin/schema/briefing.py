@@ -17,7 +17,7 @@ class BriefingSchemaBase(SchemaBase):
     doc_ids: list | None = None
     status: int | None = None
     error_msg: str | None = None
-    model_used: str | None = None
+    llm_model: str | None = None
     generation_time: datetime | None = None
 
 

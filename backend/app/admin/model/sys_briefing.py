@@ -27,7 +27,7 @@ class Briefing(Base):
     doc_ids: Mapped[dict | None] = mapped_column(JSONB, default=None, comment='引用的文档ID列表')
     status: Mapped[int] = mapped_column(default=0, comment='状态(0生成中 1已完成 2失败)')
     error_msg: Mapped[str | None] = mapped_column(TEXT, default=None, comment='错误信息')
-    model_used: Mapped[str | None] = mapped_column(String(100), default=None, comment='使用的AI模型')
+    llm_model: Mapped[str | None] = mapped_column(String(100), default=None, comment='使用的AI模型')
     generation_time: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), default=None, comment='生成完成时间'
     )
