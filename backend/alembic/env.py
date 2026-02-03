@@ -42,6 +42,48 @@ from backend.database.db_pg import SQLALCHEMY_DATABASE_URL
 config.set_main_option('sqlalchemy.url', SQLALCHEMY_DATABASE_URL)
 
 
+def include_object(object, name, type_, reflected, compare_to):
+    """
+    过滤 Alembic 自动生成迁移时要忽略的对象
+
+    Args:
+        object: 数据库对象
+        name: 对象名称
+        type_: 对象类型（table, column, index 等）
+        reflected: 是否是从数据库反射得到的
+        compare_to: 比较的目标对象
+
+    Returns:
+        True 表示包含该对象，False 表示忽略该对象
+    """
+    # 忽略 PostGIS/ParadeDB 的系统表
+    if type_ == "table":
+        # PostGIS 扩展的系统表
+        postgis_tables = {
+            'spatial_ref_sys',  # PostGIS 空间参考系统表
+            'geometry_columns',  # PostGIS 几何列信息表
+            'geography_columns',  # PostGIS 地理列信息表
+            'raster_columns',  # PostGIS 栅格列信息表
+            'raster_overviews',  # PostGIS 栅格概览表
+        }
+
+        # ParadeDB 扩展的系统表（如果有，可以继续添加）
+        paradedb_tables = set()
+
+        # 其他可能需要忽略的系统表
+        system_tables = {
+            'alembic_version',  # Alembic 版本表（通常已自动排除）
+        }
+
+        # 合并所有需要忽略的表
+        excluded_tables = postgis_tables | paradedb_tables | system_tables
+
+        if name in excluded_tables:
+            return False
+
+    return True
+
+
 def run_migrations_offline():
     """Run migrations in 'offline' mode.
 
@@ -60,6 +102,7 @@ def run_migrations_offline():
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={'paramstyle': 'named'},
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -70,6 +113,7 @@ def do_run_migrations(connection):
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
+        include_object=include_object,
     )
 
     with context.begin_transaction():

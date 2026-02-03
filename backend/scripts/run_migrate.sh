@@ -1,1 +1,1 @@
-pdm run alembic upgrade head
+uv run alembic upgrade head
