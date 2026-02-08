@@ -70,10 +70,6 @@ class CRUDSysDocChunk(CRUDPlus[SysDocChunk]):
         offset = (page - 1) * size
 
         if tokens:
-            # 构建搜索条件
-            vector_column = 'chunk_vector'
-            text_column = 'chunk_text'
-
             if search_translation:
                 # 同时搜索原文和翻译
                 where_clause = """
@@ -91,27 +87,37 @@ class CRUDSysDocChunk(CRUDPlus[SysDocChunk]):
                 where_clause = "chunk_vector @@ plainto_tsquery('simple', :tokens)"
                 rank_expr = "ts_rank(chunk_vector, plainto_tsquery('simple', :tokens))"
 
-            # 查询分块，并关联文档信息
+            # 先按文档分组分页，再取对应文档下的所有匹配 chunks
             query = f"""
+            WITH ranked_docs AS (
+                SELECT
+                    c.doc_id,
+                    MAX({rank_expr}) as max_rank
+                FROM sys_doc_chunk c
+                WHERE {where_clause}
+                GROUP BY c.doc_id
+                ORDER BY max_rank DESC
+                LIMIT :limit OFFSET :offset
+            )
             SELECT
                 c.id as chunk_id,
                 c.doc_id,
                 c.chunk_index,
                 c.chunk_text,
                 c.chunk_translation,
-                d.id as doc_id,
                 d.title as doc_title,
                 d.name as doc_name,
                 d.type as doc_type,
                 ts_headline('simple', c.chunk_text, plainto_tsquery('simple', :tokens),
                            'StartSel=<mark>, StopSel=</mark>, MaxWords=50, MinWords=20, MaxFragments=3')
                 AS highlight,
-                {rank_expr} as rank
+                {rank_expr} as rank,
+                rd.max_rank
             FROM sys_doc_chunk c
             JOIN sys_doc d ON c.doc_id = d.id
+            JOIN ranked_docs rd ON c.doc_id = rd.doc_id
             WHERE {where_clause}
-            ORDER BY rank DESC, c.doc_id, c.chunk_index
-            LIMIT :limit OFFSET :offset;
+            ORDER BY rd.max_rank DESC, c.doc_id, c.chunk_index;
             """
 
             result = await db.execute(
@@ -120,24 +126,21 @@ class CRUDSysDocChunk(CRUDPlus[SysDocChunk]):
             )
             chunks = result.fetchall()
 
-            # 将结果转换为字典列表，并按文档分组
-            from collections import defaultdict
-            docs_dict = defaultdict(lambda: {
-                'doc_id': None,
-                'doc_title': None,
-                'doc_name': None,
-                'doc_type': None,
-                'chunks': [],
-                'max_rank': 0
-            })
+            # 将结果转换为字典列表，按文档分组（顺序已由 SQL 保证）
+            from collections import OrderedDict
+            docs_dict = OrderedDict()
 
             for chunk in chunks:
                 doc_id = chunk.doc_id
-                if docs_dict[doc_id]['doc_id'] is None:
-                    docs_dict[doc_id]['doc_id'] = chunk.doc_id
-                    docs_dict[doc_id]['doc_title'] = chunk.doc_title
-                    docs_dict[doc_id]['doc_name'] = chunk.doc_name
-                    docs_dict[doc_id]['doc_type'] = chunk.doc_type
+                if doc_id not in docs_dict:
+                    docs_dict[doc_id] = {
+                        'doc_id': doc_id,
+                        'doc_title': chunk.doc_title,
+                        'doc_name': chunk.doc_name,
+                        'doc_type': chunk.doc_type,
+                        'chunks': [],
+                        'max_rank': float(chunk.max_rank) if chunk.max_rank else 0
+                    }
 
                 docs_dict[doc_id]['chunks'].append({
                     'chunk_id': chunk.chunk_id,
@@ -147,14 +150,7 @@ class CRUDSysDocChunk(CRUDPlus[SysDocChunk]):
                     'rank': float(chunk.rank) if chunk.rank else 0
                 })
 
-                # 记录最高相关度
-                rank = float(chunk.rank) if chunk.rank else 0
-                if rank > docs_dict[doc_id]['max_rank']:
-                    docs_dict[doc_id]['max_rank'] = rank
-
-            # 转换为列表并按最高相关度排序
             docs_list = list(docs_dict.values())
-            docs_list.sort(key=lambda x: x['max_rank'], reverse=True)
 
             # 计算总数
             count_query = f"""
