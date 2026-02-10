@@ -52,6 +52,8 @@ def is_pptx_file(file_suffix: str) -> bool:
 def is_parquet_file(file_suffix: str) -> bool:
     return file_suffix in ['.parquet']
 
+def is_html_file(file_suffix: str) -> bool:
+    return file_suffix in ['.html', '.htm']
 
 def get_file_suffix(filename: str):
     """
@@ -70,7 +72,8 @@ file_type_handlers = {
     'PDF': is_pdf_file,
     '文档': is_docx_file,
     'PPT': is_pptx_file,
-    '压缩包': lambda suffix: is_zip_file(suffix) or is_rar_file(suffix)
+    'HTML': is_html_file,
+    '压缩包': lambda suffix: is_zip_file(suffix) or is_rar_file(suffix) or is_7z_file(suffix),
 }
 def get_file_type(file_suffix: str):
     for file_type, handler in file_type_handlers.items():

@@ -54,10 +54,10 @@ def select_as_dict(row: R, use_alias: bool = False) -> dict:
     :return:
     """
     if not use_alias:
-        result = row.__dict__
+        result = row.__dict__.copy()
         if '_sa_instance_state' in result:
             del result['_sa_instance_state']
-            return result
+        return result
     else:
         result = {}
         mapper = class_mapper(row.__class__)
