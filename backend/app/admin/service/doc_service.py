@@ -582,12 +582,6 @@ class SysDocService:
                 raise errors.NotFoundError(msg='文件不存在')
             return sys_doc
 
-    # @staticmethod
-    # async def token_search(tokens: str = None) -> list[int]:
-    #     async with async_db_session() as db:
-    #         res = await sys_doc_dao.token_search(db, tokens)
-    #         return res
-
 
     @staticmethod
     async def get_select(*, title: str = None, name: str = None, doc_type: list[str] = None,

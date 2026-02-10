@@ -449,8 +449,6 @@ class MailBoxService:
             'sohu.com': '搜狐',
             'aliyun.com': '阿里云',
             'foxmail.com': 'Foxmail',
-            'dnc.org': 'DNC',
-            'rnc.org': 'RNC',
         }
 
         async with async_db_session() as db:
