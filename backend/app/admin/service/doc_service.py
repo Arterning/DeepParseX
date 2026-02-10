@@ -583,6 +583,7 @@ class SysDocService:
             return sys_doc
 
 
+
     @staticmethod
     async def get_select(*, title: str = None, name: str = None, doc_type: list[str] = None,
                           content: str = None, source: str = None, ids: list[int] = None,
@@ -904,6 +905,19 @@ class SysDocService:
                     'chunk_text': chunk.chunk_text,
                     'chunk_translation': response,
                 })
+
+            # 拼接所有翻译后的分块，按 chunk_index 排序
+            sorted_results = sorted(results, key=lambda x: x['chunk_index'])
+            full_translation = ''.join([
+                r['chunk_translation'] or '' for r in sorted_results
+            ])
+
+            # 更新文档的 translation 字段
+            doc = await db.get(SysDoc, pk)
+            if doc:
+                doc.translation = full_translation
+                await db.flush()
+
             return results
 
     @staticmethod
@@ -922,16 +936,41 @@ class SysDocService:
             chunk = await db.get(SysDocChunk, chunk_id)
             if not chunk:
                 raise errors.NotFoundError(msg='分块不存在')
+
+            # 记录是否更新了原文或翻译
+            text_updated = chunk_text is not None
+            translation_updated = chunk_translation is not None
+
             if chunk_text is not None:
                 chunk.chunk_text = chunk_text
             if chunk_translation is not None:
                 chunk.chunk_translation = chunk_translation
-            # 更新所属文档的修改人信息
+
+            # 更新所属文档的修改人信息和完整内容
             if chunk.doc_id:
                 doc = await db.get(SysDoc, chunk.doc_id)
                 if doc:
                     doc.updated_by = user_id
                     doc.updated_user = username
+
+                    # 重新获取该文档的所有分块并拼接
+                    all_chunks = await sys_doc_chunk_dao.get_by_doc_id(db, chunk.doc_id)
+                    sorted_chunks = sorted(all_chunks, key=lambda c: c.chunk_index)
+
+                    # 如果更新了原文，重新拼接 content
+                    if text_updated:
+                        full_content = ''.join([
+                            c.chunk_text or '' for c in sorted_chunks
+                        ])
+                        doc.content = full_content
+
+                    # 如果更新了翻译，重新拼接 translation
+                    if translation_updated:
+                        full_translation = ''.join([
+                            c.chunk_translation or '' for c in sorted_chunks
+                        ])
+                        doc.translation = full_translation
+
             await db.flush()
             return {
                 'id': chunk.id,
@@ -1491,6 +1530,157 @@ class SysDocService:
 
         except Exception as e:
             log.error(f"自动构建知识图谱任务失败: {str(e)}")
+
+    @staticmethod
+    async def generate_summary(id: int):
+        """生成文档摘要
+
+        Args:
+            id (int): 文档ID
+
+        Returns:
+            str: 生成的摘要
+        """
+        # 获取文档
+        doc = await sys_doc_service.get(pk=id)
+        if not doc.content:
+            return ""
+
+        # 处理内容：如果是 HTML 则提取纯文本
+        content = doc.content
+        if is_html_content(content):
+            content = extract_text_from_html(content)
+
+        # 如果提取后内容为空，直接返回
+        if not content or not content.strip():
+            return ""
+
+        # 字符限制阈值
+        CONTENT_LENGTH_THRESHOLD = 5000
+
+        # 检查文档内容长度
+        if len(content) <= CONTENT_LENGTH_THRESHOLD:
+            # 内容未超限，直接生成摘要
+            system_context = "你是一个专业的文档摘要生成器。请根据以下文件内容生成一个简洁的摘要。"
+            question = (
+                "请根据以下文件内容生成一个简洁的摘要：\n"
+                "---\n"
+                f"{content}\n"
+                "---\n"
+                "作为一个人工智能助手，你的回答要尽可能严谨。"
+            )
+        else:
+            # 内容超限，使用向量检索方式
+            # 固定查询词
+            summary_query = "请总结这个文档的核心内容、主要观点和关键信息"
+
+            # 对查询词进行向量化
+            question_text_emb = await embed_text_chunks(summary_query)
+            query_vector = question_text_emb[0]["embs"]
+
+            # 检索该文档的相关片段（限定doc_id）
+            similar_docs = await sys_doc_service.search_similar_docs(
+                query_vector=query_vector,
+                limit=10,
+                distance_threshold=1.2,
+                doc_id=id
+            )
+
+            # 构建上下文
+            context_list = []
+            for idx, doc_chunk in enumerate(similar_docs):
+                if doc_chunk.chunk_text:
+                    context_list.append(f"片段{idx + 1}: {doc_chunk.chunk_text}")
+
+            context = "\n\n".join(context_list)
+
+            # 构建系统提示词
+            if context:
+                system_context = "你是一个专业的文档摘要生成器。请根据以下文档片段生成一个简洁、全面的摘要。"
+                question = (
+                    "请根据以下文档片段生成一个简洁、全面的摘要：\n"
+                    "---\n"
+                    f"{context}\n"
+                    "---\n"
+                    "作为一个人工智能助手，你的回答要尽可能严谨、准确，并综合所有片段的关键信息。"
+                )
+            else:
+                # 如果没有检索到相关片段，使用文档的前N个字符
+                system_context = "你是一个专业的文档摘要生成器。请根据以下文件内容生成一个简洁的摘要。"
+                question = (
+                    "请根据以下文件内容生成一个简洁的摘要：\n"
+                    "---\n"
+                    f"{content[:CONTENT_LENGTH_THRESHOLD]}\n"
+                    "---\n"
+                    "作为一个人工智能助手，你的回答要尽可能严谨。"
+                )
+
+        response = await llm_service.get_llm_response(system_context, question)
+        await sys_doc_service.base_update(pk=id, obj={
+            'desc': response
+        })
+        return response
+
+    @staticmethod
+    async def auto_generate_summary_and_translation():
+        """定时任务：自动为没有摘要和翻译的文档生成摘要和翻译
+
+        每天凌晨12点执行，每次处理10个文档
+        """
+        from backend.common.log import log
+
+        try:
+            async with async_db_session() as db:
+                # 查询没有摘要或翻译的文档
+                stmt = (
+                    select(SysDoc.id)
+                    .where(
+                        (SysDoc.desc.is_(None)) | (SysDoc.translation.is_(None))
+                    )
+                    .where(SysDoc.status == 1)  # 只处理状态正常的文档
+                    .where(SysDoc.content.isnot(None))  # 必须有内容
+                    .limit(10)
+                )
+
+                result = await db.execute(stmt)
+                doc_ids = [row[0] for row in result.all()]
+
+                if not doc_ids:
+                    log.info("没有需要生成摘要和翻译的文档")
+                    return
+
+                log.info(f"开始为 {len(doc_ids)} 个文档生成摘要和翻译")
+
+                success_count = 0
+                error_count = 0
+
+                for doc_id in doc_ids:
+                    try:
+                        doc = await sys_doc_service.get(pk=doc_id)
+
+                        # 生成摘要（如果没有）
+                        if not doc.desc:
+                            await sys_doc_service.generate_summary(doc_id)
+                            log.info(f"文档 {doc_id} 摘要生成完成")
+
+                        # 生成翻译（如果没有）
+                        if not doc.translation:
+                            # 调用 translate_chunks 方法生成翻译
+                            await sys_doc_service.translate_chunks(
+                                pk=doc_id,
+                                target_language="中文"
+                            )
+                            log.info(f"文档 {doc_id} 翻译完成")
+
+                        success_count += 1
+                    except Exception as e:
+                        error_count += 1
+                        log.error(f"文档 {doc_id} 处理失败: {str(e)}")
+
+                log.info(f"摘要和翻译生成完成: 成功 {success_count} 个，失败 {error_count} 个")
+
+        except Exception as e:
+            log.error(f"自动生成摘要和翻译任务失败: {str(e)}")
 
 
 sys_doc_service = SysDocService()

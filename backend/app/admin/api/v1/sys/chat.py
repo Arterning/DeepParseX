@@ -35,20 +35,3 @@ async def chat(obj: ChatParam, request: Request) -> ResponseModel:
     return response_base.success(data=data)
     
     
-# generate_summary
-@router.post('/generate_summary', summary='生成摘要')
-async def generate_summary(obj: IdParam, request: Request) -> ResponseModel:
-    data = await chat_service.generate_summary(id=obj.id)
-    return response_base.success(data=data)
-
-
-# generate_translation
-@router.post('/generate_translation', summary='生成翻译')
-async def generate_translation(obj: TranslateParam, request: Request) -> ResponseModel:
-    data = await chat_service.generate_translation(
-        id=obj.id,
-        target_language=obj.target_language,
-        text=obj.text
-    )
-    return response_base.success(data=data)
-

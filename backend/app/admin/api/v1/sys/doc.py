@@ -241,6 +241,17 @@ async def similar_search(
 
 
 
+@router.post('/extract_summary/{pk}', summary='提取摘要',
+    dependencies=[DependsJwtAuth]
+)
+async def extract_summary(
+    pk: Annotated[int, Path(...)],
+) -> ResponseModel:
+    data = await sys_doc_service.generate_summary(id=pk)
+    return response_base.success(data=data)
+
+
+
 @router.post('/translate_chunks/{pk}', summary='翻译文件所有分块',
     dependencies=[DependsJwtAuth]
 )
