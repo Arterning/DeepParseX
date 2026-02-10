@@ -14,6 +14,7 @@ router = APIRouter()
  )
 async def get_dashboard_index(request: Request) -> ResponseModel:
     user_id = request.user.id
-    data = await sys_doc_service.get_count()
+    is_superuser = request.user.is_superuser
+    data = await sys_doc_service.get_count(user_id=user_id, is_superuser=is_superuser)
     return response_base.success(data=data)
 

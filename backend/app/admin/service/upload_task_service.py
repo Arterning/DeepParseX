@@ -20,8 +20,8 @@ class UploadTaskService:
             return upload_task
     
     @staticmethod
-    async def get_select(name: str | None = None, status: str | None = None, source: str | None = None, rangeValue: list[str] | None = None) -> Select:
-        return await upload_task_dao.get_list(name=name, status=status, source=source, rangeValue=rangeValue)
+    async def get_select(name: str | None = None, status: str | None = None, source: str | None = None, rangeValue: list[str] | None = None, create_user: int | None = None) -> Select:
+        return await upload_task_dao.get_list(name=name, status=status, source=source, rangeValue=rangeValue, create_user=create_user)
 
     @staticmethod
     async def get_all() -> Sequence[UploadTask]:

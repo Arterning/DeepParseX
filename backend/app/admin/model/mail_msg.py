@@ -69,4 +69,6 @@ class MailMsg(Base, UserMixin):
     doc: Mapped[Union['SysDoc', None]] = relationship(init=False, back_populates='email_msg')
 
     doc_name: Mapped[str | None] = mapped_column(TEXT, default='', comment='文件名称')
+
+    detection_result: Mapped[int] = mapped_column(default=0, comment='检测结果：0=正常邮件，1=垃圾邮件，2=疑似垃圾邮件')
     

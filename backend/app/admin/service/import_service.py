@@ -76,6 +76,8 @@ class ImportService:
             'region_name': region
         }
         if endpoint_url:
+            if not endpoint_url.startswith('http'):
+                endpoint_url = f"http://{endpoint_url}"
             s3_config['endpoint_url'] = endpoint_url
 
         s3_client = boto3.client('s3', **s3_config)

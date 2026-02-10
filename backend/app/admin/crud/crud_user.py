@@ -79,6 +79,7 @@ class CRUDUser(CRUDPlus[User]):
             dict_obj.update({'is_staff': True, 'salt': None})
         new_user = self.model(**dict_obj)
         db.add(new_user)
+        return new_user
 
     async def add(self, db: AsyncSession, obj: AddUserParam) -> None:
         """

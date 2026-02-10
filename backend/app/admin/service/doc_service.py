@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import re
 from typing import Sequence
-from sqlalchemy import Select, select, func, delete
+from sqlalchemy import Select, select, func, delete, update
 from typing import List
 from backend.app.admin.service.knowledge_graph.kg_service import kg_service
 from backend.app.admin.crud.crud_doc import sys_doc_dao
@@ -14,6 +14,7 @@ from backend.app.admin.model import SysDoc
 from backend.app.admin.model import SubjectPredictObject
 from backend.app.admin.model.sys_entity import Entity
 from backend.app.admin.model.sys_entity_relationship import EntityRelation
+from backend.app.admin.model.sys_entity_type import EntityType
 from backend.app.admin.model import SysDocData
 from backend.app.admin.model.sys_doc_chunk import SysDocChunk
 from backend.app.admin.model.sys_star_doc import sys_star_doc
@@ -198,8 +199,8 @@ def text_to_tsvector(text: str, mode: str = 'search') -> str:
     # 格式: '词1':1,5,10 '词2':2,8
     tsvector_parts = []
     for word, positions in word_positions.items():
-        # 转义单引号
-        escaped_word = word.replace("'", "''")
+        # 转义单引号，并转换为小写以匹配 plainto_tsquery 的行为
+        escaped_word = word.replace("'", "''").lower()
         # 位置去重并排序
         unique_positions = sorted(set(positions))
         pos_str = ','.join(str(p) for p in unique_positions)
@@ -247,14 +248,16 @@ def text_to_weighted_tsvector(title: str, content: str, doc_type: str = None) ->
             word_positions[word].append(pos)
 
         for word, positions in word_positions.items():
-            escaped_word = word.replace("'", "''")
+            # 转换为小写以匹配 plainto_tsquery 的行为
+            escaped_word = word.replace("'", "''").lower()
             # 添加权重 A
             pos_str = ','.join(f"{p}A" for p in sorted(set(positions)))
             result_parts.append(f"'{escaped_word}':{pos_str}")
 
     # 处理文档类型（权重 A）
     if doc_type:
-        escaped_type = doc_type.replace("'", "''")
+        # 转换为小写以匹配 plainto_tsquery 的行为
+        escaped_type = doc_type.replace("'", "''").lower()
         # 文档类型放在一个固定位置
         result_parts.append(f"'{escaped_type}':1A")
 
@@ -271,7 +274,8 @@ def text_to_weighted_tsvector(title: str, content: str, doc_type: str = None) ->
             word_positions[word].append(pos)
 
         for word, positions in word_positions.items():
-            escaped_word = word.replace("'", "''")
+            # 转换为小写以匹配 plainto_tsquery 的行为
+            escaped_word = word.replace("'", "''").lower()
             # 添加权重 B
             pos_str = ','.join(f"{p}B" for p in sorted(set(positions)))
             result_parts.append(f"'{escaped_word}':{pos_str}")
@@ -366,9 +370,9 @@ class SysDocService:
                 "max_tokens": 1000,
                 "temperature": 0.7
             },
-            "max_chunks": 3,
+            "max_chunks": 10,
             "chunking": {
-                "chunk_size": 1000,
+                "chunk_size": 10000,
                 "overlap": 50
             },
             "standardization": {
@@ -586,7 +590,7 @@ class SysDocService:
 
 
     @staticmethod
-    async def get_select(*, title: str = None, name: str = None, doc_type: str = None,
+    async def get_select(*, title: str = None, name: str = None, doc_type: list[str] = None,
                           content: str = None, source: str = None, ids: list[int] = None,
                           rangeValue: list[str] = None, current_user_id: int = None,
                           tag_ids: list[int] = None) -> Select:
@@ -615,7 +619,7 @@ class SysDocService:
         for kw in sorted_keywords:
             if kw:  # 跳过空关键词
                 pattern = re.escape(kw)
-                original = re.sub(pattern, f'{start_tag}{kw}{end_tag}', original)
+                original = re.sub(pattern, lambda m: f'{start_tag}{m.group(0)}{end_tag}', original, flags=re.IGNORECASE)
         return original
 
     @staticmethod
@@ -640,7 +644,7 @@ class SysDocService:
 
         keyword_pattern = '|'.join(map(re.escape, sorted_keywords))
 
-        matches = list(re.finditer(keyword_pattern, original))
+        matches = list(re.finditer(keyword_pattern, original, re.IGNORECASE))
         if not matches:
             return original[:200] + ('...' if len(original) > 200 else '')
 
@@ -673,7 +677,7 @@ class SysDocService:
         for start, end in merged_windows:
             snippet = original[start:end]
             # 高亮所有关键词（每段内）
-            highlighted = re.sub(keyword_pattern, lambda m: f"{start_tag}{m.group(0)}{end_tag}", snippet)
+            highlighted = re.sub(keyword_pattern, lambda m: f"{start_tag}{m.group(0)}{end_tag}", snippet, flags=re.IGNORECASE)
             snippets.append(highlighted)
 
         return " ... ".join(snippets)
@@ -717,8 +721,7 @@ class SysDocService:
             for item in items:
                 item["doc_title"] = SysDocService.highlight_text(item.get("doc_title"), seg_list)
                 chunks = item.get("chunks", [])
-                chunk = chunks[0] if chunks else None
-                chunk_text = chunk.get("chunk_text", "") if chunk else ""
+                chunk_text = ' '.join([chunk.get("chunk_text") for chunk in chunks])
                 item["hit"] = SysDocService.highlight_text_window(chunk_text, seg_list)
 
 
@@ -869,6 +872,81 @@ class SysDocService:
             return await sys_doc_embedding_dao.create_bulk(db, emb_list)
 
     @staticmethod
+    async def translate_chunks(*, pk: int, target_language: str) -> list[dict]:
+        """
+        逐个翻译文档的所有分块
+
+        :param pk: 文档ID
+        :param target_language: 目标语言
+        :return: 翻译后的分块列表
+        """
+        async with async_db_session.begin() as db:
+            chunks = await sys_doc_chunk_dao.get_by_doc_id(db, pk)
+            if not chunks:
+                return []
+
+            system_context = f"你是一个专业的翻译助手。请将以下内容翻译成{target_language}。只返回翻译结果，不要添加任何解释。"
+            results = []
+            for chunk in chunks:
+                if not chunk.chunk_text:
+                    results.append({
+                        'id': chunk.id,
+                        'chunk_index': chunk.chunk_index,
+                        'chunk_text': chunk.chunk_text,
+                        'chunk_translation': chunk.chunk_translation,
+                    })
+                    continue
+                question = (
+                    f"请将以下内容翻译成{target_language}：\n"
+                    "---\n"
+                    f"{chunk.chunk_text}\n"
+                    "---\n"
+                )
+                response = await llm_service.get_llm_response(system_context, question)
+                await sys_doc_chunk_dao.update_chunk_translation(db, chunk.id, response)
+                results.append({
+                    'id': chunk.id,
+                    'chunk_index': chunk.chunk_index,
+                    'chunk_text': chunk.chunk_text,
+                    'chunk_translation': response,
+                })
+            return results
+
+    @staticmethod
+    async def update_chunk(*, chunk_id: int, chunk_text: str | None = None, chunk_translation: str | None = None, user_id: int | None = None, username: str | None = None) -> dict:
+        """
+        更新分块的文本或翻译内容
+
+        :param chunk_id: 分块ID
+        :param chunk_text: 原文内容
+        :param chunk_translation: 翻译内容
+        :param user_id: 当前用户ID
+        :param username: 当前用户名
+        :return: 更新后的分块信息
+        """
+        async with async_db_session.begin() as db:
+            chunk = await db.get(SysDocChunk, chunk_id)
+            if not chunk:
+                raise errors.NotFoundError(msg='分块不存在')
+            if chunk_text is not None:
+                chunk.chunk_text = chunk_text
+            if chunk_translation is not None:
+                chunk.chunk_translation = chunk_translation
+            # 更新所属文档的修改人信息
+            if chunk.doc_id:
+                doc = await db.get(SysDoc, chunk.doc_id)
+                if doc:
+                    doc.updated_by = user_id
+                    doc.updated_user = username
+            await db.flush()
+            return {
+                'id': chunk.id,
+                'chunk_index': chunk.chunk_index,
+                'chunk_text': chunk.chunk_text,
+                'chunk_translation': chunk.chunk_translation,
+            }
+
+    @staticmethod
     async def base_update(pk: int, obj: dict) -> int:
         async with async_db_session.begin() as db:
             count = await sys_doc_dao.base_update(db, pk, obj)
@@ -912,6 +990,11 @@ class SysDocService:
         async with async_db_session.begin() as db:
             count = await sys_doc_embedding_dao.delete(db, doc_id)
             return count
+
+    @staticmethod
+    async def get_children(pk: int) -> Sequence[SysDoc]:
+        async with async_db_session() as db:
+            return await sys_doc_dao.get_children(db, pk)
 
     @staticmethod
     async def get_hot_docs(user_id: int = None) -> Sequence[SysDoc]:
@@ -979,9 +1062,18 @@ class SysDocService:
 
 
     @staticmethod
-    async def get_count():
+    async def get_count(user_id: int | None = None, is_superuser: bool = False):
+        """
+        获取文档统计数量
+
+        :param user_id: 用户ID
+        :param is_superuser: 是否为超级管理员，管理员可查看所有文档
+        :return: 包含总数和按类型分组的字典
+        """
         async with async_db_session() as db:
-            res = await sys_doc_dao.get_count(db)
+            # 管理员查看所有，普通用户只查看自己的
+            query_user_id = None if is_superuser else user_id
+            res = await sys_doc_dao.get_count(db, user_id=query_user_id)
             return res
 
     @staticmethod
@@ -1122,20 +1214,17 @@ class SysDocService:
             }
 
     @staticmethod
-    async def extract_entities_by_types(pk: int, entity_type_ids: List[int] = None, type_definitions: List[dict] = None):
+    async def extract_entities_by_types(pk: int, type_definitions: List[dict]):
         """根据实体类型定义提取实体
 
         Args:
             pk (int): 文档ID
-            entity_type_ids (List[int]): 实体类型ID列表（可选）
-            type_definitions (List[dict]): 直接传入的类型定义列表（可选）
+            type_definitions (List[dict]): 类型定义列表
                 格式: [{"type_name": "人物", "fields": ["性别", "国籍"], "description": ""}]
 
         Returns:
             int: 提取到的实体数量
         """
-        from backend.app.admin.crud.crud_entity_type import entity_type_dao
-        from backend.app.admin.crud.crud_entity import entity_dao
         from backend.app.admin.model.sys_entity_doc import sys_entity_doc
         import json
 
@@ -1158,68 +1247,7 @@ class SysDocService:
         if len(content) > max_content_length:
             content = content[:max_content_length] + "..."
 
-        entity_types = []
-
         async with async_db_session.begin() as db:
-            # 如果传入了 type_definitions，需要与数据库中的字段定义合并
-            if type_definitions:
-                from backend.app.admin.model.sys_entity_type import EntityType
-
-                # 读取数据库中对应的实体类型定义
-                merged_type_definitions = []
-
-                for type_def in type_definitions:
-                    type_name = type_def.get("type_name")
-                    provided_fields = type_def.get("fields", [])
-
-                    # 从数据库查询同名的实体类型
-                    stmt = select(EntityType).where(EntityType.name == type_name)
-                    result = await db.execute(stmt)
-                    entity_type_obj = result.scalar_one_or_none()
-
-                    # 合并字段定义
-                    if entity_type_obj and entity_type_obj.field_definition:
-                        db_fields = entity_type_obj.field_definition
-                        # 合并并去重（保持顺序：先数据库字段，后传入字段）
-                        all_fields = []
-                        seen = set()
-                        for field in db_fields + provided_fields:
-                            if field not in seen:
-                                all_fields.append(field)
-                                seen.add(field)
-
-                        merged_type_definitions.append({
-                            "type_name": type_name,
-                            "description": entity_type_obj.description or type_def.get("description", ""),
-                            "fields": all_fields
-                        })
-                    else:
-                        # 数据库中没有该类型，直接使用传入的定义
-                        merged_type_definitions.append(type_def)
-
-                type_definitions = merged_type_definitions
-            # 否则从数据库读取实体类型定义
-            elif entity_type_ids:
-                for type_id in entity_type_ids:
-                    entity_type = await entity_type_dao.get(db, type_id)
-                    if entity_type:
-                        entity_types.append(entity_type)
-
-                if not entity_types:
-                    raise errors.NotFoundError(msg='未找到指定的实体类型')
-
-                # 构造提示词
-                type_definitions = []
-                for et in entity_types:
-                    fields = et.field_definition if et.field_definition else []
-                    type_definitions.append({
-                        "type_name": et.name,
-                        "description": et.description or "",
-                        "fields": fields
-                    })
-            else:
-                raise errors.RequestError(msg='必须提供 entity_type_ids 或 type_definitions 参数')
-
             system_prompt = f"""你是一个专业的实体提取助手。请从给定的文本中提取实体信息。
 
 实体类型定义：
@@ -1283,14 +1311,6 @@ class SysDocService:
                     if not entity_name or not entity_type_name:
                         continue
 
-                    # 查找对应的实体类型
-                    matching_type_id = None
-                    for et in entity_types:
-                        if et.name == entity_type_name:
-                            matching_type_id = et.id
-                            break
-
-
                     # 检查是否已存在同名实体
                     existing_entities = await db.execute(
                         select(Entity).where(
@@ -1317,7 +1337,7 @@ class SysDocService:
                             name=entity_name,
                             description=entity_description,
                             entity_type=entity_type_name,
-                            entity_type_id=matching_type_id,
+                            entity_type_id=None,
                             properties=entity_properties,
                             source_doc_id=pk,
                             source_doc_name=doc.name or doc.title
@@ -1342,6 +1362,8 @@ class SysDocService:
                             )
                         )
 
+                # 标记文档已提取实体
+                await db.execute(update(SysDoc).where(SysDoc.id == pk).values(entity_extracted=1))
                 await db.commit()
                 return entity_count
 
@@ -1356,11 +1378,20 @@ class SysDocService:
 
         每次处理10个文档，提取人物、组织、事件实体
         """
-        from backend.app.admin.model.sys_entity_doc import sys_entity_doc
         from backend.common.log import log
 
         # 预设的实体类型定义
         DEFAULT_ENTITY_TYPE_DEFINITIONS = [
+            {
+                "type_name": "人物",
+                "description": "人物实体",
+                "fields": ["性别", "国籍", "组织", "职位", "联系方式"]
+            },
+            {
+                "type_name": "组织",
+                "description": "组织实体",
+                "fields": ["类型", "国家"]
+            },
             {
                 "type_name": "事件",
                 "description": "事件实体",
@@ -1370,12 +1401,10 @@ class SysDocService:
 
         try:
             async with async_db_session() as db:
-                # 查询没有关联实体的文档
-                # 使用 LEFT JOIN 找出在 sys_entity_doc 中没有记录的文档
+                # 查询未提取过实体的文档
                 stmt = (
                     select(SysDoc.id)
-                    .outerjoin(sys_entity_doc, SysDoc.id == sys_entity_doc.c.doc_id)
-                    .where(sys_entity_doc.c.doc_id.is_(None))
+                    .where(SysDoc.entity_extracted != 1)
                     .where(SysDoc.status == 1)  # 只处理状态正常的文档
                     .where(SysDoc.content.isnot(None))  # 必须有内容
                     .limit(10)
@@ -1400,6 +1429,8 @@ class SysDocService:
                             pk=doc_id,
                             type_definitions=DEFAULT_ENTITY_TYPE_DEFINITIONS
                         )
+                        # 标记文档已提取实体
+                        await sys_doc_service.base_update(pk=doc_id, obj={'entity_extracted': 1})
                         success_count += 1
                         log.info(f"文档 {doc_id} 提取了 {entity_count} 个实体")
                     except Exception as e:
@@ -1410,6 +1441,62 @@ class SysDocService:
 
         except Exception as e:
             log.error(f"自动提取实体任务失败: {str(e)}")
+
+
+    @staticmethod
+    async def auto_build_graph_for_docs():
+        """定时任务：自动为没有关联实体的文档构建知识图谱
+
+        每次处理10个文档，entity_types 从 sys_entity_type 表中获取所有实体类型名称
+        """
+        from backend.common.log import log
+
+        try:
+            # 获取所有实体类型名称
+            async with async_db_session() as db:
+                result = await db.execute(select(EntityType.name))
+                entity_type_names = [row[0] for row in result.all()]
+
+            if not entity_type_names:
+                log.info("没有定义实体类型，跳过知识图谱构建")
+                return
+
+            async with async_db_session() as db:
+                # 查询未提取过实体的文档
+                stmt = (
+                    select(SysDoc.id)
+                    .where(SysDoc.entity_extracted != 1)
+                    .where(SysDoc.status == 1)
+                    .where(SysDoc.content.isnot(None))
+                    .limit(10)
+                )
+
+                result = await db.execute(stmt)
+                doc_ids = [row[0] for row in result.all()]
+
+                if not doc_ids:
+                    log.info("没有需要构建知识图谱的文档")
+                    return
+
+                log.info(f"开始为 {len(doc_ids)} 个文档构建知识图谱，实体类型: {entity_type_names}")
+
+            success_count = 0
+            error_count = 0
+
+            for doc_id in doc_ids:
+                try:
+                    await SysDocService.build_graph(pk=doc_id, entity_types=entity_type_names)
+                    await sys_doc_service.base_update(pk=doc_id, obj={'entity_extracted': 1})
+                    success_count += 1
+                    log.info(f"文档 {doc_id} 知识图谱构建完成")
+                except Exception as e:
+                    error_count += 1
+                    log.error(f"文档 {doc_id} 知识图谱构建失败: {str(e)}")
+
+            log.info(f"知识图谱构建完成: 成功 {success_count} 个，失败 {error_count} 个")
+
+        except Exception as e:
+            log.error(f"自动构建知识图谱任务失败: {str(e)}")
 
 
 sys_doc_service = SysDocService()

@@ -8,7 +8,8 @@ from fastapi.responses import StreamingResponse
 from fastapi.exceptions import HTTPException
 
 from backend.core.conf import settings
-from backend.app.admin.schema.doc import CreateSysDocParam, CollectDocParam, GetSysDocListDetails, GetSysDocPage, UpdateSysDocParam, GetDocDetail, ParseEntityParams, ExtractEntitiesParams
+from backend.app.admin.schema.doc import CreateSysDocParam, CollectDocParam, GetSysDocListDetails, GetSysDocPage, UpdateSysDocParam, GetDocDetail, ParseEntityParams, ExtractEntitiesParams, TranslateChunksParams
+from backend.app.admin.schema.doc_chunk import UpdateChunkContentParam
 from backend.app.admin.service.doc_service import sys_doc_service
 from backend.app.admin.service.upload_service import upload_service
 from backend.common.pagination import DependsPagination, paging_data
@@ -16,7 +17,7 @@ from backend.common.response.response_schema import ResponseModel, response_base
 from backend.common.security.jwt import DependsJwtAuth
 from backend.common.security.permission import RequestPermission
 from backend.common.security.rbac import DependsRBAC
-from backend.database.db_pg import CurrentSession
+from backend.database.db_pg import CurrentSession, async_db_session
 from backend.utils.serializers import select_as_dict
 from backend.utils.oss_client import minio_client
 
@@ -67,9 +68,25 @@ async def extract_entities(
     obj: ExtractEntitiesParams
 ) -> ResponseModel:
     try:
+        from backend.app.admin.crud.crud_entity_type import entity_type_dao
+
+        type_definitions = []
+        async with async_db_session() as db:
+            for type_id in obj.entity_type_ids:
+                entity_type = await entity_type_dao.get(db, type_id)
+                if entity_type:
+                    type_definitions.append({
+                        "type_name": entity_type.name,
+                        "description": entity_type.description or "",
+                        "fields": entity_type.field_definition or []
+                    })
+
+        if not type_definitions:
+            return response_base.fail(data="未找到指定的实体类型")
+
         entity_count = await sys_doc_service.extract_entities_by_types(
             pk=pk,
-            entity_type_ids=obj.entity_type_ids
+            type_definitions=type_definitions
         )
         return response_base.success(data={"count": entity_count}, message=f"成功提取 {entity_count} 个实体")
     except Exception as e:
@@ -89,7 +106,7 @@ async def extract_text(pk: Annotated[int, Path(...)]) -> ResponseModel:
     dependencies=[DependsJwtAuth]
  )
 async def get_recent_docs(request: Request) -> ResponseModel:
-    user_id = request.user.id
+    user_id = None if request.user.is_superuser else request.user.id
     docs = await sys_doc_service.get_hot_docs(user_id)
     hot_docs = [GetSysDocPage(**select_as_dict(doc)) for doc in docs]
     return response_base.success(data=hot_docs)
@@ -224,6 +241,38 @@ async def similar_search(
 
 
 
+@router.post('/translate_chunks/{pk}', summary='翻译文件所有分块',
+    dependencies=[DependsJwtAuth]
+)
+async def translate_chunks(
+    pk: Annotated[int, Path(...)],
+    obj: TranslateChunksParams
+) -> ResponseModel:
+    doc = await sys_doc_service.get(pk=pk)
+    if not doc:
+        return response_base.fail(message='文件不存在')
+    results = await sys_doc_service.translate_chunks(pk=pk, target_language=obj.target_language)
+    return response_base.success(data=results)
+
+
+@router.put('/chunk/{chunk_id}', summary='更新分块内容',
+    dependencies=[DependsJwtAuth]
+)
+async def update_chunk(
+    request: Request,
+    chunk_id: Annotated[int, Path(...)],
+    obj: UpdateChunkContentParam
+) -> ResponseModel:
+    result = await sys_doc_service.update_chunk(
+        chunk_id=chunk_id,
+        chunk_text=obj.chunk_text,
+        chunk_translation=obj.chunk_translation,
+        user_id=request.user.id,
+        username=request.user.username,
+    )
+    return response_base.success(data=result)
+
+
 @router.get('/{pk}', summary='获取文件详情', dependencies=[DependsJwtAuth])
 async def get_sys_doc(pk: Annotated[int, Path(...)]) -> ResponseModel:
     doc = await sys_doc_service.get(pk=pk)
@@ -233,8 +282,15 @@ async def get_sys_doc(pk: Annotated[int, Path(...)]) -> ResponseModel:
     doc_dict = select_as_dict(doc)
     graph_data = sys_doc_service.build_visualize_knowledge_graph(triples=doc.doc_spos)
 
+    doc_chunks = sorted(doc.doc_chunks, key=lambda c: c.chunk_index)
     doc_dict.update({"doc_data": doc_data})
+    doc_dict.update({"doc_chunks": doc_chunks})
     doc_dict.update({"graph_data": graph_data})
+
+    # 查询子文件（belong = 当前文件id的文件）
+    children = await sys_doc_service.get_children(pk=pk)
+    doc_dict.update({"children": children})
+
     data = GetDocDetail(**doc_dict)
     return response_base.success(data=data)
 
@@ -251,7 +307,7 @@ async def get_pagination_sys_doc(request: Request,
                                  db: CurrentSession,
                                  name: Annotated[str | None, Query()] = None,
                                  title: Annotated[str | None, Query()] = None,
-                                 doc_type: Annotated[str | None, Query()] = None,
+                                 doc_type: Annotated[list[str] | None, Query()] = None,
                                  content: Annotated[str | None, Query()] = None,
                                  source: Annotated[str | None, Query()] = None,
                                  rangeValue: Annotated[list[str] | None, Query()] = ['', ''],
@@ -259,7 +315,8 @@ async def get_pagination_sys_doc(request: Request,
                                 ) -> ResponseModel:
 
     # 从JWT中获取当前登录用户ID
-    current_user_id = request.user.id
+    # 超级管理员可查看所有文件，普通用户只能查看自己的文件
+    current_user_id = None if request.user.is_superuser else request.user.id
 
     sys_doc_select = await sys_doc_service.get_select(
         name=name,
@@ -288,11 +345,12 @@ async def get_pagination_sys_doc(request: Request,
     '',
     summary='创建文件',
     dependencies=[
-        Depends(RequestPermission('sys:doc:add')),
-        DependsRBAC,
+        DependsJwtAuth,
     ],
 )
-async def create_sys_doc(obj: CreateSysDocParam) -> ResponseModel:
+async def create_sys_doc(request: Request, obj: CreateSysDocParam) -> ResponseModel:
+    obj.created_by = request.user.id
+    obj.created_user = request.user.username
     doc = await sys_doc_service.create(obj=obj)
     await sys_doc_service.create_doc_tokens(id=doc.id)
     return response_base.success()
@@ -302,8 +360,7 @@ async def create_sys_doc(obj: CreateSysDocParam) -> ResponseModel:
     '/{pk}',
     summary='更新文件',
     dependencies=[
-        Depends(RequestPermission('sys:doc:edit')),
-        DependsRBAC,
+        DependsJwtAuth,
     ],
 )
 async def update_sys_doc(pk: Annotated[int, Path(...)], obj: UpdateSysDocParam) -> ResponseModel:
@@ -318,8 +375,7 @@ async def update_sys_doc(pk: Annotated[int, Path(...)], obj: UpdateSysDocParam) 
     '',
     summary='（批量）删除文件',
     dependencies=[
-        Depends(RequestPermission('sys:doc:del')),
-        DependsRBAC,
+        DependsJwtAuth,
     ],
 )
 async def delete_sys_doc(pk: Annotated[list[int], Query(...)]) -> ResponseModel:

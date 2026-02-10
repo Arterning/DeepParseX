@@ -51,8 +51,7 @@ async def get_pagination_tag(db: CurrentSession) -> ResponseModel:
     '',
     summary='创建',
     dependencies=[
-        Depends(RequestPermission(':add')),
-        DependsRBAC,
+        DependsJwtAuth,
     ],
 )
 async def create_tag(request: Request, obj: CreateTagParam) -> ResponseModel:
@@ -65,8 +64,7 @@ async def create_tag(request: Request, obj: CreateTagParam) -> ResponseModel:
     '/{pk}',
     summary='更新',
     dependencies=[
-        Depends(RequestPermission(':edit')),
-        DependsRBAC,
+        DependsJwtAuth,
     ],
 )
 async def update_tag(pk: Annotated[int, Path(...)], obj: UpdateTagParam) -> ResponseModel:
@@ -80,8 +78,7 @@ async def update_tag(pk: Annotated[int, Path(...)], obj: UpdateTagParam) -> Resp
     '',
     summary='（批量）删除',
     dependencies=[
-        Depends(RequestPermission(':del')),
-        DependsRBAC,
+        DependsJwtAuth,
     ],
 )
 async def delete_tag(pk: Annotated[list[int], Query(...)]) -> ResponseModel:

@@ -3,7 +3,7 @@
 from datetime import datetime
 from sqlalchemy import UUID, String, ForeignKey
 from sqlalchemy.schema import Index
-from sqlalchemy.dialects.postgresql import TEXT
+from sqlalchemy.dialects.postgresql import TEXT, JSONB
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import TIMESTAMP
@@ -41,6 +41,8 @@ class SysDoc(Base):
     )
     size: Mapped[int | None] = mapped_column(default=None, comment='文件大小')
     status: Mapped[int | None] = mapped_column(default=1, comment='文件状态(0解析中 1正常 2出错)')
+    process_status: Mapped[dict | None] = mapped_column(JSONB, default=None, comment='处理进度状态')
+    entity_extracted: Mapped[int | None] = mapped_column(default=0, comment='是否已提取实体(0未提取 1已提取)')
 
     dept_id: Mapped[int | None] = mapped_column(
         ForeignKey('sys_dept.id', ondelete='SET NULL'), default=None, comment='部门关联ID'

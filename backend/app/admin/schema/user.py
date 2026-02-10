@@ -22,6 +22,7 @@ class AuthLoginParam(AuthSchemaBase):
 
 class RegisterUserParam(AuthSchemaBase):
     nickname: str | None = None
+    is_superuser: bool | None = False
     email: EmailStr = Field(..., examples=['user@example.com'])
 
 

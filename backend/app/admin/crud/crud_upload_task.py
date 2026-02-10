@@ -22,7 +22,7 @@ class CRUDUploadTask(CRUDPlus[UploadTask]):
         """
         return await self.select_model(db, pk)
 
-    async def get_list(self, name: str | None = None, status: str | None = None, source: str | None = None, rangeValue: list[str] | None = None) -> Select:
+    async def get_list(self, name: str | None = None, status: str | None = None, source: str | None = None, rangeValue: list[str] | None = None, create_user: int | None = None) -> Select:
         """
         获取上传任务列表
 
@@ -30,11 +30,14 @@ class CRUDUploadTask(CRUDPlus[UploadTask]):
         :param status: 任务状态
         :param source: 任务来源
         :param rangeValue: 时间范围，格式为 ['2023-01-01', '2023-01-02']
+        :param create_user: 创建者ID，用于权限过滤
         :return:
         """
         query = await self.select_order('created_time', 'desc')
         start_time = rangeValue[0]
         end_time = rangeValue[1]
+        if create_user is not None:
+            query = query.where(UploadTask.create_user == create_user)
         if name:
             query = query.where(UploadTask.name.like(f'%{name}%'))
         if status:

@@ -26,6 +26,22 @@ class CRUDEntityRelation(CRUDPlus[EntityRelation]):
         result = await db.execute(stmt)
         return result.scalars().all()
 
+    async def get_by_entity_ids(self, db: AsyncSession, entity_ids: list[int]) -> Sequence[EntityRelation]:
+        """
+        获取 source_id 或 target_id 在给定 ID 列表中的所有关系记录
+
+        :param db:
+        :param entity_ids:
+        :return:
+        """
+        stmt = (
+            Select(self.model)
+            .where(or_(self.model.source_id.in_(entity_ids), self.model.target_id.in_(entity_ids)))
+            .order_by(self.model.id)
+        )
+        result = await db.execute(stmt)
+        return result.scalars().all()
+
     async def get(self, db: AsyncSession, pk: int) -> EntityRelation | None:
         """
         获取关系详情

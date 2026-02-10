@@ -29,11 +29,12 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
             .options(selectinload(self.model.doc_spos))
             .options(selectinload(self.model.tags))
             .options(selectinload(self.model.entities))
+            .options(selectinload(self.model.doc_chunks))
             .where(*where)
         )
         return doc.scalars().first()
 
-    async def get_list(self, name: str = None, doc_type: str = None,
+    async def get_list(self, name: str = None, doc_type: list[str] = None,
                        title: str = None, source: str = None,
                         content: str = None, ids: list[int] = None,
                         start_time: str = None, end_time :str = None,
@@ -62,8 +63,8 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
             where_list.append(self.model.title.like(f'%{title}%'))
         if name is not None and name != '':
             where_list.append(self.model.name.like(f'%{name}%'))
-        if doc_type is not None:
-            where_list.append(self.model.type == doc_type)
+        if doc_type is not None and len(doc_type) > 0:
+            where_list.append(self.model.type.in_(doc_type))
         # if tokens is not None and tokens != '':
         #     where_list.append(self.model.tokens.match(tokens))
         if content is not None and content != '':
@@ -165,29 +166,64 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
         return  await self.delete_model_by_column(db, allow_multiple=True, id__in=pk)
 
 
-    async def get_hot_docs(self, db: AsyncSession, user_id: int = None) -> Sequence[SysDoc]:
-        docs = await db.execute(
-             select(self.model)
-            # .where(self.model.user_id==user_id)
+    async def get_children(self, db: AsyncSession, parent_id: int) -> Sequence[SysDoc]:
+        """
+        获取属于指定文档的子文件列表
+
+        :param db:
+        :param parent_id: 父文档ID
+        :return:
+        """
+        stmt = (
+            select(self.model)
+            .where(self.model.belong == parent_id)
             .order_by(self.model.created_time.desc())
-            .limit(10)
         )
+        result = await db.execute(stmt)
+        return result.scalars().all()
+
+    async def get_hot_docs(self, db: AsyncSession, user_id: int = None) -> Sequence[SysDoc]:
+        stmt = select(self.model).order_by(self.model.created_time.desc()).limit(10)
+        if user_id is not None:
+            stmt = stmt.where(self.model.created_by == user_id)
+        docs = await db.execute(stmt)
         return docs.scalars()
 
 
-    async def get_count(self, db: AsyncSession):
-        query = await db.execute(select(func.count((self.model.id))))
-        all =  query.scalars().first()
-        query = select(
+    async def get_count(self, db: AsyncSession, user_id: int | None = None):
+        """
+        获取文档统计数量
+
+        :param db: 数据库会话
+        :param user_id: 用户ID，为 None 时查询所有文档（管理员）
+        :return: 包含总数和按类型分组的字典
+        """
+        # 构建基础条件
+        where_conditions = []
+        if user_id is not None:
+            where_conditions.append(self.model.created_by == user_id)
+
+        # 查询总数
+        count_query = select(func.count(self.model.id))
+        if where_conditions:
+            count_query = count_query.where(*where_conditions)
+        result = await db.execute(count_query)
+        all_count = result.scalars().first()
+
+        # 按类型分组统计
+        group_query = select(
             self.model.type,
             func.count(self.model.id)
-        ).group_by(
-            self.model.type
         )
-        result = await db.execute(query)
+        if where_conditions:
+            group_query = group_query.where(*where_conditions)
+        group_query = group_query.group_by(self.model.type)
+
+        result = await db.execute(group_query)
         group = {row[0]: row[1] for row in result.fetchall()}
+
         return {
-            'all': all,
+            'all': all_count,
             'group': group,
         }
 

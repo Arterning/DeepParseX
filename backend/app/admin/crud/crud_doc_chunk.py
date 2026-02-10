@@ -175,6 +175,64 @@ class CRUDSysDocChunk(CRUDPlus[SysDocChunk]):
                 "total": 0
             }
 
+    async def search_doc_ids_by_keyword(
+        self,
+        db: AsyncSession,
+        keyword: str,
+        limit: int = 20
+    ) -> list[dict]:
+        """
+        通过全文检索搜索包含关键词的文档ID及命中的分块内容（按相关度排序）
+
+        :param db: 数据库会话
+        :param keyword: 搜索关键词
+        :param limit: 最大返回分块数量
+        :return: [{'doc_id': int, 'doc_title': str, 'chunks': [str, ...]}]
+        """
+        if not keyword:
+            return []
+
+        sql = """
+        SELECT c.doc_id, d.title AS doc_title, c.chunk_text
+        FROM sys_doc_chunk c
+        JOIN sys_doc d ON c.doc_id = d.id
+        WHERE c.chunk_vector @@ plainto_tsquery('simple', :keyword)
+        ORDER BY ts_rank(c.chunk_vector, plainto_tsquery('simple', :keyword)) DESC
+        LIMIT :limit
+        """
+        result = await db.execute(text(sql), {"keyword": keyword, "limit": limit})
+        rows = result.fetchall()
+
+        # 按 doc_id 分组
+        from collections import OrderedDict
+        docs = OrderedDict()
+        for row in rows:
+            if row.doc_id not in docs:
+                docs[row.doc_id] = {'doc_id': row.doc_id, 'doc_title': row.doc_title, 'chunks': []}
+            docs[row.doc_id]['chunks'].append(row.chunk_text)
+
+        return list(docs.values())
+
+    async def update_chunk_translation(
+        self,
+        db: AsyncSession,
+        chunk_id: int,
+        chunk_translation: str
+    ):
+        """
+        更新分块的翻译内容
+
+        :param db: 数据库会话
+        :param chunk_id: 分块ID
+        :param chunk_translation: 翻译内容
+        :return:
+        """
+        chunk = await db.get(self.model, chunk_id)
+        if chunk:
+            chunk.chunk_translation = chunk_translation
+            await db.flush()
+        return chunk
+
     async def update_chunk_vector(
         self,
         db: AsyncSession,

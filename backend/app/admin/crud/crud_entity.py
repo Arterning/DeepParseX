@@ -28,7 +28,7 @@ class CRUDEntity(CRUDPlus[Entity]):
         )
         return result.scalars().first()
 
-    async def get_list(self, name: str | None = None, entity_type: str | list[str] | None = None) -> Select:
+    async def get_list(self, name: str | None = None, entity_type: str | list[str] | None = None, eml: bool | None = None) -> Select:
         """
         获取实体列表
 
@@ -40,6 +40,9 @@ class CRUDEntity(CRUDPlus[Entity]):
         
         if name:
             whereclause.update(name__like=f'%{name}%')
+        
+        if eml:
+            whereclause.update(source_doc_name__like=f'%eml%')
         
         if entity_type:
             if isinstance(entity_type, list):
@@ -91,16 +94,20 @@ class CRUDEntity(CRUDPlus[Entity]):
         """
         return  await self.delete_model_by_column(db, allow_multiple=True, id__in=pk)
 
-    async def update_properties(self, db: AsyncSession, pk: int, properties: dict) -> int:
+    async def update_properties(self, db: AsyncSession, pk: int, properties: dict, description: str | None = None) -> int:
         """
-        更新 Entity 的 properties 字段
+        更新 Entity 的 properties 和 description 字段
 
         :param db:
         :param pk:
         :param properties:
+        :param description:
         :return:
         """
-        return await self.update_model(db, pk, {'properties': properties})
+        update_data = {'properties': properties}
+        if description is not None:
+            update_data['description'] = description
+        return await self.update_model(db, pk, update_data)
 
 
 entity_dao: CRUDEntity = CRUDEntity(Entity)

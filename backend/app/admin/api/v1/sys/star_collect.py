@@ -17,6 +17,14 @@ from backend.utils.serializers import select_as_dict
 router = APIRouter()
 
 
+@router.get('/all', summary='获取所有收藏夹（不分页）', dependencies=[DependsJwtAuth])
+async def get_all_star_collect() -> ResponseModel:
+    """获取当前用户的所有收藏夹，不分页"""
+    star_collects = await star_collect_service.get_all()
+    data = [GetStarCollectListDetails(**select_as_dict(item)) for item in star_collects]
+    return response_base.success(data=data)
+
+
 @router.get('/{pk}', summary='获取详情', dependencies=[DependsJwtAuth])
 async def get_star_collect(pk: Annotated[int, Path(...)]) -> ResponseModel:
     star_collect = await star_collect_service.get(pk=pk)

@@ -51,8 +51,8 @@ async def process_with_llm(config, input_text, debug=False):
         entity_types_str = "、".join(entity_types)
         # 在"邮箱（完整地址）"之后添加实体类型
         user_prompt = user_prompt.replace(
-            "实体仅含5类：人物（姓名/职位）、组织（公司/机构）、地点（城市/国家/建筑）、事件（会议/历史事件）、邮箱（完整地址）；",
-            f"实体仅含5类：人物（姓名/职位）、组织（公司/机构）、地点（城市/国家/建筑）、事件（会议/历史事件）、邮箱（完整地址）、{entity_types_str}；"
+            "实体类型：人物（姓名/职位）、组织（公司/机构）、地点（城市/国家/建筑）、事件（会议/历史事件）、邮箱（完整地址）；",
+            f"实体类型：人物（姓名/职位）、组织（公司/机构）、地点（城市/国家/建筑）、事件（会议/历史事件）、邮箱（完整地址）、{entity_types_str}；"
         )
     
     user_prompt += f"```\n{input_text}```\n" 

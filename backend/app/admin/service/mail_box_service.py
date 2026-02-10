@@ -17,10 +17,12 @@ from backend.app.admin.crud.crud_mail_box import mail_box_dao
 from backend.app.admin.crud.crud_mail_msg import mail_msg_dao
 from backend.app.admin.model.mail_box import MailBox
 from backend.app.admin.model.mail_msg import MailMsg
+from backend.app.admin.model.sys_entity import Entity
+from backend.app.admin.model.sys_entity_doc import sys_entity_doc
 from backend.app.admin.schema.mail_box import CreateMailBoxParam, UpdateMailBoxParam
 from backend.common.exception import errors
 from backend.database.db_pg import async_db_session
-from sqlalchemy import Select, or_, and_, select
+from sqlalchemy import Select, or_, and_, select, distinct
 
 
 class MailBoxService:
@@ -319,7 +321,17 @@ class MailBoxService:
             centrality_results = analyze_centrality(G)
             key_nodes_results = find_key_nodes(G)
             communities_results = detect_communities_hard_partition(G)
+
+            mailbox_mail_count = defaultdict(int)
+            for edge in edges:
+                source = edge['source']
+                target = edge['target']
+                interaction_count = edge['email_count']
+                mailbox_mail_count[source] += interaction_count
+                mailbox_mail_count[target] += interaction_count
             
+            mail_count = dict(mailbox_mail_count)
+
             # 将分析结果添加到返回数据中
             result = {
                 'nodes': nodes,
@@ -332,7 +344,8 @@ class MailBoxService:
                     'is_directed': G.is_directed(),
                     'number_of_nodes': G.number_of_nodes(),
                     'number_of_edges': G.number_of_edges(),
-                    'number_of_connected_components': nx.number_connected_components(G.to_undirected())
+                    'number_of_connected_components': nx.number_connected_components(G.to_undirected()),
+                    'mail_count': mail_count
                 }
             }
             
@@ -405,102 +418,131 @@ class MailBoxService:
     
     @staticmethod
     async def get_email_provider_distribution(
-        *, 
+        *,
         start_time: datetime | None = None,
         end_time: datetime | None = None
     ) -> list[dict]:
         """
-        统计邮箱类型分布
-        
-        :param start_time: 开始时间
-        :param end_time: 结束时间
-        :return: 包含邮箱类型和对应数量的列表
+        统计系统所有邮箱账号的类型（服务商）分布占比
+
+        使用 SQL GROUP BY 按域名分组统计，再将已知域名映射为服务商名称
+
+        :param start_time: 开始时间（保留参数兼容）
+        :param end_time: 结束时间（保留参数兼容）
+        :return: 包含邮箱类型和对应账号数量的列表
         """
+        from sqlalchemy import func, text
+
+        # 已知域名 -> 服务商映射
+        major_providers = {
+            'gmail.com': 'Gmail',
+            'outlook.com': 'Outlook',
+            'hotmail.com': 'Outlook',
+            'live.com': 'Outlook',
+            'protonmail.com': 'Proton',
+            'proton.me': 'Proton',
+            'qq.com': 'QQ',
+            '163.com': '网易',
+            '126.com': '网易',
+            'yeah.net': '网易',
+            'sina.com': '新浪',
+            'sohu.com': '搜狐',
+            'aliyun.com': '阿里云',
+            'foxmail.com': 'Foxmail',
+            'dnc.org': 'DNC',
+            'rnc.org': 'RNC',
+        }
+
         async with async_db_session() as db:
-            # 构建查询条件
-            time_conditions = []
-            if start_time:
-                time_conditions.append(MailMsg.time >= start_time)
-            if end_time:
-                time_conditions.append(MailMsg.time <= end_time)
-            
-            # 定义主要邮箱服务商
-            major_providers = {
-                'gmail.com': 'Gmail',
-                'outlook.com': 'Outlook',
-                'hotmail.com': 'Outlook',
-                'live.com': 'Outlook',
-                'protonmail.com': 'Proton',
-                'proton.me': 'Proton',
-                'qq.com': 'QQ',
-                '163.com': '网易',
-                '126.com': '网易',
-                'yeah.net': '网易',
-                'sina.com': '新浪',
-                'sohu.com': '搜狐',
-                'aliyun.com': '阿里云',
-                'foxmail.com': 'Foxmail',
-                'dnc.org': 'DNC',
-                'rnc.org': 'RNC',
-            }
-            
-            # 统计邮箱服务商分布
-            provider_count = defaultdict(set)
-            
-            # 查询条件
-            query = select(MailMsg)
-            if time_conditions:
-                query = query.where(and_(*time_conditions))
-            
+            # PostgreSQL split_part 按 @ 取域名，GROUP BY 统计
+            domain_expr = func.lower(func.split_part(MailBox.name, '@', 2))
+            query = (
+                select(domain_expr.label('domain'), func.count().label('cnt'))
+                .where(MailBox.name.contains('@'))
+                .group_by(text('1'))
+                .order_by(text('cnt DESC'))
+            )
             result = await db.execute(query)
-            emails = result.scalars().all()
-            
-            # 统计邮箱服务商分布
-            for email_obj in emails:
-                # 获取所有涉及的邮箱
-                all_emails = set()
-                
-                # 处理发件人
-                if email_obj.sender:
-                    all_emails.add(email_obj.sender)
-                
-                # 处理收件人
-                if email_obj.receiver:
-                    receivers = [r.strip() for r in email_obj.receiver.split(',') if r.strip()]
-                    all_emails.update(receivers)
-                
-                # 处理抄送人
-                if email_obj.cc:
-                    ccs = [cc.strip() for cc in email_obj.cc.split(',') if cc.strip()]
-                    all_emails.update(ccs)
-                
-                # 统计每个邮箱的服务商
-                for email in all_emails:
-                    try:
-                        # 提取域名
-                        domain = email.split('@')[1].lower()
-                        # 检查是否为主要服务商
-                        provider = 'Other'
-                        for key, value in major_providers.items():
-                            if key in domain:
-                                provider = value
-                                break
-                        # 记录该邮件涉及的服务商
-                        provider_count[provider].add(email_obj.id)
-                    except (IndexError, AttributeError):
-                        # 忽略无效邮箱格式
-                        continue
-            
-            # 转换为列表并按数量排序
-            distribution = []
-            for provider, email_ids in provider_count.items():
-                distribution.append({
-                    'name': provider,
-                    'value': len(email_ids)
-                })
-            
-            # 按数量降序排序
+            rows = result.all()
+
+            # 将已知域名映射为服务商名称，未知的直接用域名
+            provider_count = defaultdict(int)
+            for domain, cnt in rows:
+                provider = major_providers.get(domain, domain)
+                provider_count[provider] += cnt
+
+            distribution = [
+                {'name': provider, 'value': count}
+                for provider, count in provider_count.items()
+            ]
             distribution.sort(key=lambda x: x['value'], reverse=True)
             return distribution
+
+    @staticmethod
+    async def get_mailbox_detail_with_emails(*, pk: int) -> dict:
+        """
+        获取邮箱详情，包括发送/接收/抄送的邮件列表和相关人物实体
+
+        :param pk: 邮箱ID
+        :return: 包含邮箱信息、邮件列表和人物实体的字典
+        """
+        async with async_db_session() as db:
+            # 获取邮箱信息
+            mail_box = await mail_box_dao.get(db, pk)
+            if not mail_box:
+                raise errors.NotFoundError(msg='邮箱不存在')
+
+            email = mail_box.name  # 邮箱地址
+
+            # 查询发送者是这个邮箱的邮件
+            sent_query = select(MailMsg).where(MailMsg.sender == email)
+            sent_result = await db.execute(sent_query)
+            sent_emails = sent_result.scalars().all()
+
+            # 查询接收者包含这个邮箱的邮件
+            received_query = select(MailMsg).where(MailMsg.receiver.like(f'%{email}%'))
+            received_result = await db.execute(received_query)
+            received_emails = received_result.scalars().all()
+
+            # 查询抄送者包含这个邮箱的邮件
+            cc_query = select(MailMsg).where(MailMsg.cc.like(f'%{email}%'))
+            cc_result = await db.execute(cc_query)
+            cc_emails = cc_result.scalars().all()
+
+            # 收集所有邮件的doc_id
+            all_doc_ids = set()
+            for email_obj in sent_emails + received_emails + cc_emails:
+                if email_obj.doc_id:
+                    all_doc_ids.add(email_obj.doc_id)
+
+            # 查询与这些文档相关的人物实体
+            person_entities = []
+            if all_doc_ids:
+                # 先查询去重的实体ID，避免 DISTINCT 无法处理 JSON 列的问题
+                entity_ids_query = (
+                    select(distinct(sys_entity_doc.c.entity_id))
+                    .join(Entity, Entity.id == sys_entity_doc.c.entity_id)
+                    .where(
+                        sys_entity_doc.c.doc_id.in_(all_doc_ids),
+                        Entity.entity_type == '人物'
+                    )
+                )
+                entity_ids_result = await db.execute(entity_ids_query)
+                entity_ids = [row[0] for row in entity_ids_result.fetchall()]
+
+                # 再根据ID查询完整的实体信息
+                if entity_ids:
+                    entity_query = select(Entity).where(Entity.id.in_(entity_ids))
+                    entity_result = await db.execute(entity_query)
+                    person_entities = entity_result.scalars().all()
+
+            return {
+                'mail_box': mail_box,
+                'sent_emails': sent_emails,
+                'received_emails': received_emails,
+                'cc_emails': cc_emails,
+                'person_entities': person_entities
+            }
+
 
 mail_box_service = MailBoxService()

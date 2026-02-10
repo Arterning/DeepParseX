@@ -101,19 +101,44 @@ class GetDocEntity(SchemaBase):
     entity_type: str | None = None
     properties: dict | None = None
 
+class GetDocChunkDetail(SchemaBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    chunk_index: int
+    chunk_text: str | None = None
+    chunk_translation: str | None = None
+
+
+class ChildDocInfo(SchemaBase):
+    """子文件简要信息"""
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    title: str
+    name: str | None = None
+    type: str | None = None
+    file_suffix: str | None = None
+    size: int | None = None
+    status: int | None = None
+    created_time: datetime
+
+
 class GetDocDetail(SysDocSchemaBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     created_time: datetime
     updated_time: datetime | None = None
+    updated_user: str | None = None
+    updated_by: int | None = None
     doc_data: list[dict]
+    doc_chunks: list[GetDocChunkDetail] = []
     doc_spos: list[GetDocSPO]
     tags: list[GetTagDetails] | None = []
     graph_data: dict
     entities: list[GetDocEntity]
     email_msg: GetMailMsgDetails | None = None
     error_msg: str | None = None
+    children: list[ChildDocInfo] = []
 
 
 class CollectDocParam(SchemaBase):
@@ -128,7 +153,12 @@ class ParseEntityParams(SchemaBase):
     entity_types: list[str] | None = None
 
 
+class TranslateChunksParams(SchemaBase):
+    """翻译分块参数"""
+    target_language: str = 'zh_CN'
+
+
 class ExtractEntitiesParams(SchemaBase):
     """提取实体参数"""
     model_config = ConfigDict(from_attributes=True)
-    entity_type_ids: list[int] 
+    entity_type_ids: list[int]

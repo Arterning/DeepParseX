@@ -21,6 +21,12 @@ class UpdateSysDocChunkParam(SysDocChunkSchemaBase):
     pass
 
 
+class UpdateChunkContentParam(SchemaBase):
+    """更新分块内容参数"""
+    chunk_text: str | None = None
+    chunk_translation: str | None = None
+
+
 class GetSysDocChunkListDetails(SysDocChunkSchemaBase):
     model_config = ConfigDict(from_attributes=True)
 

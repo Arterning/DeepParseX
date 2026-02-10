@@ -20,6 +20,7 @@ def register_scheduled_jobs():
     """注册所有定时任务"""
     from backend.app.admin.service.news_briefing_service import news_briefing_service
     from backend.app.admin.service.doc_service import sys_doc_service
+    from backend.app.admin.service.entity_service import entity_service
 
     if settings.RSS_BRIEF_ENABLED:
         # 每日新闻简报任务 - 每天上午7点执行
@@ -36,15 +37,27 @@ def register_scheduled_jobs():
 
     # 自动提取实体任务 - 每小时执行一次
     scheduler.add_job(
-        sys_doc_service.auto_extract_entities_for_docs,
+        sys_doc_service.auto_build_graph_for_docs,
         trigger=CronTrigger(minute=0),  # 每小时的第0分钟执行
-        id="auto_extract_entities",
-        name="自动提取实体",
+        id="auto_build_graph",
+        name="自动构建知识图谱",
         replace_existing=True,
         misfire_grace_time=1800,  # 允许30分钟的延迟执行
     )
 
-    log.info("已注册定时任务: 自动提取实体 (每小时一次)")
+    log.info("已注册定时任务: 自动构建知识图谱 (每小时一次)")
+
+    # 自动关联实体并生成属性 - 每小时执行一次（在第30分钟执行，与知识图谱任务错开）
+    scheduler.add_job(
+        entity_service.auto_link_and_generate_properties,
+        trigger=CronTrigger(minute=30),
+        id="auto_link_and_generate_properties",
+        name="自动关联实体并生成属性",
+        replace_existing=True,
+        misfire_grace_time=1800,
+    )
+
+    log.info("已注册定时任务: 自动关联实体并生成属性 (每小时一次)")
 
 
 async def start_scheduler():

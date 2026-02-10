@@ -126,6 +126,7 @@ class CRUDTag(CRUDPlus[Tag]):
         param = CreateTagParam(name=name)
         tag = self.model(**param.model_dump())
         db.add(tag)
+        await db.flush()  # flush 让数据库分配 ID
         return tag
 
 tag_dao: CRUDTag = CRUDTag(Tag)

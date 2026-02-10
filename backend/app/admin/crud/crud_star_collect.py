@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
 from sqlalchemy.orm import selectinload
 from backend.app.admin.model.sys_star_collect import StarCollect
+from backend.app.admin.model.sys_star_entity import sys_star_entity
 from backend.app.admin.schema.star_collect import CreateStarCollectParam, UpdateStarCollectParam
 
 
@@ -22,7 +23,7 @@ class CRUDStarCollect(CRUDPlus[StarCollect]):
         where = [self.model.id == pk]
         doc = await db.execute(
             select(self.model)
-            .options(selectinload(self.model.docs))
+            .options(selectinload(self.model.docs), selectinload(self.model.entities))
             .where(*where)
         )
         return doc.scalars().first()
@@ -35,10 +36,71 @@ class CRUDStarCollect(CRUDPlus[StarCollect]):
         """
         se = (
             select(self.model)
-                .options(selectinload(self.model.docs))
+                .options(selectinload(self.model.docs), selectinload(self.model.entities))
                 .order_by(desc(self.model.created_time))
         )
         return se
+
+    async def add_entity(self, db: AsyncSession, star_id: int, entity_id: int, created_by: int | None = None) -> bool:
+        """
+        添加实体到收藏夹
+
+        :param db:
+        :param star_id:
+        :param entity_id:
+        :param created_by:
+        :return:
+        """
+        # 检查是否已存在
+        existing = await db.execute(
+            select(sys_star_entity).where(
+                sys_star_entity.c.star_id == star_id,
+                sys_star_entity.c.entity_id == entity_id
+            )
+        )
+        if existing.first():
+            return False
+
+        await db.execute(
+            sys_star_entity.insert().values(
+                star_id=star_id,
+                entity_id=entity_id,
+                created_by=created_by
+            )
+        )
+        return True
+
+    async def remove_entity(self, db: AsyncSession, star_id: int, entity_id: int) -> bool:
+        """
+        从收藏夹移除实体
+
+        :param db:
+        :param star_id:
+        :param entity_id:
+        :return:
+        """
+        result = await db.execute(
+            delete(sys_star_entity).where(
+                sys_star_entity.c.star_id == star_id,
+                sys_star_entity.c.entity_id == entity_id
+            )
+        )
+        return result.rowcount > 0
+
+    async def get_entity_starred_ids(self, db: AsyncSession, entity_id: int) -> list[int]:
+        """
+        获取实体所在的所有收藏夹ID列表
+
+        :param db:
+        :param entity_id:
+        :return: 收藏夹ID列表
+        """
+        result = await db.execute(
+            select(sys_star_entity.c.star_id).where(
+                sys_star_entity.c.entity_id == entity_id
+            )
+        )
+        return [row[0] for row in result.fetchall()]
 
     async def get_all(self, db: AsyncSession) -> Sequence[StarCollect]:
         """

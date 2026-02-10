@@ -5,6 +5,7 @@ from typing import Sequence, Dict, List, Any
 
 from backend.app.admin.crud.crud_entity import entity_dao
 from backend.app.admin.crud.crud_entity_relationship import entity_relation_dao
+from backend.app.admin.crud.crud_star_collect import star_collect_dao
 from backend.app.admin.model.sys_entity import Entity
 from backend.app.admin.model.sys_entity_relationship import EntityRelation
 from backend.app.admin.schema.entity import CreateEntityParam, UpdateEntityParam
@@ -78,8 +79,62 @@ class EntityService:
             return formatted_relationships
     
     @staticmethod
-    async def get_select(name: str | None = None, entity_type: str | list[str] | None = None) -> Select:
-        return await entity_dao.get_list(name=name, entity_type=entity_type)
+    async def analyze_entities(*, entity_ids: List[int]) -> Dict[str, Any]:
+        """
+        分析多个实体之间的关系，返回图谱数据
+
+        :param entity_ids: 要分析的实体ID列表
+        :return: { nodes: [...], edges: [...] }
+        """
+        async with async_db_session() as db:
+            # 获取所有相关关系
+            relationships = await entity_relation_dao.get_by_entity_ids(db, entity_ids)
+
+            # 收集所有涉及的实体 ID（选中的 + 关系中发现的）
+            all_entity_ids = set(entity_ids)
+            for rel in relationships:
+                if rel.source_id:
+                    all_entity_ids.add(rel.source_id)
+                if rel.target_id:
+                    all_entity_ids.add(rel.target_id)
+
+            # 一次性查询所有实体信息
+            entities_dict: Dict[int, Entity] = {}
+            if all_entity_ids:
+                stmt = Select(Entity).where(Entity.id.in_(all_entity_ids))
+                result = await db.execute(stmt)
+                entities = result.scalars().all()
+                entities_dict = {e.id: e for e in entities}
+
+            selected_ids_set = set(entity_ids)
+
+            # 构建 nodes
+            nodes = []
+            for eid, entity in entities_dict.items():
+                nodes.append({
+                    'id': eid,
+                    'name': entity.name,
+                    'entity_type': entity.entity_type,
+                    'is_selected': eid in selected_ids_set,
+                })
+
+            # 构建 edges
+            edges = []
+            for rel in relationships:
+                edges.append({
+                    'id': rel.id,
+                    'source_id': rel.source_id,
+                    'target_id': rel.target_id,
+                    'relation_type': rel.relation_type,
+                    'weight': rel.weight,
+                    'description': rel.description,
+                })
+
+            return {'nodes': nodes, 'edges': edges}
+
+    @staticmethod
+    async def get_select(name: str | None = None, entity_type: str | list[str] | None = None, eml: bool | None = None) -> Select:
+        return await entity_dao.get_list(name=name, entity_type=entity_type, eml=eml)
 
     @staticmethod
     async def get_all() -> Sequence[Entity]:
@@ -104,12 +159,91 @@ class EntityService:
             count = await entity_dao.delete(db, pk)
             return count
 
+    @staticmethod
+    async def add_to_star(*, entity_id: int, star_id: int, created_by: int | None = None) -> bool:
+        """
+        将实体添加到收藏夹
+
+        :param entity_id: 实体ID
+        :param star_id: 收藏夹ID
+        :param created_by: 创建人ID
+        :return: 是否成功
+        """
+        async with async_db_session.begin() as db:
+            # 检查实体是否存在
+            entity = await entity_dao.get(db, entity_id)
+            if not entity:
+                raise errors.NotFoundError(msg='实体不存在')
+
+            # 检查收藏夹是否存在
+            star_collect = await star_collect_dao.get(db, star_id)
+            if not star_collect:
+                raise errors.NotFoundError(msg='收藏夹不存在')
+
+            return await star_collect_dao.add_entity(db, star_id, entity_id, created_by)
+
+    @staticmethod
+    async def remove_from_star(*, entity_id: int, star_id: int) -> bool:
+        """
+        从收藏夹移除实体
+
+        :param entity_id: 实体ID
+        :param star_id: 收藏夹ID
+        :return: 是否成功
+        """
+        async with async_db_session.begin() as db:
+            return await star_collect_dao.remove_entity(db, star_id, entity_id)
+
+    @staticmethod
+    async def get_starred_ids(*, entity_id: int) -> list[int]:
+        """
+        获取实体所在的所有收藏夹ID列表
+
+        :param entity_id: 实体ID
+        :return: 收藏夹ID列表
+        """
+        async with async_db_session() as db:
+            return await star_collect_dao.get_entity_starred_ids(db, entity_id)
+
     # 预设字段映射
     DEFAULT_EDITABLE_FIELDS = {
         '人物': ['性别', '国籍', '组织', '职位', '联系方式'],
         '组织': ['类型', '国家'],
         '事件': ['时间', '地点', '参与者']
     }
+
+    @staticmethod
+    async def _get_related_doc_contents(db, entity) -> tuple[list[str], list[int]]:
+        """
+        获取实体相关文档内容（全文检索命中的 chunk_text）
+
+        :param db: 数据库会话
+        :param entity: 实体对象
+        :return: (格式化的文档内容列表, 尚未建立关联的doc_id列表)
+        """
+        from backend.app.admin.crud.crud_doc_chunk import sys_doc_chunk_dao
+
+        # 已关联的 doc_id 集合（仅用于判断是否需要新建关联）
+        existing_doc_ids = {doc.id for doc in entity.docs} if entity.docs else set()
+
+        # 全文检索包含实体名称的文档，直接使用命中的 chunk_text
+        search_results = await sys_doc_chunk_dao.search_doc_ids_by_keyword(
+            db, entity.name, limit=20
+        )
+
+        # 保存检索结果到实体的 matched_chunks 字段
+        entity.matched_chunks = search_results
+
+        # 格式化内容 & 识别新文档
+        doc_contents = []
+        new_doc_ids = []
+        for doc_info in search_results:
+            chunks_text = '\n'.join(doc_info['chunks'])
+            doc_contents.append(f'[{doc_info["doc_title"]}]: {chunks_text}')
+            if doc_info['doc_id'] not in existing_doc_ids:
+                new_doc_ids.append(doc_info['doc_id'])
+
+        return doc_contents, new_doc_ids
 
     @staticmethod
     async def generate_properties_by_ai(*, pk: int) -> Dict[str, Any]:
@@ -166,16 +300,10 @@ class EntityService:
             if entity.description:
                 context_parts.append(f'现有描述: {entity.description}')
 
-            # 获取关联文档内容
-            if entity.docs:
-                doc_contents = []
-                for doc in entity.docs[:5]:  # 限制最多5个文档避免上下文过长
-                    if doc.content:
-                        # 截取前2000字符避免内容过长
-                        content = doc.content[:2000] if len(doc.content) > 2000 else doc.content
-                        doc_contents.append(f'[{doc.title}]: {content}')
-                if doc_contents:
-                    context_parts.append('关联文档内容:\n' + '\n'.join(doc_contents))
+            # 获取关联文档内容（直接关联 + 全文检索）
+            doc_contents, new_doc_ids = await EntityService._get_related_doc_contents(db, entity)
+            if doc_contents:
+                context_parts.append('关联文档内容:\n' + '\n'.join(doc_contents))
 
             user_input = '\n'.join(context_parts)
 
@@ -226,6 +354,21 @@ class EntityService:
                 # 更新实体的 properties 和 description 字段
                 await entity_dao.update_properties(db, pk, properties, description)
 
+                # 为全文检索新发现的文档创建关联
+                if new_doc_ids:
+                    from backend.app.admin.model.sys_entity_doc import sys_entity_doc
+                    for doc_id in new_doc_ids:
+                        existing = await db.execute(
+                            select(sys_entity_doc).where(
+                                sys_entity_doc.c.entity_id == pk,
+                                sys_entity_doc.c.doc_id == doc_id
+                            )
+                        )
+                        if not existing.first():
+                            await db.execute(
+                                sys_entity_doc.insert().values(entity_id=pk, doc_id=doc_id)
+                            )
+
                 # 返回结果包含 properties 和 description
                 return {'properties': properties, 'description': description}
 
@@ -235,6 +378,71 @@ class EntityService:
             except Exception as e:
                 log.error(f'生成属性失败: {e}')
                 raise errors.RequestError(msg=f'生成属性失败: {str(e)}')
+
+
+    @staticmethod
+    async def auto_link_and_generate_properties():
+        """定时任务：自动为在文档中出现但未建立关联的实体生成属性
+
+        查找实体名称在 sys_doc_chunk 表中出现但 sys_entity_doc 中未建立关联的实体，
+        每次处理10个，调用 generate_properties_by_ai 方法。
+        """
+        from sqlalchemy import select, exists, func, or_
+        from backend.app.admin.model.sys_doc_chunk import SysDocChunk
+        from backend.app.admin.model.sys_entity_doc import sys_entity_doc
+
+        try:
+            async with async_db_session() as db:
+                # 子查询：实体已关联的文档ID
+                linked_docs = (
+                    select(sys_entity_doc.c.doc_id)
+                    .where(sys_entity_doc.c.entity_id == Entity.id)
+                    .correlate(Entity)
+                )
+
+                # 条件：通过 chunk_vector (GIN索引) 全文检索实体名称，且该文档未与实体建立关联
+                has_unlinked_mention = exists(
+                    select(SysDocChunk.id).where(
+                        SysDocChunk.chunk_vector.op('@@')(
+                            func.plainto_tsquery('simple', func.lower(Entity.name))
+                        ),
+                        SysDocChunk.doc_id.notin_(linked_docs)
+                    ).correlate(Entity)
+                )
+
+                stmt = (
+                    select(Entity.id)
+                    .where(Entity.name.isnot(None))
+                    .where(func.length(Entity.name) >= 2)
+                    .where(or_(has_unlinked_mention, Entity.matched_chunks.is_(None)))
+                    .limit(10)
+                )
+
+                result = await db.execute(stmt)
+                entity_ids = [row[0] for row in result.all()]
+
+            if not entity_ids:
+                log.info("没有需要处理的未关联实体")
+                return
+
+            log.info(f"开始为 {len(entity_ids)} 个未关联实体生成属性")
+
+            success_count = 0
+            error_count = 0
+
+            for entity_id in entity_ids:
+                try:
+                    await EntityService.generate_properties_by_ai(pk=entity_id)
+                    success_count += 1
+                    log.info(f"实体 {entity_id} 属性生成完成")
+                except Exception as e:
+                    error_count += 1
+                    log.error(f"实体 {entity_id} 属性生成失败: {str(e)}")
+
+            log.info(f"未关联实体属性生成完成: 成功 {success_count} 个，失败 {error_count} 个")
+
+        except Exception as e:
+            log.error(f"自动处理未关联实体任务失败: {str(e)}")
 
 
 entity_service = EntityService()

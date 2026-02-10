@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from typing import Union, Dict, Any
+from typing import Union, Dict, Any, List
 from sqlalchemy import String, ForeignKey, BIGINT
 from sqlalchemy.dialects.postgresql import TEXT, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -19,6 +19,7 @@ class Entity(Base):
     description: Mapped[str | None] = mapped_column(TEXT, default=None, comment='实体描述')
     entity_type: Mapped[str | None] = mapped_column(String(255), default=None, comment='实体类型')
     properties: Mapped[Dict[str, Any] | None] = mapped_column(JSON, default=None, comment='实体属性')
+    matched_chunks: Mapped[List[Dict[str, Any]] | None] = mapped_column(JSON, default=None, comment='包含实体名称的文本片段')
 
     # 首次发现来源
     source_doc_id: Mapped[int | None] = mapped_column(BIGINT, default=None, comment='首次发现来源文档ID')

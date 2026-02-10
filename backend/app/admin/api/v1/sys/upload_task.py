@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Depends, Path, Query, Request
 
 from backend.app.admin.schema.upload_task import CreateUploadTaskParam, GetUploadTaskDetails, GetUploadTaskListDetails, UpdateUploadTaskParam
 from backend.app.admin.service.upload_task_service import upload_task_service
@@ -33,13 +33,15 @@ async def get_upload_task(pk: Annotated[int, Path(...)]) -> ResponseModel:
     ],
 )
 async def get_pagination_upload_task(
+    request: Request,
     db: CurrentSession,
     name: Annotated[str | None, Query()] = None,
     status: Annotated[str | None, Query()] = None,
     source: Annotated[str | None, Query()] = None,
     rangeValue: Annotated[list[str] | None, Query()] = ['', ''],
 ) -> ResponseModel:
-    upload_task_select = await upload_task_service.get_select(name=name, status=status, source=source, rangeValue=rangeValue)
+    create_user = None if request.user.is_superuser else request.user.id
+    upload_task_select = await upload_task_service.get_select(name=name, status=status, source=source, rangeValue=rangeValue, create_user=create_user)
     page_data = await paging_data(db, upload_task_select, GetUploadTaskListDetails)
     return response_base.success(data=page_data)
 

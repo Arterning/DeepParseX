@@ -33,11 +33,20 @@ class GetStarDocs(SchemaBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class GetStarEntities(SchemaBase):
+    id: int
+    name: str | None = None
+    entity_type: str | None = None
+    description: str | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+
 class GetStarCollectListDetails(StarCollectSchemaBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     docs: list[GetStarDocs] | None = []
+    entities: list[GetStarEntities] | None = []
     created_time: datetime
     updated_time: datetime | None = None
     

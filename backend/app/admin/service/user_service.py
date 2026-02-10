@@ -124,7 +124,7 @@ class UserService:
     @staticmethod
     async def update_roles(*, request: Request, username: str, obj: UpdateUserRoleParam) -> None:
         async with async_db_session.begin() as db:
-            if not request.user.is_superuser:
+            if request and not request.user.is_superuser:
                 if request.user.username != username:
                     raise errors.AuthorizationError
             input_user = await user_dao.get_with_relation(db, username=username)
@@ -135,8 +135,8 @@ class UserService:
                 if not role:
                     raise errors.NotFoundError(msg='角色不存在')
             await user_dao.update_role(db, input_user, obj)
-            await redis_client.delete_prefix(f'{settings.PERMISSION_REDIS_PREFIX}:{request.user.uuid}')
-            await redis_client.delete(f'{settings.JWT_USER_REDIS_PREFIX}:{request.user.id}')
+            # await redis_client.delete_prefix(f'{settings.PERMISSION_REDIS_PREFIX}:{request.user.uuid}')
+            # await redis_client.delete(f'{settings.JWT_USER_REDIS_PREFIX}:{request.user.id}')
 
     @staticmethod
     async def update_avatar(*, request: Request, username: str, avatar: AvatarParam) -> int:

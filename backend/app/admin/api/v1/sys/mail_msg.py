@@ -45,6 +45,7 @@ async def get_pagination_mail_msg(
     cc: str | None = Query(None, description='抄送者'),
     bcc: str | None = Query(None, description='密送者'),
     doc_dir_id: int | None = Query(None, description='目录ID'),
+    detection_result: int | None = Query(None, description='检测结果：0=正常邮件，1=垃圾邮件，2=疑似垃圾邮件'),
 ) -> ResponseModel:
 
     # 从JWT中获取当前登录用户ID
@@ -60,6 +61,7 @@ async def get_pagination_mail_msg(
         cc=cc,
         bcc=bcc,
         doc_dir_id=doc_dir_id,
+        detection_result=detection_result,
         current_user_id=current_user_id,
     )
     page_data = await paging_data(db, mail_msg_select, GetMailMsgListDetails)
@@ -83,7 +85,6 @@ async def create_mail_msg(obj: CreateMailMsgParam) -> ResponseModel:
     '/{pk}',
     summary='更新',
     dependencies=[
-        Depends(RequestPermission(':edit')),
         DependsRBAC,
     ],
 )

@@ -9,6 +9,10 @@ from pydantic import ConfigDict
 from backend.common.schema import SchemaBase
 
 
+class AnalyzeEntitiesParam(SchemaBase):
+    entity_ids: List[int]
+
+
 class EntitySchemaBase(SchemaBase):
     name: str
     description: str | None = None
@@ -30,6 +34,7 @@ class EntityDocs(SchemaBase):
     title: str
     name: str | None = None
     type: str | None = None
+    content: str | None = None
     doc_time: datetime | None = None
 
 
@@ -46,6 +51,8 @@ class GetEntityDetails(EntitySchemaBase):
     id: int
     relationships: Optional[Any] = None  # 关系数据
     docs: Optional[List[EntityDocs]] = None  # 关联的文档列表
-    
+    starred_ids: Optional[List[int]] = None  # 收藏夹ID列表
+    matched_chunks: Optional[List[Dict[str, Any]]] = None  # 包含实体名称的文本片段
+
     created_time: datetime
     updated_time: datetime | None = None

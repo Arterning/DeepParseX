@@ -33,6 +33,7 @@ class CRUDMailMsg(CRUDPlus[MailMsg]):
         cc: str | None = None,
         bcc: str | None = None,
         doc_dir_id: int | None = None,
+        detection_result: int | None = None,
         current_user_id: int | None = None
     ) -> Select:
         """
@@ -66,6 +67,8 @@ class CRUDMailMsg(CRUDPlus[MailMsg]):
             select_stmt = select_stmt.where(self.model.bcc.like(f'%{bcc}%'))
         if doc_dir_id:
             select_stmt = select_stmt.where(self.model.doc_dir_id == doc_dir_id)
+        if detection_result is not None:
+            select_stmt = select_stmt.where(self.model.detection_result == detection_result)
         return select_stmt
 
     async def get_all(self, db: AsyncSession) -> Sequence[MailMsg]:

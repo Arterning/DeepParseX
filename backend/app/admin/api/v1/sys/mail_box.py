@@ -5,7 +5,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, Path, Query, Body
 
-from backend.app.admin.schema.mail_box import CreateMailBoxParam, GetMailBoxDetails, GetMailBoxListDetails, UpdateMailBoxParam
+from backend.app.admin.schema.mail_box import CreateMailBoxParam, GetMailBoxDetails, GetMailBoxListDetails, UpdateMailBoxParam, GetMailBoxFullDetails, MailMsgBrief, PersonEntityBrief
 from backend.app.admin.service.mail_box_service import mail_box_service
 from backend.common.pagination import DependsPagination, paging_data
 from backend.common.response.response_schema import ResponseModel, response_base
@@ -80,8 +80,17 @@ async def get_mail_box_by_name(name: Annotated[str, Query(..., description='邮�
 
 @router.get('/{pk}', summary='获取详情', dependencies=[DependsJwtAuth])
 async def get_mail_box(pk: Annotated[int, Path(...)]) -> ResponseModel:
-    mail_box = await mail_box_service.get(pk=pk)
-    data = GetMailBoxDetails(**select_as_dict(mail_box))
+    result = await mail_box_service.get_mailbox_detail_with_emails(pk=pk)
+
+    # 构建响应数据
+    mail_box_data = select_as_dict(result['mail_box'])
+    data = GetMailBoxFullDetails(
+        **mail_box_data,
+        sent_emails=[MailMsgBrief(**select_as_dict(e)) for e in result['sent_emails']],
+        received_emails=[MailMsgBrief(**select_as_dict(e)) for e in result['received_emails']],
+        cc_emails=[MailMsgBrief(**select_as_dict(e)) for e in result['cc_emails']],
+        person_entities=[PersonEntityBrief(**select_as_dict(e)) for e in result['person_entities']]
+    )
     return response_base.success(data=data)
 
 
@@ -103,7 +112,6 @@ async def get_pagination_mail_box(db: CurrentSession, name: Annotated[str | None
     '',
     summary='创建',
     dependencies=[
-        Depends(RequestPermission(':add')),
         DependsRBAC,
     ],
 )
@@ -116,7 +124,6 @@ async def create_mail_box(obj: CreateMailBoxParam) -> ResponseModel:
     '/{pk}',
     summary='更新',
     dependencies=[
-        Depends(RequestPermission(':edit')),
         DependsRBAC,
     ],
 )
