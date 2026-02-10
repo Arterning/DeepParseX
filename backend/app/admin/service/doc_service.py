@@ -1093,6 +1093,23 @@ class SysDocService:
             result = await db.execute(query)
             return set(result.scalars().all())
 
+    @staticmethod
+    async def get_doc_starred_ids(doc_id: int, user_id: int) -> list[int]:
+        """
+        获取文档所在的所有收藏夹 ID
+
+        :param doc_id: 文档ID
+        :param user_id: 用户ID
+        :return: 收藏夹 ID 列表
+        """
+        async with async_db_session() as db:
+            query = select(sys_star_doc.c.star_id).where(
+                sys_star_doc.c.doc_id == doc_id,
+                sys_star_doc.c.created_by == user_id
+            )
+            result = await db.execute(query)
+            return list(result.scalars().all())
+
 
     @staticmethod
     async def get_count(user_id: int | None = None, is_superuser: bool = False):
@@ -1664,13 +1681,17 @@ class SysDocService:
                             log.info(f"文档 {doc_id} 摘要生成完成")
 
                         # 生成翻译（如果没有）
+                        # 如果文档语言是中文，则跳过翻译
                         if not doc.translation:
-                            # 调用 translate_chunks 方法生成翻译
-                            await sys_doc_service.translate_chunks(
-                                pk=doc_id,
-                                target_language="中文"
-                            )
-                            log.info(f"文档 {doc_id} 翻译完成")
+                            if doc.language and doc.language == "中文":
+                                log.info(f"文档 {doc_id} 语言为中文，跳过翻译")
+                            else:
+                                # 调用 translate_chunks 方法生成翻译
+                                await sys_doc_service.translate_chunks(
+                                    pk=doc_id,
+                                    target_language="中文"
+                                )
+                                log.info(f"文档 {doc_id} 翻译完成")
 
                         success_count += 1
                     except Exception as e:

@@ -22,6 +22,7 @@ class SysDocSchemaBase(SchemaBase):
     status: int | None = None
     dept_id: int | None = None
     doc_dir_id: int | None = None
+    language: str | None = None
     created_by: int | None = None
     created_user: str | None = None
     
@@ -139,6 +140,7 @@ class GetDocDetail(SysDocSchemaBase):
     email_msg: GetMailMsgDetails | None = None
     error_msg: str | None = None
     children: list[ChildDocInfo] = []
+    starred_ids: list[int] = []
 
 
 class CollectDocParam(SchemaBase):

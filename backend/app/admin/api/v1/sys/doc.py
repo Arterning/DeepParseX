@@ -285,7 +285,7 @@ async def update_chunk(
 
 
 @router.get('/{pk}', summary='获取文件详情', dependencies=[DependsJwtAuth])
-async def get_sys_doc(pk: Annotated[int, Path(...)]) -> ResponseModel:
+async def get_sys_doc(pk: Annotated[int, Path(...)], request: Request) -> ResponseModel:
     doc = await sys_doc_service.get(pk=pk)
     doc_data = []
     for data in doc.doc_data:
@@ -301,6 +301,11 @@ async def get_sys_doc(pk: Annotated[int, Path(...)]) -> ResponseModel:
     # 查询子文件（belong = 当前文件id的文件）
     children = await sys_doc_service.get_children(pk=pk)
     doc_dict.update({"children": children})
+
+    # 查询该文档所在的所有收藏夹 ID
+    user_id = request.user.id
+    starred_ids = await sys_doc_service.get_doc_starred_ids(doc_id=pk, user_id=user_id)
+    doc_dict.update({"starred_ids": starred_ids})
 
     data = GetDocDetail(**doc_dict)
     return response_base.success(data=data)

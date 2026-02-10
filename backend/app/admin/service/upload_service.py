@@ -305,6 +305,62 @@ class UploadService:
         return text.replace('\x00', '').encode('utf-8', errors='ignore').decode('utf-8')
 
     @staticmethod
+    def detect_language(text: str) -> str:
+        """
+        检测文本的主要语言
+
+        :param text: 要检测的文本
+        :return: 语言名称（中文、英文、日文、韩文、其他）
+        """
+        if not text or len(text.strip()) == 0:
+            return "未知"
+
+        # 只检测前 2000 个字符以提高性能
+        sample_text = text[:2000]
+        total_chars = len(sample_text)
+
+        if total_chars == 0:
+            return "未知"
+
+        # 统计各种字符的数量
+        chinese_chars = len([c for c in sample_text if '\u4e00' <= c <= '\u9fff'])  # 中文字符
+        english_chars = len([c for c in sample_text if c.isalpha() and c.isascii()])  # 英文字母
+        japanese_chars = len([c for c in sample_text if '\u3040' <= c <= '\u309f' or '\u30a0' <= c <= '\u30ff'])  # 日文假名
+        korean_chars = len([c for c in sample_text if '\uac00' <= c <= '\ud7af'])  # 韩文字符
+
+        # 计算各语言字符的比例
+        chinese_ratio = chinese_chars / total_chars
+        english_ratio = english_chars / total_chars
+        japanese_ratio = japanese_chars / total_chars
+        korean_ratio = korean_chars / total_chars
+
+        # 根据比例判断主要语言（阈值设为 0.3）
+        threshold = 0.3
+
+        # 按优先级判断
+        if chinese_ratio >= threshold:
+            return "中文"
+        elif english_ratio >= threshold:
+            return "英文"
+        elif japanese_ratio >= threshold:
+            return "日文"
+        elif korean_ratio >= threshold:
+            return "韩文"
+        else:
+            # 如果都没有超过阈值，选择比例最高的
+            max_ratio = max(chinese_ratio, english_ratio, japanese_ratio, korean_ratio)
+            if max_ratio == chinese_ratio and chinese_ratio > 0.1:
+                return "中文"
+            elif max_ratio == english_ratio and english_ratio > 0.1:
+                return "英文"
+            elif max_ratio == japanese_ratio and japanese_ratio > 0.1:
+                return "日文"
+            elif max_ratio == korean_ratio and korean_ratio > 0.1:
+                return "韩文"
+            else:
+                return "其他"
+
+    @staticmethod
     async def request_content(title, file_bytes: bytes):
         # 直接await调用异步版本的process_file
         response = await process_file(title, file_bytes)
@@ -515,9 +571,15 @@ class UploadService:
         if desc:
             desc = upload_service.sanitize_text(desc)
 
+        # 检测文件语言
+        language = None
+        if content:
+            language = upload_service.detect_language(content)
+
         obj_dict = {
             'content': content,
             'desc': desc,
+            'language': language,
         }
         await sys_doc_service.base_update(pk=doc.id, obj=obj_dict)
 
