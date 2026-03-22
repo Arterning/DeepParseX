@@ -5,11 +5,11 @@ from sqlalchemy import String, ForeignKey, BIGINT
 from sqlalchemy.dialects.postgresql import TEXT, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from backend.common.model import Base, id_key
+from backend.common.model import Base, id_key, UserMixin
 from backend.app.admin.model.sys_entity_doc import sys_entity_doc
 
 
-class Entity(Base):
+class Entity(Base, UserMixin):
     """实体"""
 
     __tablename__ = 'sys_entity'
@@ -20,6 +20,7 @@ class Entity(Base):
     entity_type: Mapped[str | None] = mapped_column(String(255), default=None, comment='实体类型')
     properties: Mapped[Dict[str, Any] | None] = mapped_column(JSON, default=None, comment='实体属性')
     matched_chunks: Mapped[List[Dict[str, Any]] | None] = mapped_column(JSON, default=None, comment='包含实体名称的文本片段')
+    profile: Mapped[str | None] = mapped_column(TEXT, default=None, comment='实体画像（详细画像信息）')
 
     # 首次发现来源
     source_doc_id: Mapped[int | None] = mapped_column(BIGINT, default=None, comment='首次发现来源文档ID')

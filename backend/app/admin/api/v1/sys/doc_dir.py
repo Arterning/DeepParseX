@@ -10,15 +10,20 @@ from backend.common.response.response_schema import ResponseModel, response_base
 from backend.common.security.jwt import DependsJwtAuth
 from backend.common.security.permission import RequestPermission
 from backend.common.security.rbac import DependsRBAC
-from backend.utils.serializers import select_as_dict
+from backend.utils.serializers import select_as_dict, select_columns_serialize
 
 router = APIRouter()
 
 
 @router.get('/{pk}', summary='获取目录详情', dependencies=[DependsJwtAuth])
 async def get_doc_dir(pk: Annotated[int, Path(...)]) -> ResponseModel:
-    doc_dir = await doc_dir_service.get(pk=pk)
-    data = GetDocDirListDetails(**select_as_dict(doc_dir))
+    doc_dir = await doc_dir_service.get_with_children(pk=pk)
+    # select_columns_serialize 只读表列字段，不含关联属性，避免 children 重复传入或触发懒加载
+    children = [
+        GetDocDirListDetails(**select_columns_serialize(child), children=[])
+        for child in (doc_dir.children or [])
+    ]
+    data = GetDocDirListDetails(**select_columns_serialize(doc_dir), children=children)
     return response_base.success(data=data)
 
 

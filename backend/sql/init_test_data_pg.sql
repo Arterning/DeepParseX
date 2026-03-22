@@ -71,6 +71,7 @@ INSERT INTO sys_user_role (id, user_id, role_id)
 VALUES (1, 1, 1);
 
 
+
 SELECT setval('sys_menu_id_seq', (SELECT MAX(id) FROM sys_menu));
 SELECT setval('sys_dept_id_seq', (SELECT MAX(id) FROM sys_dept));
 SELECT setval('sys_user_id_seq', (SELECT MAX(id) FROM sys_user));

@@ -204,6 +204,18 @@ class EmailParser:
         msg = parser.parsebytes(file_bytes)
 
         # 获取基本信息
+        raw_message_id = msg.get('Message-ID', '').strip()
+        raw_in_reply_to = msg.get('In-Reply-To', '').strip()
+        references = msg.get('References', '').strip()
+
+        # thread_id 取 References 链中最早的祖先 Message-ID，降级到 In-Reply-To，再降级到自身
+        if references:
+            thread_id = references.split()[0]
+        elif raw_in_reply_to:
+            thread_id = raw_in_reply_to.split()[0]
+        else:
+            thread_id = raw_message_id
+
         email_data = {
             'subject': msg.get('Subject', ''),
             'from': msg.get('From', ''),
@@ -213,6 +225,9 @@ class EmailParser:
             'date': msg.get('Date', ''),
             'content_type': msg.get_content_type(),
             'attachments': [],
+            'message_id': raw_message_id,
+            'in_reply_to': raw_in_reply_to,
+            'thread_id': thread_id,
         }
 
         # 处理日期格式

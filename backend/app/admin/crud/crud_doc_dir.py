@@ -106,5 +106,21 @@ class CRUDDocDir(CRUDPlus[SysDocDir]):
         doc_dir = result.scalars().first()
         return doc_dir.children
 
+    async def get_with_children(self, db: AsyncSession, dir_id: int) -> SysDocDir | None:
+        """
+        获取目录详情（含子目录关系）
+
+        :param db:
+        :param dir_id:
+        :return:
+        """
+        stmt = (
+            select(self.model)
+            .options(selectinload(self.model.children))
+            .where(self.model.id == dir_id, self.model.del_flag == False)
+        )
+        result = await db.execute(stmt)
+        return result.scalars().first()
+
 
 doc_dir_dao: CRUDDocDir = CRUDDocDir(SysDocDir)

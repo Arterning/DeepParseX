@@ -41,6 +41,11 @@ class UploadTaskService:
             return count
 
     @staticmethod
+    async def update_status_by_doc_id(*, doc_id: int, status: str) -> int:
+        async with async_db_session.begin() as db:
+            return await upload_task_dao.update_status_by_doc_id(db, doc_id, status)
+
+    @staticmethod
     async def delete(*, pk: list[int]) -> int:
         async with async_db_session.begin() as db:
             count = await upload_task_dao.delete(db, pk)

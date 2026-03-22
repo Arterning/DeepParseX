@@ -38,7 +38,8 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
                        title: str = None, source: str = None,
                         content: str = None, ids: list[int] = None,
                         start_time: str = None, end_time :str = None,
-                        current_user_id: int = None, tag_ids: list[int] = None
+                        current_user_id: int = None, tag_ids: list[int] = None,
+                        doc_dir_id: int = None
                         ) -> Select:
         """
         获取 SysDoc 列表
@@ -96,6 +97,8 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
                 .having(func.count(sys_tag_doc.c.tag_id.distinct()) == len(tag_ids))
             )
             where_list.append(self.model.id.in_(subquery))
+        if doc_dir_id is not None:
+            where_list.append(self.model.doc_dir_id == doc_dir_id)
         if where_list:
             stmt = stmt.where(and_(*where_list))
         return stmt
@@ -147,13 +150,27 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
         :param obj_in:
         :return:
         """
-        dict_obj = obj_in.model_dump(exclude={'tags'})
+        dict_obj = obj_in.model_dump(exclude={'tags'}, exclude_unset=True)
         return await self.update_model(db, pk, dict_obj)
     
 
     async def base_update(self, db: AsyncSession, pk: int, obj_in: dict) -> int:
         return await self.update_model(db, pk, obj_in)
 
+
+    async def check_owned(self, db: AsyncSession, pk: int, owner_id: int) -> bool:
+        """校验文档是否属于指定用户"""
+        stmt = select(func.count(self.model.id)).where(
+            self.model.id == pk, self.model.created_by == owner_id
+        )
+        result = await db.execute(stmt)
+        return (result.scalar() or 0) > 0
+
+    async def delete_owned(self, db: AsyncSession, pk: list[int], owner_id: int) -> int:
+        """仅删除属于指定用户的文档"""
+        return await self.delete_model_by_column(
+            db, allow_multiple=True, id__in=pk, created_by=owner_id
+        )
 
     async def delete(self, db: AsyncSession, pk: list[int]) -> int:
         """

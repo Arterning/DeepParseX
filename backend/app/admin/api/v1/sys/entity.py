@@ -17,6 +17,18 @@ from backend.utils.serializers import select_as_dict
 router = APIRouter()
 
 
+@router.get('/types', summary='获取所有实体类型（去重）', dependencies=[DependsJwtAuth])
+async def get_entity_types() -> ResponseModel:
+    types = await entity_service.get_distinct_types()
+    return response_base.success(data=types)
+
+
+@router.get('/stats', summary='获取实体类型统计', dependencies=[DependsJwtAuth])
+async def get_entity_stats() -> ResponseModel:
+    data = await entity_service.get_type_stats()
+    return response_base.success(data=data)
+
+
 @router.post(
     '/analyze',
     summary='分析实体关系图谱',

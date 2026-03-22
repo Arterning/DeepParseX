@@ -328,6 +328,7 @@ async def get_pagination_sys_doc(request: Request,
                                  source: Annotated[str | None, Query()] = None,
                                  rangeValue: Annotated[list[str] | None, Query()] = ['', ''],
                                  tag_ids: Annotated[list[int] | None, Query()] = None,
+                                 doc_dir_id: Annotated[int | None, Query()] = None,
                                 ) -> ResponseModel:
 
     # 从JWT中获取当前登录用户ID
@@ -343,6 +344,7 @@ async def get_pagination_sys_doc(request: Request,
         rangeValue=rangeValue,
         current_user_id=current_user_id,
         tag_ids=tag_ids,
+        doc_dir_id=doc_dir_id,
     )
     page_data = await paging_data(db, sys_doc_select, GetSysDocPage)
 
@@ -369,7 +371,7 @@ async def create_sys_doc(request: Request, obj: CreateSysDocParam) -> ResponseMo
     obj.created_user = request.user.username
     doc = await sys_doc_service.create(obj=obj)
     await sys_doc_service.create_doc_tokens(id=doc.id)
-    return response_base.success()
+    return response_base.success(data={'id': doc.id})
 
 
 @router.put(

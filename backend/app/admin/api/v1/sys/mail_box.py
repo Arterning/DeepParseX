@@ -102,8 +102,13 @@ async def get_mail_box(pk: Annotated[int, Path(...)]) -> ResponseModel:
         DependsPagination,
     ],
 )
-async def get_pagination_mail_box(db: CurrentSession, name: Annotated[str | None, Query()] = None,) -> ResponseModel:
-    mail_box_select = await mail_box_service.get_select(name=name)
+async def get_pagination_mail_box(
+    db: CurrentSession,
+    name: Annotated[str | None, Query()] = None,
+    country: Annotated[str | None, Query()] = None,
+    sort_by: Annotated[str, Query(pattern='^(created_time|email_num)$')] = 'created_time',
+) -> ResponseModel:
+    mail_box_select = await mail_box_service.get_select(name=name, country=country, sort_by=sort_by)
     page_data = await paging_data(db, mail_box_select, GetMailBoxListDetails)
     return response_base.success(data=page_data)
 
@@ -147,6 +152,26 @@ async def delete_mail_box(pk: Annotated[list[int], Query(...)]) -> ResponseModel
     if count > 0:
         return response_base.success()
     return response_base.fail()
+
+
+@router.post(
+    '/{pk}/profile',
+    summary='生成邮箱AI画像',
+    dependencies=[DependsJwtAuth],
+)
+async def generate_mailbox_profile(pk: Annotated[int, Path(...)]) -> ResponseModel:
+    """
+    基于邮箱的邮件数据，使用 AI 生成邮箱画像并保存。
+
+    采样策略：从发送/接收邮件各取最近 15 封（仅传标题/时间/收发人/分类，不传正文），
+    结合统计元数据（总数、时间跨度、高频联系人、分类分布）构建 prompt，
+    生成后写入 profile 字段并返回。
+
+    :param pk: 邮箱 ID
+    :return: AI 生成的画像文本
+    """
+    profile = await mail_box_service.generate_profile(pk=pk)
+    return response_base.success(data={'profile': profile})
 
 
 @router.post(

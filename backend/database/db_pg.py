@@ -62,6 +62,9 @@ async def execute_sql_file(session: AsyncSession, file_path: str):
 
 async def create_table():
     """创建数据库表"""
+    # 导入所有模型，确保它们被注册到 MappedBase.metadata 中
+    import backend.app.admin.model
+    
     async with async_engine.begin() as coon:
         # await coon.execute(text("CREATE EXTENSION vector"))
         await coon.run_sync(MappedBase.metadata.create_all)
@@ -78,3 +81,23 @@ async def create_table():
 def uuid4_str() -> str:
     """数据库引擎 UUID 类型兼容性解决方案"""
     return str(uuid4())
+
+
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def user_scoped_db_session(user_id: int | None = None, is_superuser: bool = False):
+    """
+    带用户上下文的事务 session，通过 set_config 设置 RLS 所需的会话变量。
+    使用 is_local=true，变量仅在当前事务内生效，连接归还连接池后自动清除。
+    """
+    async with async_db_session.begin() as db:
+        await db.execute(
+            text("SELECT set_config('app.current_user_id', :uid, true)"),
+            {"uid": str(user_id) if user_id is not None else ""},
+        )
+        await db.execute(
+            text("SELECT set_config('app.is_superuser', :su, true)"),
+            {"su": "true" if is_superuser else "false"},
+        )
+        yield db

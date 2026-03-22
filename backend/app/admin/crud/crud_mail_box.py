@@ -33,16 +33,27 @@ class CRUDMailBox(CRUDPlus[MailBox]):
         """
         return await self.select_model(db, pk)
 
-    async def get_list(self, name: str) -> Select:
-        """
-        获取邮箱列表
-
-        :return:
-        """
+    async def get_list(
+        self,
+        name: str,
+        country: str | None = None,
+        sort_by: str = 'created_time',
+        create_user: int | None = None,
+    ) -> Select:
         filters = {}
         if name is not None:
             filters.update(name__like=f'%{name}%')
-        return await self.select_order('created_time', 'desc', **filters)
+        if country is not None:
+            filters.update(country__like=f'%{country}%')
+        if create_user is not None:
+            filters.update(create_user=create_user)
+        order_field = 'email_num' if sort_by == 'email_num' else 'created_time'
+        return await self.select_order(order_field, 'desc', **filters)
+
+    async def delete_owned(self, db: AsyncSession, pk: list[int], owner_id: int) -> int:
+        return await self.delete_model_by_column(
+            db, allow_multiple=True, id__in=pk, create_user=owner_id
+        )
 
     async def get_all(self, db: AsyncSession) -> Sequence[MailBox]:
         """

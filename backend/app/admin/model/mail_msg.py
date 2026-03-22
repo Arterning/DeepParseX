@@ -58,6 +58,16 @@ class MailMsg(Base, UserMixin):
     # 附件
     attachments: Mapped[JSON | None] = mapped_column(JSON, default=None, comment='附件')
 
+    message_id: Mapped[str | None] = mapped_column(TEXT, default=None, index=True, comment='邮件协议唯一ID(Message-ID header)，用于去重和追踪')
+
+    in_reply_to: Mapped[str | None] = mapped_column(TEXT, default=None, comment='回复的邮件message_id，用于还原对话链')
+
+    thread_id: Mapped[str | None] = mapped_column(TEXT, default=None, index=True, comment='会话线程ID，聚合同一话题的往来邮件')
+
+    mail_box_id: Mapped[int | None] = mapped_column(
+        ForeignKey('mail_box.id', ondelete='SET NULL'), default=None, index=True, comment='所属邮箱ID'
+    )
+
     doc_id: Mapped[int | None] = mapped_column(
         ForeignKey('sys_doc.id', ondelete='CASCADE'), default=None, index=True, comment='文件ID'
     )

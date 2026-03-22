@@ -3,7 +3,7 @@
 from typing import Sequence
 from datetime import datetime, timedelta
 
-from sqlalchemy import delete, Select
+from sqlalchemy import delete, update as sa_update, Select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
 
@@ -86,6 +86,12 @@ class CRUDUploadTask(CRUDPlus[UploadTask]):
         :return:
         """
         return await self.update_model(db, pk, obj_in)
+
+    async def update_status_by_doc_id(self, db: AsyncSession, doc_id: int, status: str) -> int:
+        """按 doc_id 更新任务状态，无需先查询"""
+        stmt = sa_update(self.model).where(self.model.doc_id == doc_id).values(status=status)
+        result = await db.execute(stmt)
+        return result.rowcount
 
     async def delete(self, db: AsyncSession, pk: list[int]) -> int:
         """

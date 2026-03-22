@@ -53,6 +53,7 @@ class GetEntityDetails(EntitySchemaBase):
     docs: Optional[List[EntityDocs]] = None  # 关联的文档列表
     starred_ids: Optional[List[int]] = None  # 收藏夹ID列表
     matched_chunks: Optional[List[Dict[str, Any]]] = None  # 包含实体名称的文本片段
+    profile: Optional[str] = None  # 实体画像
 
     created_time: datetime
     updated_time: datetime | None = None

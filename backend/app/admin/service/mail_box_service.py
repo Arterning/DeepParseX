@@ -35,8 +35,11 @@ class MailBoxService:
             return mail_box
     
     @staticmethod
-    async def get_select(*, name: str) -> Select:
-        return await mail_box_dao.get_list(name=name)
+    async def get_select(*, name: str, country: str | None = None, sort_by: str = 'created_time') -> Select:
+        from backend.common.context import get_current_user
+        current_user = get_current_user()
+        create_user = None if (current_user is None or current_user.is_superuser) else current_user.id
+        return await mail_box_dao.get_list(name=name, country=country, sort_by=sort_by, create_user=create_user)
 
     @staticmethod
     async def get_all() -> Sequence[MailBox]:
@@ -51,16 +54,37 @@ class MailBoxService:
             
 
     @staticmethod
-    async def create(*, obj: CreateMailBoxParam) -> None:
+    async def create(*, obj: CreateMailBoxParam) -> MailBox | None:
+        from backend.common.context import get_current_user
+        current_user = get_current_user()
+        user_id = current_user.id if current_user else None
         async with async_db_session.begin() as db:
             found = await mail_box_dao.get_by_name(db, obj.name)
             if found:
-                return
-            await mail_box_dao.create(db, obj)
+                return found
+            mail_box = MailBox(
+                name=obj.name,
+                user_name=obj.user_name or '',
+                country=obj.country or '',
+                labels=obj.labels or '',
+                email_num=obj.email_num or 0,
+                other_info=obj.other_info or '',
+                create_user=user_id,
+            )
+            db.add(mail_box)
+            await db.flush()
+            await db.refresh(mail_box)
+            return mail_box
 
     @staticmethod
     async def update(*, pk: int, obj: UpdateMailBoxParam) -> int:
+        from backend.common.context import get_current_user
+        current_user = get_current_user()
         async with async_db_session.begin() as db:
+            if current_user and not current_user.is_superuser:
+                mail_box = await mail_box_dao.get(db, pk)
+                if not mail_box or mail_box.create_user != current_user.id:
+                    raise errors.ForbiddenError(msg='无权限修改此邮箱')
             count = await mail_box_dao.update(db, pk, obj)
             return count
 
@@ -72,8 +96,13 @@ class MailBoxService:
 
     @staticmethod
     async def delete(*, pk: list[int]) -> int:
+        from backend.common.context import get_current_user
+        current_user = get_current_user()
         async with async_db_session.begin() as db:
-            count = await mail_box_dao.delete(db, pk)
+            if current_user and not current_user.is_superuser:
+                count = await mail_box_dao.delete_owned(db, pk, owner_id=current_user.id)
+            else:
+                count = await mail_box_dao.delete(db, pk)
             return count
 
     @staticmethod
@@ -185,7 +214,7 @@ class MailBoxService:
                                 else:
                                     relationships[key]['send_count'] += 1
                                 relationships[key]['emails'].append(email_obj)
-                                relationships[key]['attachment_count'] += len(email_obj.attachments)
+                                relationships[key]['attachment_count'] += len(email_obj.attachments) if email_obj.attachments else 0
                                 if not relationships[key]['first_interaction_time'] or email_obj.time < relationships[key]['first_interaction_time']:
                                     relationships[key]['first_interaction_time'] = email_obj.time
                                 if not relationships[key]['latest_time'] or email_obj.time > relationships[key]['latest_time']:
@@ -202,7 +231,7 @@ class MailBoxService:
                                 else:
                                     relationships[key]['cc_count'] += 1
                                 relationships[key]['emails'].append(email_obj)
-                                relationships[key]['attachment_count'] += len(email_obj.attachments)
+                                relationships[key]['attachment_count'] += len(email_obj.attachments) if email_obj.attachments else 0
                                 if not relationships[key]['first_interaction_time'] or email_obj.time < relationships[key]['first_interaction_time']:
                                     relationships[key]['first_interaction_time'] = email_obj.time
                                 if not relationships[key]['latest_time'] or email_obj.time > relationships[key]['latest_time']:
@@ -449,6 +478,8 @@ class MailBoxService:
             'sohu.com': '搜狐',
             'aliyun.com': '阿里云',
             'foxmail.com': 'Foxmail',
+            'dnc.org': 'DNC',
+            'rnc.org': 'RNC',
         }
 
         async with async_db_session() as db:
@@ -541,6 +572,156 @@ class MailBoxService:
                 'cc_emails': cc_emails,
                 'person_entities': person_entities
             }
+
+
+    @staticmethod
+    async def generate_profile(*, pk: int) -> str:
+        """
+        基于邮箱邮件数据，使用 AI 生成邮箱画像并保存到数据库。
+
+        策略：
+        - 统计邮件元数据（总数、时间跨度、收发数量、高频联系人、分类分布）
+        - 从发送/接收邮件中各采样最多 15 封（取最近的），仅传 subject/time/sender/receiver/category
+        - 将结构化摘要发给 AI，生成画像文本后写回 profile 字段
+
+        :param pk: 邮箱 ID
+        :return: AI 生成的画像文本
+        """
+        from collections import Counter
+        from backend.app.admin.service.llm_service import llm_service
+
+        async with async_db_session() as db:
+            mail_box = await mail_box_dao.get(db, pk)
+            if not mail_box:
+                raise errors.NotFoundError(msg='邮箱不存在')
+
+        email_addr = mail_box.name
+        SAMPLE_SIZE = 15  # 每类最多采样数量
+
+        async with async_db_session() as db:
+            # 查询发送邮件（最近 SAMPLE_SIZE 封）
+            sent_result = await db.execute(
+                select(MailMsg)
+                .where(MailMsg.sender == email_addr)
+                .order_by(MailMsg.time.desc())
+                .limit(SAMPLE_SIZE)
+            )
+            sent_emails = sent_result.scalars().all()
+
+            # 查询接收邮件（最近 SAMPLE_SIZE 封）
+            received_result = await db.execute(
+                select(MailMsg)
+                .where(MailMsg.receiver.like(f'%{email_addr}%'))
+                .order_by(MailMsg.time.desc())
+                .limit(SAMPLE_SIZE)
+            )
+            received_emails = received_result.scalars().all()
+
+            # 统计用：查询所有邮件的轻量信息（只取必要字段）
+            all_result = await db.execute(
+                select(MailMsg.id, MailMsg.time, MailMsg.sender, MailMsg.receiver, MailMsg.cc, MailMsg.category)
+                .where(
+                    or_(
+                        MailMsg.sender == email_addr,
+                        MailMsg.receiver.like(f'%{email_addr}%'),
+                        MailMsg.cc.like(f'%{email_addr}%'),
+                    )
+                )
+            )
+            all_rows = all_result.fetchall()
+
+        # 去重统计
+        seen_ids = set()
+        times = []
+        contacts = Counter()
+        categories = Counter()
+        sent_count = 0
+        received_count = 0
+        cc_count = 0
+
+        for row in all_rows:
+            rid, rtime, sender, receiver, cc, category = row
+            if rid in seen_ids:
+                continue
+            seen_ids.add(rid)
+
+            if rtime:
+                times.append(rtime)
+            if category:
+                categories[category] += 1
+
+            if sender == email_addr:
+                sent_count += 1
+                if receiver:
+                    for r in receiver.split(','):
+                        r = r.strip()
+                        if r and r != email_addr:
+                            contacts[r] += 1
+            else:
+                if sender and sender != email_addr:
+                    received_count += 1
+                    contacts[sender] += 1
+                if cc and email_addr in cc:
+                    cc_count += 1
+
+        total_count = len(seen_ids)
+        time_range = ''
+        if times:
+            earliest = min(times)
+            latest = max(times)
+            time_range = f'{earliest.strftime("%Y-%m-%d")} 至 {latest.strftime("%Y-%m-%d")}'
+
+        top_contacts = [f'{addr}({cnt}封)' for addr, cnt in contacts.most_common(10)]
+        top_categories = [f'{cat}({cnt}封)' for cat, cnt in categories.most_common(5)]
+
+        # 构建采样邮件摘要
+        def fmt_emails(emails):
+            lines = []
+            for e in emails:
+                t = e.time.strftime('%Y-%m-%d %H:%M') if e.time else '未知时间'
+                lines.append(f'  - [{t}] 主题: {e.subject or e.name or "无"} | 发件人: {e.sender} | 收件人: {e.receiver} | 分类: {e.category or "未分类"}')
+            return '\n'.join(lines) if lines else '  （无）'
+
+        sent_sample_text = fmt_emails(sent_emails)
+        received_sample_text = fmt_emails(received_emails)
+
+        system_context = (
+            '你是一名专业的情报分析师，擅长根据邮件通信数据生成人物/账号画像。'
+            '请根据提供的邮箱统计数据和邮件样本，生成一份简洁、专业的邮箱画像报告，'
+            '涵盖：通信活跃度、主要联系人关系、通信主题与兴趣领域、行为模式、可能的身份或职业推断等维度。'
+            '如果信息不足，请如实说明。报告使用中文，500字以内。'
+        )
+
+        user_input = f"""邮箱地址：{email_addr}
+已知姓名：{mail_box.user_name or '未知'}
+国籍/地区：{mail_box.country or '未知'}
+标签：{mail_box.labels or '无'}
+
+【统计数据】
+- 涉及邮件总数：{total_count} 封
+- 时间跨度：{time_range or '未知'}
+- 主动发送：{sent_count} 封，被动接收：{received_count} 封，抄送：{cc_count} 封
+- 高频联系人（Top10）：{', '.join(top_contacts) if top_contacts else '无'}
+- 邮件分类分布（Top5）：{', '.join(top_categories) if top_categories else '无'}
+
+【发送邮件样本（最近{len(sent_emails)}封）】
+{sent_sample_text}
+
+【接收邮件样本（最近{len(received_emails)}封）】
+{received_sample_text}
+
+请根据以上信息生成邮箱画像："""
+
+        profile_text = await llm_service.get_llm_response(
+            system_context=system_context,
+            user_input=user_input,
+        )
+
+        # 写回数据库
+        async with async_db_session.begin() as db:
+            await mail_box_dao.base_update(db, pk, {'profile': profile_text})
+
+        return profile_text
 
 
 mail_box_service = MailBoxService()

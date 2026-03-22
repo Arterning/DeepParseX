@@ -35,6 +35,8 @@ from backend.app.admin.service.mail_box_service import mail_box_service
 from backend.app.admin.utils.text_processor import process_file, classify_text_tags
 from backend.app.admin.utils.spam_detector import spam_detector
 from backend.app.admin.service.tag_service import tag_service
+from backend.app.admin.service.ioc_service import ioc_service
+from backend.app.admin.service.geo_service import geo_service
 from backend.app.admin.utils.tabular_processor import tabular_processor
 from backend.app.admin.utils.email_parser import EmailParser
 from backend.utils.oss_client import minio_client
@@ -484,7 +486,7 @@ class UploadService:
                     obj = CreateSysDocParam(
                         title=email_data['subject'],
                         name=email_data['subject'],
-                        type='邮件',
+                        type='email',
                         file=email_data['new_filename_minio'],
                         uuid=email_data['unique_id'],
                         file_suffix='.eml',
@@ -537,6 +539,10 @@ class UploadService:
         if is_picture_file(doc.file_suffix):
             content = "图片文件无法直接读取内容，请查看附件。"
             content = await upload_service.request_content(title=doc.title, file_bytes=file_bytes)
+            # 异步提取 EXIF GPS 坐标
+            asyncio.create_task(
+                geo_service.extract_from_image(doc.id, file_bytes, doc.file_suffix)
+            )
 
         if is_pdf_file(doc.file_suffix):
             try:
@@ -588,6 +594,8 @@ class UploadService:
             asyncio.create_task(sys_doc_service.compute_embedding(id=doc.id))
             # 异步调用标签分类，自动为文档打标签
             asyncio.create_task(upload_service.auto_tag_document(doc_id=doc.id, content=content))
+            # 异步提取 IOC 失陷指标
+            asyncio.create_task(ioc_service.extract_from_doc(doc_id=doc.id, content=content))
 
     @staticmethod
     async def auto_tag_document(doc_id: int, content: str):
@@ -651,7 +659,7 @@ class UploadService:
 
     @staticmethod
     async def read_email_data(doc: SysDoc, file_bytes: bytes):
-        if doc.type != '邮件':
+        if doc.type != 'email':
             return None
         
         try:
@@ -704,6 +712,11 @@ class UploadService:
         # 获取附件信息，如果没有则设为空列表
         attachments = result_dict.get('attachments', [])
 
+        message_id = result_dict.get('message_id') or None
+        in_reply_to = result_dict.get('in_reply_to') or None
+        thread_id = result_dict.get('thread_id') or None
+        mail_box_id = None
+
         # 从上下文中获取当前用户
         user = get_current_user()
 
@@ -743,23 +756,29 @@ class UploadService:
             attachments=attachments,
             create_user=user.id if user else None,
             detection_result=detection_result,
+            message_id=message_id,
+            in_reply_to=in_reply_to,
+            thread_id=thread_id,
+            mail_box_id=mail_box_id,
         )
         await mail_msg_service.create(obj=msg_obj)
 
-        # 处理发件人邮箱
+        # 处理发件人邮箱，同时获取 mail_box_id
         if from_email:
-            from_box = await mail_box_service.get_by_name(name=from_email)  # 仍使用email作为唯一标识
+            from_box = await mail_box_service.get_by_name(name=from_email)
             if from_box:
                 await mail_box_service.base_update(pk=from_box.id, obj={'email_num': from_box.email_num + 1})
+                mail_box_id = from_box.id
             else:
                 country = EmailParser.extract_country(from_email)
                 from_mail_obj = CreateMailBoxParam(
-                    user_name=from_name,  # 使用提取的名称
+                    user_name=from_name,
                     name=from_email,
                     email_num=1,
                     country=country,
                 )
-                await mail_box_service.create(obj=from_mail_obj)
+                created_box = await mail_box_service.create(obj=from_mail_obj)
+                mail_box_id = created_box.id if created_box else None
 
         # 处理To字段的多个邮箱地址
         for name, email_addr in to_emails_with_names:

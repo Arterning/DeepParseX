@@ -20,6 +20,14 @@ class DocDirService:
             return doc_dir
 
     @staticmethod
+    async def get_with_children(*, pk: int) -> SysDocDir:
+        async with async_db_session() as db:
+            doc_dir = await doc_dir_dao.get_with_children(db, pk)
+            if not doc_dir:
+                raise errors.NotFoundError(msg='目录不存在')
+            return doc_dir
+
+    @staticmethod
     async def get_doc_dir_tree(*, name: str | None = None) -> list[dict[str, Any]]:
         async with async_db_session() as db:
             doc_dir_select = await doc_dir_dao.get_all(db=db, name=name)

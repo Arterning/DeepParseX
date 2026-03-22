@@ -63,6 +63,7 @@ class UpdateSysDocParam(SchemaBase):
     desc: str | None = None
     error_msg: str | None = None
     status: int | None = None
+    doc_dir_id: int | None = None
     tags: list[str] | None = []
 
 

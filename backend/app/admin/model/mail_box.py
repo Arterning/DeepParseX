@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import TEXT
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from backend.common.model import Base, id_key
+from backend.common.model import Base, id_key, UserMixin
 
 # 姓名：邮箱账号的实名。
 # 账号：邮箱号。
@@ -18,7 +18,7 @@ from backend.common.model import Base, id_key
 # 邮件箱数量：邮箱用户邮件数量。
 # 其它信息：其它信息，可按照用户需求选择展示。
 
-class MailBox(Base):
+class MailBox(Base, UserMixin):
     """邮箱"""
 
     __tablename__ = 'mail_box'
@@ -36,6 +36,8 @@ class MailBox(Base):
     email_num: Mapped[int] = mapped_column(Integer(), default=0, comment='邮件数量')
 
     other_info: Mapped[str] = mapped_column(TEXT, default='', comment='其它信息')
+
+    profile: Mapped[str | None] = mapped_column(TEXT, default=None, comment='AI生成的邮箱画像')
 
     # person_id: Mapped[int | None] = mapped_column(
     #     ForeignKey('sys_person.id', ondelete='SET NULL'), default=None, comment='所属人物ID'

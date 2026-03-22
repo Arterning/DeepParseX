@@ -9,6 +9,7 @@ from fastapi_pagination import add_pagination
 from starlette.middleware.authentication import AuthenticationMiddleware
 
 from backend.app.router import route
+from backend.app.admin.api.v1.sys.collab import websocket_server
 from backend.common.exception.exception_handler import register_exception
 from backend.common.log import set_customize_logfile, setup_logging
 from backend.core.conf import settings
@@ -43,7 +44,8 @@ async def register_init(app: FastAPI):
     # 启动定时任务调度器
     await start_scheduler()
 
-    yield
+    async with websocket_server:
+        yield
 
     # 关闭定时任务调度器
     await shutdown_scheduler()

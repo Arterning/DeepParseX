@@ -9,8 +9,7 @@ from backend.common.response.response_schema import response_base
 from backend.app.admin.service.upload_service import upload_service
 from backend.app.admin.service.doc_service import sys_doc_service
 from backend.app.admin.service.upload_task_service import upload_task_service
-from backend.app.admin.schema.upload_task import CreateUploadTaskParam, UpdateUploadTaskParam
-from backend.app.admin.model.sys_upload_task import UploadTask
+from backend.app.admin.schema.upload_task import CreateUploadTaskParam
 from backend.app.admin.model.sys_doc import SysDoc
 from backend.database.db_pg import async_db_session
 from sqlalchemy import select, update
@@ -204,12 +203,7 @@ async def run_parse_task(pk: int):
             await db.commit()
 
 
-        async with async_db_session() as db:
-            stmt = select(UploadTask).where(UploadTask.doc_id == doc.id)
-            result = await db.execute(stmt)
-            task = result.scalar_one_or_none()
-            if task:
-                await upload_task_service.update(pk=task.id, obj=UpdateUploadTaskParam(name=task.name, status='done'))
+        await upload_task_service.update_status_by_doc_id(doc_id=doc.id, status='done')
 
         await sys_doc_service.base_update(pk=doc.id, obj={
             'process_status': {'status': 'done', 'stage': '处理完成', 'progress': 1}
@@ -218,12 +212,7 @@ async def run_parse_task(pk: int):
         log.error(e)
         import traceback
         traceback.print_exc()  # 打印完整的堆栈跟踪信息
-        async with async_db_session() as db:
-            stmt = select(UploadTask).where(UploadTask.option['doc_id'].astext == str(doc.id))
-            result = await db.execute(stmt)
-            task = result.scalar_one_or_none()
-            if task:
-                await upload_task_service.update(pk=task.id, obj=UpdateUploadTaskParam(name=task.name, status='error'))
+        await upload_task_service.update_status_by_doc_id(doc_id=doc.id, status='error')
         await sys_doc_service.base_update(pk=doc.id, obj={
             'status': 2,
             'error_msg': str(e),

@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Sequence
 
-from sqlalchemy import Select, delete, func
+from sqlalchemy import Select, delete, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
 
@@ -26,6 +26,7 @@ class CRUDMailMsg(CRUDPlus[MailMsg]):
         self,
         name: str | None = None,
         subject: str | None = None,
+        email: str | None = None,
         time: datetime | None = None,
         category: str | None = None,
         sender: str | None = None,
@@ -53,6 +54,14 @@ class CRUDMailMsg(CRUDPlus[MailMsg]):
             select_stmt = select_stmt.where(self.model.name.like(f'%{name}%'))
         if subject:
             select_stmt = select_stmt.where(self.model.subject.like(f'%{subject}%'))
+        if email:
+            select_stmt = select_stmt.where(
+                or_(
+                    self.model.sender.like(f'%{email}%'),
+                    self.model.receiver.like(f'%{email}%'),
+                    self.model.cc.like(f'%{email}%'),
+                )
+            )
         if time:
             select_stmt = select_stmt.where(func.date(self.model.time) >= time.date())
         if category:

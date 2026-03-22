@@ -394,6 +394,10 @@ class SysDocService:
         # 存储此文档相关的所有实体ID
         doc_entities = set()
         
+        from backend.common.context import get_current_user
+        _build_user = get_current_user()
+        _build_user_id = _build_user.id if _build_user else None
+
         async with async_db_session.begin() as db:
             entity_cache = {}
             # 导入sys_entity_doc表以用于直接插入记录
@@ -445,7 +449,8 @@ class SysDocService:
                         name=name,
                         entity_type=entity_type,
                         source_doc_id=pk,
-                        source_doc_name=doc.name
+                        source_doc_name=doc.name,
+                        create_user=_build_user_id,
                     )
                     db.add(entity_to_create)
                     await db.flush()
@@ -588,7 +593,7 @@ class SysDocService:
     async def get_select(*, title: str = None, name: str = None, doc_type: list[str] = None,
                           content: str = None, source: str = None, ids: list[int] = None,
                           rangeValue: list[str] = None, current_user_id: int = None,
-                          tag_ids: list[int] = None) -> Select:
+                          tag_ids: list[int] = None, doc_dir_id: int = None) -> Select:
         if not rangeValue:
             rangeValue = ['', '']
         start_time = rangeValue[0]
@@ -604,6 +609,7 @@ class SysDocService:
             end_time=end_time,
             current_user_id=current_user_id,
             tag_ids=tag_ids,
+            doc_dir_id=doc_dir_id,
         )
 
     @staticmethod
@@ -878,6 +884,10 @@ class SysDocService:
         async with async_db_session.begin() as db:
             chunks = await sys_doc_chunk_dao.get_by_doc_id(db, pk)
             if not chunks:
+                doc = await db.get(SysDoc, pk)
+                if doc:
+                    doc.translation = "[无内容，跳过翻译]"
+                    await db.flush()
                 return []
 
             system_context = f"你是一个专业的翻译助手。请将以下内容翻译成{target_language}。只返回翻译结果，不要添加任何解释。"
@@ -987,7 +997,17 @@ class SysDocService:
 
     @staticmethod
     async def update(*, pk: int, obj: UpdateSysDocParam) -> int:
-        async with async_db_session.begin() as db:
+        from backend.common.context import get_current_user
+        from backend.database.db_pg import user_scoped_db_session
+        current_user = get_current_user()
+        async with user_scoped_db_session(
+            user_id=current_user.id if current_user else None,
+            is_superuser=current_user.is_superuser if current_user else True,
+        ) as db:
+            if current_user and not current_user.is_superuser:
+                owned = await sys_doc_dao.check_owned(db, pk, current_user.id)
+                if not owned:
+                    raise errors.ForbiddenError(msg="无权限修改此文件")
             count = await sys_doc_dao.update(db, pk, obj)
             doc = await sys_doc_dao.get(db, pk)
             for i in list(doc.tags):
@@ -1001,9 +1021,18 @@ class SysDocService:
 
 
     @staticmethod
-    async def  delete(*, pk: list[int]) -> int:
-        async with async_db_session.begin() as db:
-            count = await sys_doc_dao.delete(db, pk)
+    async def delete(*, pk: list[int]) -> int:
+        from backend.common.context import get_current_user
+        from backend.database.db_pg import user_scoped_db_session
+        current_user = get_current_user()
+        async with user_scoped_db_session(
+            user_id=current_user.id if current_user else None,
+            is_superuser=current_user.is_superuser if current_user else True,
+        ) as db:
+            if current_user and not current_user.is_superuser:
+                count = await sys_doc_dao.delete_owned(db, pk, owner_id=current_user.id)
+            else:
+                count = await sys_doc_dao.delete(db, pk)
             return count
 
     @staticmethod
@@ -1297,11 +1326,28 @@ class SysDocService:
         if len(content) > max_content_length:
             content = content[:max_content_length] + "..."
 
+        from backend.common.context import get_current_user
+        _extract_user = get_current_user()
+        _extract_user_id = _extract_user.id if _extract_user else None
+
         async with async_db_session.begin() as db:
             system_prompt = f"""你是一个专业的实体提取助手。请从给定的文本中提取实体信息。
 
 实体类型定义：
 {json.dumps(type_definitions, ensure_ascii=False, indent=2)}
+
+【核心原则】只提取专有名词，即在现实世界中有唯一对应具体对象的命名实体。
+
+禁止提取的内容（重要）：
+- 泛称/类别词：如"企业"、"公司"、"政府"、"机构"、"部门"、"单位"、"组织"、"团体"、"机关"、"当局"、"行业"等，即使上下文指代某类组织，也不能作为实体
+- 抽象角色或身份：如"负责人"、"官员"、"专家"、"领导"、"工作人员"、"相关人员"等，必须有具体姓名才能提取
+- 不完整的描述：如"某公司"、"该机构"、"相关部门"、"有关方面"等代词或模糊指代
+- 纯数值、日期、金额、度量值
+
+有效实体示例：
+- 人物："张伟"、"Elon Musk"（有具体姓名）→ 有效；"负责人"、"发言人" → 无效
+- 组织："腾讯科技有限公司"、"清华大学"、"国家发展改革委" → 有效；"企业"、"政府"、"公司" → 无效
+- 判断标准：能否在现实中找到唯一对应的具体实体？能则提取，否则跳过。
 
 请严格按照以下JSON格式返回提取结果：
 {{
@@ -1324,6 +1370,7 @@ class SysDocService:
 3. 如果某个字段在文本中没有找到对应信息，则不要包含该字段
 4. 确保返回的是合法的JSON格式
 5. name 字段是必填的，description 可选
+6. 宁可少提取，也不要提取泛称或抽象概念
 """
 
             user_prompt = f"请从以下文本中提取实体：\n\n{content}"
@@ -1390,7 +1437,8 @@ class SysDocService:
                             entity_type_id=None,
                             properties=entity_properties,
                             source_doc_id=pk,
-                            source_doc_name=doc.name or doc.title
+                            source_doc_name=doc.name or doc.title,
+                            create_user=_extract_user_id,
                         )
                         db.add(new_entity)
                         await db.flush()
@@ -1423,132 +1471,6 @@ class SysDocService:
                 raise errors.ServerError(msg=f"提取实体失败: {str(e)}")
 
     @staticmethod
-    async def auto_extract_entities_for_docs():
-        """定时任务：自动为没有关联实体的文档提取实体
-
-        每次处理10个文档，提取人物、组织、事件实体
-        """
-        from backend.common.log import log
-
-        # 预设的实体类型定义
-        DEFAULT_ENTITY_TYPE_DEFINITIONS = [
-            {
-                "type_name": "人物",
-                "description": "人物实体",
-                "fields": ["性别", "国籍", "组织", "职位", "联系方式"]
-            },
-            {
-                "type_name": "组织",
-                "description": "组织实体",
-                "fields": ["类型", "国家"]
-            },
-            {
-                "type_name": "事件",
-                "description": "事件实体",
-                "fields": ["时间", "地点", "参与者"]
-            }
-        ]
-
-        try:
-            async with async_db_session() as db:
-                # 查询未提取过实体的文档
-                stmt = (
-                    select(SysDoc.id)
-                    .where(SysDoc.entity_extracted != 1)
-                    .where(SysDoc.status == 1)  # 只处理状态正常的文档
-                    .where(SysDoc.content.isnot(None))  # 必须有内容
-                    .limit(10)
-                )
-
-                result = await db.execute(stmt)
-                doc_ids = [row[0] for row in result.all()]
-
-                if not doc_ids:
-                    log.info("没有需要提取实体的文档")
-                    return
-
-                log.info(f"开始为 {len(doc_ids)} 个文档提取实体")
-
-                # 对每个文档提取实体
-                success_count = 0
-                error_count = 0
-
-                for doc_id in doc_ids:
-                    try:
-                        entity_count = await SysDocService.extract_entities_by_types(
-                            pk=doc_id,
-                            type_definitions=DEFAULT_ENTITY_TYPE_DEFINITIONS
-                        )
-                        # 标记文档已提取实体
-                        await sys_doc_service.base_update(pk=doc_id, obj={'entity_extracted': 1})
-                        success_count += 1
-                        log.info(f"文档 {doc_id} 提取了 {entity_count} 个实体")
-                    except Exception as e:
-                        error_count += 1
-                        log.error(f"文档 {doc_id} 提取实体失败: {str(e)}")
-
-                log.info(f"实体提取完成: 成功 {success_count} 个，失败 {error_count} 个")
-
-        except Exception as e:
-            log.error(f"自动提取实体任务失败: {str(e)}")
-
-
-    @staticmethod
-    async def auto_build_graph_for_docs():
-        """定时任务：自动为没有关联实体的文档构建知识图谱
-
-        每次处理10个文档，entity_types 从 sys_entity_type 表中获取所有实体类型名称
-        """
-        from backend.common.log import log
-
-        try:
-            # 获取所有实体类型名称
-            async with async_db_session() as db:
-                result = await db.execute(select(EntityType.name))
-                entity_type_names = [row[0] for row in result.all()]
-
-            if not entity_type_names:
-                log.info("没有定义实体类型，跳过知识图谱构建")
-                return
-
-            async with async_db_session() as db:
-                # 查询未提取过实体的文档
-                stmt = (
-                    select(SysDoc.id)
-                    .where(SysDoc.entity_extracted != 1)
-                    .where(SysDoc.status == 1)
-                    .where(SysDoc.content.isnot(None))
-                    .limit(10)
-                )
-
-                result = await db.execute(stmt)
-                doc_ids = [row[0] for row in result.all()]
-
-                if not doc_ids:
-                    log.info("没有需要构建知识图谱的文档")
-                    return
-
-                log.info(f"开始为 {len(doc_ids)} 个文档构建知识图谱，实体类型: {entity_type_names}")
-
-            success_count = 0
-            error_count = 0
-
-            for doc_id in doc_ids:
-                try:
-                    await SysDocService.build_graph(pk=doc_id, entity_types=entity_type_names)
-                    await sys_doc_service.base_update(pk=doc_id, obj={'entity_extracted': 1})
-                    success_count += 1
-                    log.info(f"文档 {doc_id} 知识图谱构建完成")
-                except Exception as e:
-                    error_count += 1
-                    log.error(f"文档 {doc_id} 知识图谱构建失败: {str(e)}")
-
-            log.info(f"知识图谱构建完成: 成功 {success_count} 个，失败 {error_count} 个")
-
-        except Exception as e:
-            log.error(f"自动构建知识图谱任务失败: {str(e)}")
-
-    @staticmethod
     async def generate_summary(id: int):
         """生成文档摘要
 
@@ -1558,6 +1480,17 @@ class SysDocService:
         Returns:
             str: 生成的摘要
         """
+        # 提示词模板
+        SYSTEM_CONTEXT_TEMPLATE = "你是一个专业的文档摘要生成器。请根据以下{content_type}生成一个{summary_type}的中文摘要。必须使用中文回答，不允许使用其他语言。"
+        QUESTION_TEMPLATE = (
+            "请根据以下{content_type}生成一个{summary_type}的中文摘要：\n"
+            "---\n"
+            "{content}\n"
+            "---\n"
+            "{instruction}\n"
+            "请务必使用中文回答。"
+        )
+
         # 获取文档
         doc = await sys_doc_service.get(pk=id)
         if not doc.content:
@@ -1578,13 +1511,15 @@ class SysDocService:
         # 检查文档内容长度
         if len(content) <= CONTENT_LENGTH_THRESHOLD:
             # 内容未超限，直接生成摘要
-            system_context = "你是一个专业的文档摘要生成器。请根据以下文件内容生成一个简洁的摘要。"
-            question = (
-                "请根据以下文件内容生成一个简洁的摘要：\n"
-                "---\n"
-                f"{content}\n"
-                "---\n"
-                "作为一个人工智能助手，你的回答要尽可能严谨。"
+            system_context = SYSTEM_CONTEXT_TEMPLATE.format(
+                content_type="文件内容",
+                summary_type="简洁"
+            )
+            question = QUESTION_TEMPLATE.format(
+                content_type="文件内容",
+                summary_type="简洁",
+                content=content,
+                instruction="作为一个人工智能助手，你的回答要尽可能严谨。"
             )
         else:
             # 内容超限，使用向量检索方式
@@ -1613,23 +1548,27 @@ class SysDocService:
 
             # 构建系统提示词
             if context:
-                system_context = "你是一个专业的文档摘要生成器。请根据以下文档片段生成一个简洁、全面的摘要。"
-                question = (
-                    "请根据以下文档片段生成一个简洁、全面的摘要：\n"
-                    "---\n"
-                    f"{context}\n"
-                    "---\n"
-                    "作为一个人工智能助手，你的回答要尽可能严谨、准确，并综合所有片段的关键信息。"
+                system_context = SYSTEM_CONTEXT_TEMPLATE.format(
+                    content_type="文档片段",
+                    summary_type="简洁、全面"
+                )
+                question = QUESTION_TEMPLATE.format(
+                    content_type="文档片段",
+                    summary_type="简洁、全面",
+                    content=context,
+                    instruction="作为一个人工智能助手，你的回答要尽可能严谨、准确，并综合所有片段的关键信息。"
                 )
             else:
                 # 如果没有检索到相关片段，使用文档的前N个字符
-                system_context = "你是一个专业的文档摘要生成器。请根据以下文件内容生成一个简洁的摘要。"
-                question = (
-                    "请根据以下文件内容生成一个简洁的摘要：\n"
-                    "---\n"
-                    f"{content[:CONTENT_LENGTH_THRESHOLD]}\n"
-                    "---\n"
-                    "作为一个人工智能助手，你的回答要尽可能严谨。"
+                system_context = SYSTEM_CONTEXT_TEMPLATE.format(
+                    content_type="文件内容",
+                    summary_type="简洁"
+                )
+                question = QUESTION_TEMPLATE.format(
+                    content_type="文件内容",
+                    summary_type="简洁",
+                    content=content[:CONTENT_LENGTH_THRESHOLD],
+                    instruction="作为一个人工智能助手，你的回答要尽可能严谨。"
                 )
 
         response = await llm_service.get_llm_response(system_context, question)
@@ -1637,71 +1576,6 @@ class SysDocService:
             'desc': response
         })
         return response
-
-    @staticmethod
-    async def auto_generate_summary_and_translation():
-        """定时任务：自动为没有摘要和翻译的文档生成摘要和翻译
-
-        每天凌晨12点执行，每次处理10个文档
-        """
-        from backend.common.log import log
-
-        try:
-            async with async_db_session() as db:
-                # 查询没有摘要或翻译的文档
-                stmt = (
-                    select(SysDoc.id)
-                    .where(
-                        (SysDoc.desc.is_(None)) | (SysDoc.translation.is_(None))
-                    )
-                    .where(SysDoc.status == 1)  # 只处理状态正常的文档
-                    .where(SysDoc.content.isnot(None))  # 必须有内容
-                    .limit(10)
-                )
-
-                result = await db.execute(stmt)
-                doc_ids = [row[0] for row in result.all()]
-
-                if not doc_ids:
-                    log.info("没有需要生成摘要和翻译的文档")
-                    return
-
-                log.info(f"开始为 {len(doc_ids)} 个文档生成摘要和翻译")
-
-                success_count = 0
-                error_count = 0
-
-                for doc_id in doc_ids:
-                    try:
-                        doc = await sys_doc_service.get(pk=doc_id)
-
-                        # 生成摘要（如果没有）
-                        if not doc.desc:
-                            await sys_doc_service.generate_summary(doc_id)
-                            log.info(f"文档 {doc_id} 摘要生成完成")
-
-                        # 生成翻译（如果没有）
-                        # 如果文档语言是中文，则跳过翻译
-                        if not doc.translation:
-                            if doc.language and doc.language == "中文":
-                                log.info(f"文档 {doc_id} 语言为中文，跳过翻译")
-                            else:
-                                # 调用 translate_chunks 方法生成翻译
-                                await sys_doc_service.translate_chunks(
-                                    pk=doc_id,
-                                    target_language="中文"
-                                )
-                                log.info(f"文档 {doc_id} 翻译完成")
-
-                        success_count += 1
-                    except Exception as e:
-                        error_count += 1
-                        log.error(f"文档 {doc_id} 处理失败: {str(e)}")
-
-                log.info(f"摘要和翻译生成完成: 成功 {success_count} 个，失败 {error_count} 个")
-
-        except Exception as e:
-            log.error(f"自动生成摘要和翻译任务失败: {str(e)}")
 
 
 sys_doc_service = SysDocService()

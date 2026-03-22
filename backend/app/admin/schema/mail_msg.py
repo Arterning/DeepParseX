@@ -30,6 +30,10 @@ class MailMsgSchemaBase(SchemaBase):
   attachments: list[dict] | None = None
   create_user: int | None = None
   detection_result: int | None = None
+  message_id: str | None = None
+  in_reply_to: str | None = None
+  thread_id: str | None = None
+  mail_box_id: int | None = None
 
     
 

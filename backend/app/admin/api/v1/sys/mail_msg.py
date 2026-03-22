@@ -38,6 +38,7 @@ async def get_pagination_mail_msg(
     db: CurrentSession,
     name: str | None = Query(None, description='邮件标题'),
     subject: str | None = Query(None, description='邮件主题'),
+    email: str | None = Query(None, description='邮箱（发件人/收件人/抄送人 OR 搜索）'),
     time: datetime | None = Query(None, description='时间'),
     category: str | None = Query(None, description='分类'),
     sender: str | None = Query(None, description='发送者邮箱'),
@@ -54,6 +55,7 @@ async def get_pagination_mail_msg(
     mail_msg_select = await mail_msg_service.get_select(
         name=name,
         subject=subject,
+        email=email,
         time=time,
         category=category,
         sender=sender,

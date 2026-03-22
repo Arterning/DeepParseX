@@ -43,6 +43,7 @@ class SysDoc(Base):
     status: Mapped[int | None] = mapped_column(default=1, comment='文件状态(0解析中 1正常 2出错)')
     process_status: Mapped[dict | None] = mapped_column(JSONB, default=None, comment='处理进度状态')
     entity_extracted: Mapped[int | None] = mapped_column(default=0, comment='是否已提取实体(0未提取 1已提取)')
+    graph_extracted: Mapped[int | None] = mapped_column(default=0, comment='是否已构建知识图谱(0未构建 1已构建)')
     language: Mapped[str | None] = mapped_column(String(50), default=None, comment='文件语言')
 
     dept_id: Mapped[int | None] = mapped_column(

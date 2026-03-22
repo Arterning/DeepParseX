@@ -175,6 +175,10 @@ class Settings(BaseSettings):
     # RSS_BRIEF
     RSS_BRIEF_ENABLED: bool = False
 
+    # Scheduler
+    SCHEDULER_BATCH_SIZE: int = 10    # 每批处理文件/实体数量，根据硬件性能调整
+    SCHEDULER_IDLE_SLEEP: int = 60    # 无待处理任务时的休眠秒数
+
     # Minio 
     MINIO_URL: str = 'http://localhost:9000'
     ACCESS_KEY: str = ''

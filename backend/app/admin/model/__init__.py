@@ -30,3 +30,6 @@ from backend.app.admin.model.sys_chat_session import ChatSession
 from backend.app.admin.model.sys_chat_message import ChatMessage
 from backend.app.admin.model.sys_rss_source import RssSource
 from backend.app.admin.model.sys_briefing import Briefing
+from backend.app.admin.model.sys_scheduler_log import SysSchedulerLog
+from backend.app.admin.model.sys_ioc import IocRecord
+from backend.app.admin.model.sys_geo_point import GeoPoint

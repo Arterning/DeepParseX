@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import json
+import jieba
 from typing import Sequence, Dict, List, Any
 
 from backend.app.admin.crud.crud_entity import entity_dao
@@ -118,23 +119,37 @@ class EntityService:
                     'is_selected': eid in selected_ids_set,
                 })
 
-            # 构建 edges
+            # 构建 edges（过滤掉端点为 null 或对应实体已删除的关系）
             edges = []
             for rel in relationships:
-                edges.append({
-                    'id': rel.id,
-                    'source_id': rel.source_id,
-                    'target_id': rel.target_id,
-                    'relation_type': rel.relation_type,
-                    'weight': rel.weight,
-                    'description': rel.description,
-                })
+                if rel.source_id and rel.target_id and rel.source_id in entities_dict and rel.target_id in entities_dict:
+                    edges.append({
+                        'id': rel.id,
+                        'source_id': rel.source_id,
+                        'target_id': rel.target_id,
+                        'relation_type': rel.relation_type,
+                        'weight': rel.weight,
+                        'description': rel.description,
+                    })
 
             return {'nodes': nodes, 'edges': edges}
 
     @staticmethod
+    async def get_distinct_types() -> list[str]:
+        async with async_db_session() as db:
+            return await entity_dao.get_distinct_types(db)
+
+    @staticmethod
+    async def get_type_stats() -> list[dict]:
+        async with async_db_session() as db:
+            return await entity_dao.get_type_stats(db)
+
+    @staticmethod
     async def get_select(name: str | None = None, entity_type: str | list[str] | None = None, eml: bool | None = None) -> Select:
-        return await entity_dao.get_list(name=name, entity_type=entity_type, eml=eml)
+        from backend.common.context import get_current_user
+        current_user = get_current_user()
+        create_user = None if (current_user is None or current_user.is_superuser) else current_user.id
+        return await entity_dao.get_list(name=name, entity_type=entity_type, eml=eml, create_user=create_user)
 
     @staticmethod
     async def get_all() -> Sequence[Entity]:
@@ -144,19 +159,41 @@ class EntityService:
 
     @staticmethod
     async def create(*, obj: CreateEntityParam) -> None:
+        from backend.common.context import get_current_user
+        from backend.app.admin.model.sys_entity import Entity
+        current_user = get_current_user()
+        user_id = current_user.id if current_user else None
         async with async_db_session.begin() as db:
-            await entity_dao.create(db, obj)
+            entity = Entity(
+                name=obj.name,
+                description=obj.description,
+                entity_type=obj.entity_type,
+                properties=obj.properties,
+                create_user=user_id,
+            )
+            db.add(entity)
 
     @staticmethod
     async def update(*, pk: int, obj: UpdateEntityParam) -> int:
+        from backend.common.context import get_current_user
+        current_user = get_current_user()
         async with async_db_session.begin() as db:
+            if current_user and not current_user.is_superuser:
+                entity = await entity_dao.get(db, pk)
+                if not entity or entity.create_user != current_user.id:
+                    raise errors.ForbiddenError(msg='无权限修改此实体')
             count = await entity_dao.update(db, pk, obj)
             return count
 
     @staticmethod
     async def delete(*, pk: list[int]) -> int:
+        from backend.common.context import get_current_user
+        current_user = get_current_user()
         async with async_db_session.begin() as db:
-            count = await entity_dao.delete(db, pk)
+            if current_user and not current_user.is_superuser:
+                count = await entity_dao.delete_owned(db, pk, owner_id=current_user.id)
+            else:
+                count = await entity_dao.delete(db, pk)
             return count
 
     @staticmethod
@@ -213,37 +250,59 @@ class EntityService:
     }
 
     @staticmethod
-    async def _get_related_doc_contents(db, entity) -> tuple[list[str], list[int]]:
+    async def _get_valid_entity_types(db) -> list[str]:
+        """获取所有有效的实体类型（预设 + 用户自定义，去重）"""
+        from sqlalchemy import select
+        from backend.app.admin.model.sys_entity_type import EntityType
+
+        predefined = list(EntityService.DEFAULT_EDITABLE_FIELDS.keys())
+
+        result = await db.execute(select(EntityType.name))
+        custom_types = [row[0] for row in result.all()]
+
+        seen = set(predefined)
+        all_types = list(predefined)
+        for t in custom_types:
+            if t not in seen:
+                all_types.append(t)
+                seen.add(t)
+
+        return all_types
+
+    @staticmethod
+    async def _get_related_doc_contents(db, entity) -> tuple[list[dict], list[int]]:
         """
         获取实体相关文档内容（全文检索命中的 chunk_text）
 
         :param db: 数据库会话
         :param entity: 实体对象
-        :return: (格式化的文档内容列表, 尚未建立关联的doc_id列表)
+        :return: (search_results 原始列表, 尚未建立关联的doc_id列表)
+                 search_results 每项格式: {'doc_id': int, 'doc_title': str, 'chunks': list[str]}
         """
         from backend.app.admin.crud.crud_doc_chunk import sys_doc_chunk_dao
 
         # 已关联的 doc_id 集合（仅用于判断是否需要新建关联）
         existing_doc_ids = {doc.id for doc in entity.docs} if entity.docs else set()
 
-        # 全文检索包含实体名称的文档，直接使用命中的 chunk_text
+        cut = jieba.cut_for_search(entity.name)
+        keyword = ' '.join(list(cut))
+
+        # 全文检索包含实体名称的文档，返回原始结构供上层做 token 预算选择
         search_results = await sys_doc_chunk_dao.search_doc_ids_by_keyword(
-            db, entity.name, limit=20
+            db, keyword, limit=20
         )
 
         # 保存检索结果到实体的 matched_chunks 字段
         entity.matched_chunks = search_results
 
-        # 格式化内容 & 识别新文档
-        doc_contents = []
-        new_doc_ids = []
-        for doc_info in search_results:
-            chunks_text = '\n'.join(doc_info['chunks'])
-            doc_contents.append(f'[{doc_info["doc_title"]}]: {chunks_text}')
-            if doc_info['doc_id'] not in existing_doc_ids:
-                new_doc_ids.append(doc_info['doc_id'])
+        # 识别尚未关联的文档
+        new_doc_ids = [
+            doc_info['doc_id']
+            for doc_info in search_results
+            if doc_info['doc_id'] not in existing_doc_ids
+        ]
 
-        return doc_contents, new_doc_ids
+        return search_results, new_doc_ids
 
     @staticmethod
     async def generate_properties_by_ai(*, pk: int) -> Dict[str, Any]:
@@ -291,23 +350,10 @@ class EntityService:
             # 构建字段的 JSON 模板（字段名为中文）
             json_template_fields = [f'    "{field}": "字段值"' for field in all_fields]
             json_template_fields.append('    "描述": "实体简要描述（一两句话概括关键信息）"')
+            json_template_fields.append('    "画像": "实体详细画像（多段落Markdown格式，涵盖背景、经历、特征等关键信息）"')
             json_template = '{\n' + ',\n'.join(json_template_fields) + '\n}'
 
-            # 构建上下文信息
-            context_parts = []
-            context_parts.append(f'实体名称: {entity.name}')
-            context_parts.append(f'实体类型: {entity.entity_type}')
-            if entity.description:
-                context_parts.append(f'现有描述: {entity.description}')
-
-            # 获取关联文档内容（直接关联 + 全文检索）
-            doc_contents, new_doc_ids = await EntityService._get_related_doc_contents(db, entity)
-            if doc_contents:
-                context_parts.append('关联文档内容:\n' + '\n'.join(doc_contents))
-
-            user_input = '\n'.join(context_parts)
-
-            # 构建 system prompt
+            # 构建 system prompt（需提前构建，以便计算 token 预算）
             system_prompt = f'''你是一个信息提取专家。根据提供的实体信息和相关文档内容，提取{entity.entity_type}的属性信息。
 
 请严格按照以下JSON格式输出，只输出JSON，不要有其他内容：
@@ -318,7 +364,51 @@ class EntityService:
 2. 只输出JSON格式，不要有任何其他文字说明
 3. 确保输出是有效的JSON格式
 4. "描述" 字段必须填写，用于简要描述此{entity.entity_type}的关键信息
-5. JSON的key必须使用中文，严格按照上述模板中的字段名'''
+5. "画像" 字段必须填写，使用Markdown格式撰写详细的实体画像，内容尽可能全面丰富
+6. JSON的key必须使用中文，严格按照上述模板中的字段名'''
+
+            # 构建上下文信息
+            context_parts = []
+            context_parts.append(f'实体名称: {entity.name}')
+            context_parts.append(f'实体类型: {entity.entity_type}')
+            if entity.description:
+                context_parts.append(f'现有描述: {entity.description}')
+
+            # 获取关联文档内容（直接关联 + 全文检索）
+            search_results, new_doc_ids = await EntityService._get_related_doc_contents(db, entity)
+
+            if search_results:
+                # Token 感知的贪心 chunk 填充：
+                # 以完整 chunk 为单位逐个尝试加入，跳过放不下的 chunk，
+                # 确保每个被选中的 chunk 是完整的语义单元。
+                #
+                # 保守估算：中英混合文本约 2 字符 ≈ 1 token
+                CHARS_PER_TOKEN = 2
+                # 总输入预算（留出 ~8000 token 给 system prompt 和模型输出）
+                MAX_INPUT_TOKENS = 24000
+
+                base_tokens = (len(system_prompt) + len('\n'.join(context_parts))) // CHARS_PER_TOKEN
+                budget = MAX_INPUT_TOKENS - base_tokens
+
+                selected_lines: list[str] = []
+                used = 0
+
+                for doc_info in search_results:
+                    doc_header = f'[{doc_info["doc_title"]}]:'
+                    for i, chunk in enumerate(doc_info['chunks']):
+                        # 首个 chunk 带文档标题前缀
+                        line = f'{doc_header} {chunk}' if i == 0 else chunk
+                        line_tokens = len(line) // CHARS_PER_TOKEN
+                        if used + line_tokens > budget:
+                            # 放不下就跳过这个 chunk，继续尝试后续更短的 chunk
+                            continue
+                        selected_lines.append(line)
+                        used += line_tokens
+
+                if selected_lines:
+                    context_parts.append('关联文档内容:\n' + '\n'.join(selected_lines))
+
+            user_input = '\n'.join(context_parts)
 
             try:
                 # 调用 AI 服务
@@ -348,11 +438,14 @@ class EntityService:
                 # 提取 "描述" 字段
                 description = result.pop('描述', None)
 
+                # 提取 "画像" 字段
+                profile = result.pop('画像', None)
+
                 # 剩余的作为 properties
                 properties = result
 
-                # 更新实体的 properties 和 description 字段
-                await entity_dao.update_properties(db, pk, properties, description)
+                # 更新实体的 properties、description 和 profile 字段
+                await entity_dao.update_properties(db, pk, properties, description, profile)
 
                 # 为全文检索新发现的文档创建关联
                 if new_doc_ids:
@@ -369,8 +462,8 @@ class EntityService:
                                 sys_entity_doc.insert().values(entity_id=pk, doc_id=doc_id)
                             )
 
-                # 返回结果包含 properties 和 description
-                return {'properties': properties, 'description': description}
+                # 返回结果包含 properties、description 和 profile
+                return {'properties': properties, 'description': description, 'profile': profile}
 
             except json.JSONDecodeError as e:
                 log.error(f'AI 响应解析失败: {ai_response}, 错误: {e}')
@@ -380,69 +473,84 @@ class EntityService:
                 raise errors.RequestError(msg=f'生成属性失败: {str(e)}')
 
 
+
     @staticmethod
-    async def auto_link_and_generate_properties():
-        """定时任务：自动为在文档中出现但未建立关联的实体生成属性
-
-        查找实体名称在 sys_doc_chunk 表中出现但 sys_entity_doc 中未建立关联的实体，
-        每次处理10个，调用 generate_properties_by_ai 方法。
+    async def find_abstract_entities(
+        *,
+        entity_type: str | list[str] | None = None,
+        batch_size: int = 50,
+    ) -> list[dict]:
         """
-        from sqlalchemy import select, exists, func, or_
-        from backend.app.admin.model.sys_doc_chunk import SysDocChunk
-        from backend.app.admin.model.sys_entity_doc import sys_entity_doc
+        筛选出名称为泛指抽象名词（没有具体指代对象）的实体。
+        例如：「企业」「研究」「技术」「项目」「工作」等。
+        仅做筛选，不删除。
 
-        try:
-            async with async_db_session() as db:
-                # 子查询：实体已关联的文档ID
-                linked_docs = (
-                    select(sys_entity_doc.c.doc_id)
-                    .where(sys_entity_doc.c.entity_id == Entity.id)
-                    .correlate(Entity)
-                )
+        :param entity_type: 限定实体类型范围，None 表示全部类型
+        :param batch_size: 每批发送给 AI 的实体数量
+        :return: 抽象实体列表，每项格式为 {'id': int, 'name': str, 'entity_type': str}
+        """
+        from sqlalchemy import select
 
-                # 条件：通过 chunk_vector (GIN索引) 全文检索实体名称，且该文档未与实体建立关联
-                has_unlinked_mention = exists(
-                    select(SysDocChunk.id).where(
-                        SysDocChunk.chunk_vector.op('@@')(
-                            func.plainto_tsquery('simple', func.lower(Entity.name))
-                        ),
-                        SysDocChunk.doc_id.notin_(linked_docs)
-                    ).correlate(Entity)
-                )
+        async with async_db_session() as db:
+            stmt = select(Entity.id, Entity.name, Entity.entity_type)
+            if entity_type:
+                if isinstance(entity_type, str):
+                    stmt = stmt.where(Entity.entity_type == entity_type)
+                else:
+                    stmt = stmt.where(Entity.entity_type.in_(entity_type))
+            result = await db.execute(stmt)
+            all_entities = [
+                {'id': row.id, 'name': row.name, 'entity_type': row.entity_type}
+                for row in result.all()
+                if row.name
+            ]
 
-                stmt = (
-                    select(Entity.id)
-                    .where(Entity.name.isnot(None))
-                    .where(func.length(Entity.name) >= 2)
-                    .where(or_(has_unlinked_mention, Entity.matched_chunks.is_(None)))
-                    .limit(10)
-                )
+        if not all_entities:
+            return []
 
-                result = await db.execute(stmt)
-                entity_ids = [row[0] for row in result.all()]
+        system_prompt = (
+            '你是一个语言学专家。你的任务是从实体名称列表中找出那些「泛指抽象名词」——'
+            '即没有具体指代对象的通用词语，例如：企业、研究、技术、项目、工作、'
+            '问题、情况、方面、领域、活动、事项、系统、机制、模式、力量、资源、能力、服务、产品、方案。\n'
+            '相反，具体实体（如：阿里巴巴、张伟、新冠疫情、北京大学）不属于此类。\n\n'
+            '输入：JSON 数组，每项包含 id 和 name 字段。\n'
+            '输出：仅返回属于泛指抽象名词的那些项的 id 列表，格式为 JSON 数组（只有数字），'
+            '不要有任何其他文字。\n'
+            '示例输出：[12, 37, 105]'
+        )
 
-            if not entity_ids:
-                log.info("没有需要处理的未关联实体")
-                return
+        abstract_ids: set[int] = set()
 
-            log.info(f"开始为 {len(entity_ids)} 个未关联实体生成属性")
+        for i in range(0, len(all_entities), batch_size):
+            batch = all_entities[i: i + batch_size]
+            user_input = json.dumps(
+                [{'id': e['id'], 'name': e['name']} for e in batch],
+                ensure_ascii=False,
+            )
+            try:
+                ai_response = await llm_service.get_llm_response(system_prompt, user_input)
+                response_text = ai_response.strip()
+                # 去掉可能存在的 markdown 代码块包装
+                if response_text.startswith('```'):
+                    lines = response_text.split('\n')
+                    inner = []
+                    in_block = False
+                    for line in lines:
+                        if line.startswith('```') and not in_block:
+                            in_block = True
+                            continue
+                        elif line.startswith('```') and in_block:
+                            break
+                        elif in_block:
+                            inner.append(line)
+                    response_text = '\n'.join(inner)
+                ids = json.loads(response_text)
+                if isinstance(ids, list):
+                    abstract_ids.update(int(x) for x in ids if isinstance(x, (int, float)))
+            except Exception as e:
+                log.error(f'find_abstract_entities 批次 {i // batch_size + 1} 处理失败: {repr(e)}')
 
-            success_count = 0
-            error_count = 0
-
-            for entity_id in entity_ids:
-                try:
-                    await EntityService.generate_properties_by_ai(pk=entity_id)
-                    success_count += 1
-                    log.info(f"实体 {entity_id} 属性生成完成")
-                except Exception as e:
-                    error_count += 1
-                    log.error(f"实体 {entity_id} 属性生成失败: {str(e)}")
-
-            log.info(f"未关联实体属性生成完成: 成功 {success_count} 个，失败 {error_count} 个")
-
-        except Exception as e:
-            log.error(f"自动处理未关联实体任务失败: {str(e)}")
+        return [e for e in all_entities if e['id'] in abstract_ids]
 
 
 entity_service = EntityService()

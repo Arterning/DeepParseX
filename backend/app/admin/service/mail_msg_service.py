@@ -26,6 +26,7 @@ class MailMsgService:
         *,
         name: str | None = None,
         subject: str | None = None,
+        email: str | None = None,
         time: datetime | None = None,
         category: str | None = None,
         sender: str | None = None,
@@ -39,6 +40,7 @@ class MailMsgService:
         return await mail_msg_dao.get_list(
             name=name,
             subject=subject,
+            email=email,
             time=time,
             category=category,
             sender=sender,
