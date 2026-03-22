@@ -64,21 +64,19 @@ def get_file_suffix(filename: str):
 
 
 file_type_handlers = {
-    '表格': lambda suffix: is_excel_file(suffix) or is_parquet_file(suffix) or is_csv_file(suffix),
-    '图片': is_picture_file,
-    '媒体': is_media_file,
-    '文本': is_text_file,
-    '邮件': lambda suffix: is_email_file(suffix) or is_mbox_file(suffix),
-    'PDF': is_pdf_file,
-    '文档': is_docx_file,
-    'PPT': is_pptx_file,
-    'HTML': is_html_file,
-    '压缩包': lambda suffix: is_zip_file(suffix) or is_rar_file(suffix) or is_7z_file(suffix),
+    'spreadsheet': lambda suffix: is_excel_file(suffix) or is_parquet_file(suffix) or is_csv_file(suffix),
+    'image': is_picture_file,
+    'media': is_media_file,
+    'text': is_text_file,
+    'email': lambda suffix: is_email_file(suffix) or is_mbox_file(suffix),
+    'pdf': is_pdf_file,
+    'document': is_docx_file,
+    'ppt': is_pptx_file,
+    'html': is_html_file,
+    'archive': lambda suffix: is_zip_file(suffix) or is_rar_file(suffix) or is_7z_file(suffix),
 }
 def get_file_type(file_suffix: str):
     for file_type, handler in file_type_handlers.items():
         if handler(file_suffix):
-            # print("匹配到文件类型:", file_type)
             return file_type
-    # print("未匹配到文件类型，默认返回文本")
-    return '文本'
+    return 'text'
