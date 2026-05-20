@@ -2,9 +2,11 @@ from backend.common.schema import SchemaBase
 
 
 class ChatParam(SchemaBase):
-    question:str
-    doc_id:int | None = None
-    session_id:int | None = None
+    question: str
+    doc_id: int | None = None
+    session_id: int | None = None
+    doc_dir_ids: list[int] | None = None
+    send_history: bool | None = None
 
 class IdParam(SchemaBase):
     id:int

@@ -8,13 +8,13 @@ from pydantic import ConfigDict
 from backend.common.schema import SchemaBase
 
 
-# Chunk 信息 Schema
-class ChunkInfo(SchemaBase):
-    """RAG上下文片段信息"""
-    chunk_id: str | None = None
-    chunk_text: str | None = None
+# 引用文件信息 Schema
+class ReferenceInfo(SchemaBase):
+    """按文件分组的引用信息"""
+    ref_index: int | None = None
     doc_id: int | None = None
     doc_name: str | None = None
+    content_preview: str | None = None
 
 
 # 消息相关 Schema
@@ -22,7 +22,7 @@ class MessageParam(SchemaBase):
     """创建或更新消息时使用的参数"""
     sender: str  # 'user' 或 'bot'
     content: str
-    chunks: list[ChunkInfo] | None = None  # RAG上下文片段，仅 bot 回复时有值
+    chunks: list[ReferenceInfo] | None = None  # 引用文件列表，仅 bot 回复时有值
 
 
 class MessageDetails(SchemaBase):
@@ -32,7 +32,7 @@ class MessageDetails(SchemaBase):
     id: int
     sender: str
     content: str
-    chunks: list[ChunkInfo] | None = None  # RAG上下文片段
+    chunks: list[ReferenceInfo] | None = None  # 引用文件列表
     created_time: datetime
 
 
@@ -74,4 +74,3 @@ class GetChatSessionDetails(SchemaBase):
     messages: list[MessageDetails] = []
     created_time: datetime
     updated_time: datetime | None = None
-    

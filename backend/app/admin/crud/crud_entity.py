@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from typing import Sequence
 
-from sqlalchemy import delete, func, Select, select
+from sqlalchemy import Select, asc, delete, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
 from sqlalchemy.orm import selectinload
@@ -29,13 +29,23 @@ class CRUDEntity(CRUDPlus[Entity]):
         )
         return result.scalars().first()
 
-    async def get_list(self, name: str | None = None, entity_type: str | list[str] | None = None, eml: bool | None = None, create_user: int | None = None) -> Select:
+    async def get_list(
+        self,
+        name: str | None = None,
+        entity_type: str | list[str] | None = None,
+        file_types: list[str] | None = None,
+        create_user: int | None = None,
+        sort_field: str = 'created_time',
+        sort_order: str = 'desc',
+    ) -> Select:
         """
-        获取实体列表，按关联文档数量降序排列
+        获取实体列表
 
         :param name: 实体名称（模糊匹配）
         :param entity_type: 实体类型，支持单个字符串或字符串数组
-        :param eml: 是否仅显示关联邮件的实体
+        :param file_types: 文件后缀列表，按文件名后缀过滤，如 ['eml', 'docx', 'pdf']
+        :param sort_field: 排序字段，支持 name / created_time / doc_count，默认 created_time
+        :param sort_order: 排序方式，asc 升序 / desc 降序，默认 desc
         :return:
         """
         # 子查询：统计每个实体关联的文档数量
@@ -48,7 +58,7 @@ class CRUDEntity(CRUDPlus[Entity]):
             .subquery()
         )
 
-        # 主查询：左连接子查询，按文档数量降序
+        # 主查询：左连接子查询
         stmt = (
             select(Entity)
             .outerjoin(doc_count_sub, Entity.id == doc_count_sub.c.entity_id)
@@ -57,8 +67,9 @@ class CRUDEntity(CRUDPlus[Entity]):
         # 动态添加过滤条件
         if name:
             stmt = stmt.where(Entity.name.like(f'%{name}%'))
-        if eml:
-            stmt = stmt.where(Entity.source_doc_name.like('%eml%'))
+        if file_types:
+            conditions = [Entity.source_doc_name.like(f'%.{ft}') for ft in file_types]
+            stmt = stmt.where(or_(*conditions))
         if entity_type:
             if isinstance(entity_type, list):
                 stmt = stmt.where(Entity.entity_type.in_(entity_type))
@@ -67,11 +78,17 @@ class CRUDEntity(CRUDPlus[Entity]):
         if create_user is not None:
             stmt = stmt.where(Entity.create_user == create_user)
 
-        # 按关联文档数降序，文档数相同则按创建时间降序
-        stmt = stmt.order_by(
-            func.coalesce(doc_count_sub.c.doc_count, 0).desc(),
-            Entity.created_time.desc(),
-        )
+        # 动态排序
+        sort_field_map = {
+            'name': Entity.name,
+            'created_time': Entity.created_time,
+            'doc_count': func.coalesce(doc_count_sub.c.doc_count, 0),
+        }
+        column = sort_field_map.get(sort_field, Entity.created_time)
+        order_fn = desc if sort_order == 'desc' else asc
+        stmt = stmt.order_by(order_fn(column))
+        if sort_field == 'doc_count':
+            stmt = stmt.order_by(Entity.created_time.desc())
 
         return stmt
 
@@ -112,6 +129,17 @@ class CRUDEntity(CRUDPlus[Entity]):
         return await self.delete_model_by_column(
             db, allow_multiple=True, id__in=pk, create_user=owner_id
         )
+
+    async def update_timeline(self, db: AsyncSession, pk: int, timeline: list) -> int:
+        """
+        更新 Entity 的 timeline 字段
+
+        :param db:
+        :param pk:
+        :param timeline:
+        :return:
+        """
+        return await self.update_model(db, pk, {'timeline': timeline})
 
     async def update_properties(self, db: AsyncSession, pk: int, properties: dict, description: str | None = None, profile: str | None = None) -> int:
         """

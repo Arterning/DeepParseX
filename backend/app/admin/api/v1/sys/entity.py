@@ -2,10 +2,19 @@
 # -*- coding: utf-8 -*-
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends, Path, Query, Request
+from fastapi import APIRouter, Body, Depends, File, Path, Query, Request, UploadFile
 
-from backend.app.admin.schema.entity import AnalyzeEntitiesParam, CreateEntityParam, GetEntityDetails, GetEntityListDetails, UpdateEntityParam
+from backend.app.admin.schema.entity import (
+    AnalyzeEntitiesParam,
+    BatchImportParam,
+    CreateEntityParam,
+    GetEntityDetails,
+    GetEntityListDetails,
+    UpdateEntityParam,
+)
 from backend.app.admin.service.entity_service import entity_service
+from backend.common.exception import errors
+from backend.common.log import log
 from backend.common.pagination import DependsPagination, paging_data
 from backend.common.response.response_schema import ResponseModel, response_base
 from backend.common.security.jwt import DependsJwtAuth
@@ -42,6 +51,21 @@ async def analyze_entities(obj: AnalyzeEntitiesParam) -> ResponseModel:
     return response_base.success(data=data)
 
 
+@router.post('/parse-file', summary='解析CSV/Excel文件，返回表头和数据预览', dependencies=[DependsJwtAuth])
+async def parse_file(file: UploadFile = File(...)) -> ResponseModel:
+    if not file.filename:
+        raise errors.RequestError(msg='文件名为空')
+    content = await file.read()
+    result = await entity_service.parse_file(content=content, filename=file.filename)
+    return response_base.success(data=result)
+
+
+@router.post('/batch-import', summary='批量导入实体', dependencies=[DependsJwtAuth])
+async def batch_import(obj: BatchImportParam) -> ResponseModel:
+    result = await entity_service.batch_import(obj=obj)
+    return response_base.success(data=result)
+
+
 @router.get('/{pk}', summary='获取详情', dependencies=[DependsJwtAuth])
 async def get_entity(pk: Annotated[int, Path(...)]) -> ResponseModel:
     entity = await entity_service.get(pk=pk)
@@ -66,9 +90,11 @@ async def get_pagination_entity(
     db: CurrentSession,
     name: Annotated[str | None, Query(title='实体名称', description='模糊匹配')] = None,
     entity_type: Annotated[list[str] | None, Query(title='实体类型', description='支持多个实体类型，格式为数组')] = None,
-    mail: Annotated[bool | None, Query(title='是否仅显示关联邮件的实体', description='仅当true时筛选，false/空均不筛选')] = None,
+    file_types: Annotated[list[str] | None, Query(title='文件类型', description='按文件后缀过滤，如 eml, docx, pdf，支持数组')] = None,
+    sort_field: Annotated[str | None, Query(title='排序字段', description='name/created_time/doc_count')] = 'created_time',
+    sort_order: Annotated[str | None, Query(title='排序方式', description='asc/desc')] = 'desc',
 ) -> ResponseModel:
-    entity_select = await entity_service.get_select(name=name, entity_type=entity_type, eml=mail)
+    entity_select = await entity_service.get_select(name=name, entity_type=entity_type, file_types=file_types, sort_field=sort_field, sort_order=sort_order)
     page_data = await paging_data(db, entity_select, GetEntityListDetails)
     return response_base.success(data=page_data)
 
@@ -115,6 +141,19 @@ async def delete_entity(pk: Annotated[list[int], Query(...)]) -> ResponseModel:
 
 
 @router.post(
+    '/{pk}/extract-relationships',
+    summary='AI提取实体关系',
+    dependencies=[DependsJwtAuth],
+)
+async def extract_entity_relationships(pk: Annotated[int, Path(...)]) -> ResponseModel:
+    """
+    AI 提取该实体的关系并持久化
+    """
+    relationships = await entity_service.extract_relationships(pk=pk)
+    return response_base.success(data=relationships)
+
+
+@router.post(
     '/{pk}/generate-properties',
     summary='AI生成实体属性',
     dependencies=[DependsJwtAuth],
@@ -128,6 +167,23 @@ async def generate_entity_properties(pk: Annotated[int, Path(...)]) -> ResponseM
     """
     properties = await entity_service.generate_properties_by_ai(pk=pk)
     return response_base.success(data=properties)
+
+
+@router.post(
+    '/{pk}/extract-timeline',
+    summary='AI提取实体时间轴脉络',
+    dependencies=[DependsJwtAuth],
+)
+async def extract_entity_timeline(pk: Annotated[int, Path(...)]) -> ResponseModel:
+    """
+    调用AI根据实体关联文档内容提取时间轴脉络
+
+    返回按时间排序的事件列表，每项包含：
+    - time: 事件发生时间
+    - event: 事件描述
+    """
+    timeline = await entity_service.extract_timeline_by_ai(pk=pk)
+    return response_base.success(data=timeline)
 
 
 @router.post(

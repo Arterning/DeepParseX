@@ -237,7 +237,7 @@ class SchedulerService:
                         if doc.language and doc.language == "中文":
                             log.info(f"文档 {doc_id} 语言为中文，跳过翻译")
                         else:
-                            await sys_doc_service.translate_chunks(pk=doc_id, target_language="中文")
+                            await sys_doc_service.translate_pages(pk=doc_id, target_language="中文")
                             log.info(f"文档 {doc_id} 翻译完成")
 
                     success_count += 1

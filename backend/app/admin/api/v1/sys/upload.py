@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import asyncio
-from fastapi import APIRouter, Path, BackgroundTasks
+from fastapi import APIRouter, Path
 from datetime import datetime
 from typing import Annotated, Optional
 from pydantic import BaseModel
@@ -19,6 +19,7 @@ from fastapi.responses import StreamingResponse
 from fastapi import File, UploadFile, Form, Request
 from backend.common.log import log
 from backend.common.security.jwt import DependsJwtAuth
+from backend.common.exception.errors import RequestError
 import os
 
 
@@ -27,6 +28,7 @@ class ParseParams(BaseModel):
     name: Optional[str] = None
     doc_dir_id: Optional[int] = None
     option: Optional[dict] = None
+    entity_id: Optional[int] = None
 
 router = APIRouter()
 
@@ -86,9 +88,9 @@ async def get_compressed_file_count(doc_id: int) -> int:
     return 1
 
 
-@router.post("/", summary='上传文件', dependencies=[DependsJwtAuth])
+@router.post("", summary='上传文件', dependencies=[DependsJwtAuth])
 async def upload_file(
-    file: UploadFile = File(...), 
+    file: UploadFile = File(...),
     last_modified: Annotated[datetime| None, Form(...)] = None,
     size: Annotated[int | None, Form(...)] = None,
     request: Request = None,
@@ -97,10 +99,11 @@ async def upload_file(
         "last_modified": last_modified,
         "size": size,
     }
-    # print("meta", meta)
-    # print("request", request.user)
     user = request.user
-    doc = await upload_service.save_file(file, meta, user)
+    try:
+        doc = await upload_service.save_file(file, meta, user)
+    except ValueError as e:
+        raise RequestError(msg=str(e))
     resp = {
         "id": doc.id
     }
@@ -110,13 +113,13 @@ async def upload_file(
 @router.post("/parse/{pk}", summary='解析文件', dependencies=[DependsJwtAuth])
 async def parse(
     pk: Annotated[int, Path(...)],
-    background_tasks: BackgroundTasks,
-    request: Request, 
+    request: Request,
     params: ParseParams
 ):
     name = params.name
     doc_dir_id = params.doc_dir_id
     option = params.option
+    entity_id = params.entity_id
     source = f"{request.user.username}"
     
     # 获取文件数量，对于压缩包文件会读取实际包含的文件数量
@@ -140,11 +143,12 @@ async def parse(
         'doc_dir_id': doc_dir_id,
     })
     
-    background_tasks.add_task(run_parse_task, pk=pk)
+    ocr_task = option.get('ocr_task') if option else None
+    asyncio.create_task(run_parse_task(pk=pk, ocr_task=ocr_task, entity_id=entity_id))
     return response_base.success(data="任务已提交，正在处理")
 
 
-async def run_parse_task(pk: int):
+async def run_parse_task(pk: int, ocr_task: str | None = None, entity_id: int | None = None):
 
     await sys_doc_service.base_update(pk=pk, obj={
         'process_status': {'status': 'doing', 'stage': '识别文件', 'progress': 1/5}
@@ -158,7 +162,7 @@ async def run_parse_task(pk: int):
             'process_status': {'status': 'doing', 'stage': '读取内容', 'progress': 2/5}
         })
 
-        await upload_service.read_file_content(doc=doc)
+        await upload_service.read_file_content(doc=doc, ocr_task=ocr_task)
 
         sub_docs = []
 
@@ -171,7 +175,7 @@ async def run_parse_task(pk: int):
 
 
         for sub_doc in sub_docs:
-            await upload_service.read_file_content(doc=sub_doc)
+            await upload_service.read_file_content(doc=sub_doc, ocr_task=ocr_task)
 
             await sys_doc_service.base_update(pk=pk, obj={
                 'process_status': {'status': 'doing', 'stage': f'读取内容-({sub_doc.name})', 'progress': 2/5}
@@ -204,6 +208,15 @@ async def run_parse_task(pk: int):
 
 
         await upload_task_service.update_status_by_doc_id(doc_id=doc.id, status='done')
+
+        # 如果指定了 entity_id，建立实体与文档的关联
+        if entity_id:
+            from backend.app.admin.model.sys_entity_doc import sys_entity_doc
+            async with async_db_session.begin() as db:
+                await db.execute(sys_entity_doc.insert().values(entity_id=entity_id, doc_id=doc.id))
+                for sub_doc in sub_docs:
+                    await db.execute(sys_entity_doc.insert().values(entity_id=entity_id, doc_id=sub_doc.id))
+                await db.commit()
 
         await sys_doc_service.base_update(pk=doc.id, obj={
             'process_status': {'status': 'done', 'stage': '处理完成', 'progress': 1}

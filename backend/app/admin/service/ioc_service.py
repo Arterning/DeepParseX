@@ -6,6 +6,7 @@ IOC（失陷指标）提取与管理服务
 支持类型：ip / domain / url / md5 / sha1 / sha256 / email / cve
 提取库：iocextract（需 pip install iocextract）
 """
+import asyncio
 import re
 import traceback
 from typing import Iterator
@@ -61,14 +62,15 @@ def _extract_with_iocextract(text: str) -> Iterator[tuple[str, str, bool]]:
     """使用 iocextract 提取，yield (ioc_type, value, is_defanged)"""
     import iocextract
     for url in iocextract.extract_urls(text, refang=False):
-        defanged = url != iocextract.refang_url(url)
-        yield 'url', iocextract.refang_url(url).lower(), defanged
+        refanged = iocextract.refang_data(url)
+        yield 'url', refanged.lower(), url != refanged
     for ip in iocextract.extract_ips(text, refang=False):
-        refanged = iocextract.refang_ipv4(ip)
+        refanged = iocextract.refang_data(ip)
         if refanged and not _is_private_ip(refanged):
             yield 'ip', refanged, ip != refanged
     for email in iocextract.extract_emails(text, refang=False):
-        yield 'email', iocextract.refang_email(email).lower(), False
+        refanged = iocextract.refang_data(email)
+        yield 'email', refanged.lower(), email != refanged
     for h in iocextract.extract_hashes(text):
         length = len(h)
         if length == 32:
@@ -150,7 +152,7 @@ class IocService:
         返回写入条数。
         """
         try:
-            raw_iocs = _extract_iocs_from_text(content)
+            raw_iocs = await asyncio.to_thread(_extract_iocs_from_text, content)
             if not raw_iocs:
                 return 0
 

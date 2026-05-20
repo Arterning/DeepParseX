@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import re
 from typing import Sequence
@@ -24,11 +24,12 @@ from backend.database.db_pg import async_db_session
 from backend.app.admin.schema.doc_data import CreateSysDocDataParam
 from backend.app.admin.schema.doc_chunk import CreateSysDocChunkParam
 from backend.app.admin.schema.doc_embdding import CreateSysDocEmbeddingParam
-from backend.app.admin.utils.text_processor import embed_text_chunks
+from backend.app.admin.service.embedding_service import embed_text_chunks
 from backend.app.admin.service.llm_service import llm_service
 from backend.common.log import log
 from backend.utils.oss_client import minio_client
 from backend.core.conf import settings
+from backend.app.admin.conf import admin_settings
 import asyncio
 import jieba
 import json
@@ -142,6 +143,19 @@ def extract_text_from_html(html_content: str) -> str:
 
 
 
+def _is_valid_tsvector_word(word: str, max_bytes: int = 2046) -> bool:
+    """检查词是否可安全用于 tsvector（无控制字符、无非法 Unicode、长度不超限）"""
+    if not word:
+        return False
+    # 包含控制字符（\x00-\x1f, \x7f）或 Unicode 替换符 \ufffd 的词不合法
+    for ch in word:
+        if ch == '\ufffd' or (ord(ch) < 0x20 and ch not in ('\t', '\n', '\r')) or ord(ch) == 0x7f:
+            return False
+    if len(word.encode('utf-8')) > max_bytes:
+        return False
+    return True
+
+
 def text_to_tsvector(text: str, mode: str = 'search') -> str:
     """
     将文本转换为 PostgreSQL tsvector 格式字符串，保留原文字符位置
@@ -158,9 +172,6 @@ def text_to_tsvector(text: str, mode: str = 'search') -> str:
         - PostgreSQL tsvector 位置最大值为 16383，超过的位置会被截断
         - 单词最大长度为 2046 字节，超过的词会被跳过
     """
-    # PostgreSQL tsvector 单词最大长度限制（字节）
-    MAX_WORD_BYTES = 2046
-
     if not text:
         return ''
 
@@ -181,11 +192,7 @@ def text_to_tsvector(text: str, mode: str = 'search') -> str:
     for word, start, end in tokens:
         # 跳过空白和标点
         word = word.strip()
-        if not word or len(word) == 0:
-            continue
-
-        # 跳过过长的词（PostgreSQL tsvector 限制）
-        if len(word.encode('utf-8')) > MAX_WORD_BYTES:
+        if not _is_valid_tsvector_word(word):
             continue
 
         # tsvector 位置从 1 开始，最大 16383
@@ -221,18 +228,6 @@ def text_to_weighted_tsvector(title: str, content: str, doc_type: str = None) ->
     Returns:
         tsvector 格式字符串，带权重，如 "'标题':1A '内容':2B"
     """
-    # PostgreSQL tsvector 单词最大长度限制（字节）
-    MAX_WORD_BYTES = 2046
-
-    def is_valid_word(word: str) -> bool:
-        """检查词是否有效（不为空且长度不超限）"""
-        if not word:
-            return False
-        # 检查 UTF-8 编码后的字节长度
-        if len(word.encode('utf-8')) > MAX_WORD_BYTES:
-            return False
-        return True
-
     result_parts = []
 
     # 处理标题（权重 A）
@@ -242,7 +237,7 @@ def text_to_weighted_tsvector(title: str, content: str, doc_type: str = None) ->
 
         for word, start, end in tokens:
             word = word.strip()
-            if not is_valid_word(word):
+            if not _is_valid_tsvector_word(word):
                 continue
             pos = min(start + 1, 16383)
             word_positions[word].append(pos)
@@ -268,7 +263,7 @@ def text_to_weighted_tsvector(title: str, content: str, doc_type: str = None) ->
 
         for word, start, end in tokens:
             word = word.strip()
-            if not is_valid_word(word):
+            if not _is_valid_tsvector_word(word):
                 continue
             pos = min(start + 1, 16383)
             word_positions[word].append(pos)
@@ -281,6 +276,12 @@ def text_to_weighted_tsvector(title: str, content: str, doc_type: str = None) ->
             result_parts.append(f"'{escaped_word}':{pos_str}")
 
     return ' '.join(result_parts)
+
+
+_QUESTION_RE = re.compile(
+    r'(是什么|是啥|怎么|怎样|如何|为什么|为何|有哪些|有什么'
+    r'|能否|可以|介绍|解释|说明|分析|总结|比较|区别|原因|\?|？)'
+)
 
 
 class SysDocService:
@@ -593,7 +594,8 @@ class SysDocService:
     async def get_select(*, title: str = None, name: str = None, doc_type: list[str] = None,
                           content: str = None, source: str = None, ids: list[int] = None,
                           rangeValue: list[str] = None, current_user_id: int = None,
-                          tag_ids: list[int] = None, doc_dir_id: int = None) -> Select:
+                          tag_ids: list[int] = None, doc_dir_id: int = None,
+                          status: int = None) -> Select:
         if not rangeValue:
             rangeValue = ['', '']
         start_time = rangeValue[0]
@@ -610,6 +612,7 @@ class SysDocService:
             current_user_id=current_user_id,
             tag_ids=tag_ids,
             doc_dir_id=doc_dir_id,
+            status=status,
         )
 
     @staticmethod
@@ -747,13 +750,201 @@ class SysDocService:
         query_vector: list[float] = None,
         limit: int = None,
         distance_threshold: float = None,
-        doc_id: int = None
+        doc_id: int = None,
+        doc_ids: list[int] | None = None,
     ):
         async with async_db_session() as db:
             res = await sys_doc_embedding_dao.search_chunk_vector(
-                db, query_vector, limit, distance_threshold, doc_id
+                db, query_vector, limit, distance_threshold, doc_id, doc_ids
             )
             return res
+
+    @staticmethod
+    async def search_fulltext_chunks(
+        *,
+        keyword: str,
+        limit: int = 10,
+        doc_id: int = None,
+        doc_ids: list[int] | None = None,
+    ):
+        """全文检索分块（面向 RAG 混合召回）"""
+        async with async_db_session() as db:
+            return await sys_doc_chunk_dao.search_chunks_for_rag(
+                db, keyword, limit, doc_id, doc_ids
+            )
+
+    @staticmethod
+    async def batch_move(*, doc_ids: list[int], doc_dir_id: int | None) -> int:
+        """批量移动文件到指定目录（一次 SQL 完成）"""
+        from sqlalchemy import update as sa_update
+        async with async_db_session.begin() as db:
+            result = await db.execute(
+                sa_update(SysDoc)
+                .where(SysDoc.id.in_(doc_ids))
+                .values(doc_dir_id=doc_dir_id)
+            )
+            return result.rowcount
+
+    @staticmethod
+    async def ai_search_docs(
+        question: str,
+        rewritten_query: str,
+        limit: int = 500,
+        score_ratio_threshold: float = 0.3,
+    ) -> list[dict]:
+        """AI 混合检索：向量 + 全文 + RRF 融合，按文件去重后返回相关文件。
+
+        score_ratio_threshold: 只保留文件得分 >= 最高分 × 该比例的结果，过滤长尾。
+        """
+        query_vector = (await embed_text_chunks(rewritten_query))[0]["embs"]
+
+        vector_results, fulltext_results = await asyncio.gather(
+            SysDocService.search_similar_docs(
+                query_vector=query_vector,
+                limit=limit,
+                distance_threshold=1.2,
+            ),
+            SysDocService.search_fulltext_chunks(keyword=rewritten_query, limit=limit),
+        )
+
+        # 过滤空 chunk 及极短 chunk（如 "News Alert" 这类无上下文的噪声片段）
+        min_chunk_len = 20
+        vector_results = [r for r in vector_results if r.chunk_text and len(r.chunk_text.strip()) >= min_chunk_len]
+        fulltext_results = [r for r in fulltext_results if r.chunk_text and len(r.chunk_text.strip()) >= min_chunk_len]
+        log.debug(f"[ai_search] vector={len(vector_results)} fulltext={len(fulltext_results)}")
+
+        # 使用 (doc_id, chunk_text[:100]) 作为 key，避免不同文件中相同内容的 chunk
+        # 共用同一个 key 导致分数跨文件叠加（原 _rrf_fusion 只用 chunk_text[:200] 作 key，
+        # 内容相同的垃圾邮件会把分数全部堆到同一个 key 上，虚高到 0.46）。
+        k = 60
+        chunk_scores: dict[tuple, dict] = {}
+
+        for rank, row in enumerate(vector_results):
+            key = (row.doc_id, (row.chunk_text or "")[:100])
+            if key not in chunk_scores:
+                chunk_scores[key] = {
+                    "doc_id": row.doc_id,
+                    "doc_name": row.doc_name,
+                    "chunk_text": row.chunk_text,
+                    "rrf_score": 0.0,
+                }
+            chunk_scores[key]["rrf_score"] += 1.0 / (k + rank)
+
+        for rank, row in enumerate(fulltext_results):
+            key = (row.doc_id, (row.chunk_text or "")[:100])
+            if key not in chunk_scores:
+                chunk_scores[key] = {
+                    "doc_id": row.doc_id,
+                    "doc_name": row.doc_name,
+                    "chunk_text": row.chunk_text,
+                    "rrf_score": 0.0,
+                }
+            chunk_scores[key]["rrf_score"] += 1.0 / (k + rank)
+
+        # 按文件分组：每文件只取 top-3 chunk 累加，防止长文档因分块数多得分虚高
+        _doc_chunk_list: dict[int, list] = {}
+        for chunk in chunk_scores.values():
+            doc_id = chunk["doc_id"]
+            if doc_id is None:
+                continue
+            if doc_id not in _doc_chunk_list:
+                _doc_chunk_list[doc_id] = []
+            _doc_chunk_list[doc_id].append(chunk)
+
+        MAX_CHUNKS_PER_DOC = 3
+        doc_scores: dict[int, dict] = {}
+        for doc_id, chunks in _doc_chunk_list.items():
+            top_chunks = sorted(chunks, key=lambda c: c["rrf_score"], reverse=True)[:MAX_CHUNKS_PER_DOC]
+            best = top_chunks[0]
+            doc_scores[doc_id] = {
+                "doc_id": doc_id,
+                "rrf_score": sum(c["rrf_score"] for c in top_chunks),
+                "best_chunk_score": best["rrf_score"],
+                "content_preview": (best["chunk_text"] or ""),
+            }
+
+        # 全文命中的 doc_id 集合：只在向量中命中、全文完全没命中的文件降权
+        # "News Alert" 类邮件不含关键词，不会出现在全文结果中，降权后被阈值过滤掉
+        fulltext_doc_ids = {r.doc_id for r in fulltext_results}
+        vector_only_penalty = 0.2
+        for doc in doc_scores.values():
+            if doc["doc_id"] not in fulltext_doc_ids:
+                doc["rrf_score"] *= vector_only_penalty
+                doc["best_chunk_score"] *= vector_only_penalty
+
+        sorted_docs = sorted(doc_scores.values(), key=lambda x: x["best_chunk_score"], reverse=True)
+        if not sorted_docs:
+            return []
+
+        # 只保留分数 >= 最高分 × score_ratio_threshold 的文件，过滤长尾
+        max_score = sorted_docs[0]["best_chunk_score"]
+        min_score = max_score * score_ratio_threshold
+        sorted_docs = [d for d in sorted_docs if d["best_chunk_score"] >= min_score]
+        log.debug(f"[ai_search] 过滤后保留 {len(sorted_docs)} 个文件（阈值 {min_score:.6f}）")
+
+        doc_ids = [d["doc_id"] for d in sorted_docs]
+        async with async_db_session() as db:
+            from sqlalchemy import select as sa_select
+            rows = (await db.execute(
+                sa_select(SysDoc).where(SysDoc.id.in_(doc_ids))
+            )).scalars().all()
+        doc_map = {doc.id: doc for doc in rows}
+
+        results = []
+        for item in sorted_docs:
+            doc = doc_map.get(item["doc_id"])
+            if not doc:
+                continue
+            results.append({
+                "id": doc.id,
+                "title": doc.title,
+                "name": doc.name,
+                "type": doc.type,
+                "size": doc.size,
+                "status": doc.status,
+                "desc": doc.desc,
+                "created_time": doc.created_time,
+                "created_user": doc.created_user,
+                "rrf_score": item["rrf_score"],
+                "content_preview": item["content_preview"],
+            })
+        return results
+
+    @staticmethod
+    def is_question(text: str) -> bool:
+        return bool(_QUESTION_RE.search(text))
+
+    @staticmethod
+    async def ai_overview(question: str, search_results: list[dict]) -> dict:
+        """基于已有的 ai_search 结果生成 AI 概览回答（无额外向量检索）。"""
+        if not SysDocService.is_question(question):
+            return {"is_question": False, "answer": None, "references": []}
+
+        top = [r for r in search_results[:10] if r.get("content_preview")]
+        if not top:
+            return {"is_question": True, "answer": None, "references": []}
+
+        context = "\n\n".join(
+            f"[{i + 1}] 《{r.get('title') or r.get('name') or '文件'}》\n{r['content_preview']}"
+            for i, r in enumerate(top)
+        )
+        system_prompt = (
+            "你是一个知识库助手。请根据以下参考资料简洁、准确地回答用户问题。"
+            "直接给出答案，不要重复问题，不要说根据资料等套话。"
+            "如参考资料不足，如实说明。"
+        )
+        user_prompt = f"参考资料：\n{context}\n\n问题：{question}"
+        answer = await llm_service.get_llm_response(system_prompt, user_prompt)
+
+        references = [
+            {
+                "doc_id": r["id"],
+                "doc_name": r.get("title") or r.get("name"),
+                "content_preview": (r.get("content_preview") or ""),
+            }
+            for r in top
+        ]
+        return {"is_question": True, "answer": answer, "references": references}
 
     @staticmethod
     async def get_all() -> Sequence[SysDoc]:
@@ -783,6 +974,162 @@ class SysDocService:
 
     # 分块大小（字符数）
     CHUNK_SIZE = 5000
+    CHUNK_OVERLAP = 0
+
+    # 句子边界：中英文标点，lookbehind 保留标点本身
+    _SENT_SPLIT_RE = re.compile(r'(?<=[。！？…!?.])\s*')
+    # 中文句尾标点（判断段落边界时最可靠）
+    _CN_SENT_END_RE = re.compile(r'[。！？…]\s*$')
+    # 英文句尾标点
+    _EN_SENT_END_RE = re.compile(r'[.!?]\s*$')
+    @staticmethod
+    def _is_cjk(ch: str) -> bool:
+        cp = ord(ch)
+        return (
+            0x4E00 <= cp <= 0x9FFF   # CJK 统一汉字
+            or 0x3400 <= cp <= 0x4DBF  # CJK 扩展 A
+            or 0x3000 <= cp <= 0x303F  # CJK 符号与标点（。，！？等）
+            or 0xFF00 <= cp <= 0XFFEF  # 全角字符
+        )
+    # 单行被视为段落边界的最大字符数（标题/短句）
+    _SHORT_LINE_THRESH = 20
+
+    @staticmethod
+    def _detect_paragraphs(text: str) -> list[str]:
+        """将原始文本拆分为段落列表，兼容 \\n\\n 和 OCR 产生的单 \\n 边界。
+
+        判断单个 \\n 是否为段落边界的启发式规则（满足任一即切段）：
+        - 当前行以中文句尾标点结尾（。！？…）：最可靠
+        - 当前行以英文标点结尾（.!?）且下一行首字符大写/数字
+        - 当前行字符数 ≤ SHORT_LINE_THRESH（标题或独立短句）
+        否则视为段落内软换行，与下一行合并。
+        """
+        _cn = SysDocService._CN_SENT_END_RE
+        _en = SysDocService._EN_SENT_END_RE
+        thresh = SysDocService._SHORT_LINE_THRESH
+
+        def smart_join(parts: list[str]) -> str:
+            """中文行之间不加空格，英文行之间加空格。"""
+            if not parts:
+                return ''
+            result = parts[0]
+            for part in parts[1:]:
+                sep = '' if result and SysDocService._is_cjk(result[-1]) else ' '
+                result += sep + part
+            return result
+
+        paragraphs: list[str] = []
+        buf: list[str] = []
+
+        lines = text.split('\n')
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if not stripped:
+                # 空行：明确的段落边界
+                if buf:
+                    paragraphs.append(smart_join(buf))
+                    buf = []
+                continue
+
+            buf.append(stripped)
+
+            next_stripped = lines[i + 1].strip() if i + 1 < len(lines) else ''
+            # 只有下一行非空时才需要判断是否切段（下一行空的话下次循环会自动切）
+            if not next_stripped:
+                continue
+
+            is_para_break = (
+                len(stripped) <= thresh                                    # 短行/标题
+                or (_en.search(stripped) and (                            # 英文句尾
+                    next_stripped[0].isupper() or next_stripped[0].isdigit()
+                ))
+            )
+            if is_para_break:
+                paragraphs.append(smart_join(buf))
+                buf = []
+
+        if buf:
+            paragraphs.append(smart_join(buf))
+
+        return [p for p in paragraphs if p.strip()]
+
+    @staticmethod
+    def _split_into_chunks(text: str, chunk_size: int = 5000, overlap: int = 150) -> list[str]:
+        """按段落 → 句子 → 字符三级边界分块，避免在段落/句子中间截断。
+
+        Args:
+            text: 待分块纯文本
+            chunk_size: 单块最大字符数
+            overlap: 相邻块之间从上一块尾部借用的字符数（0 = 不重叠）
+        """
+
+        def _split_para_by_sentences(para: str) -> list[str]:
+            """将超长段落按句子拆分，句子本身超长则按字符兜底。"""
+            sents = [s for s in SysDocService._SENT_SPLIT_RE.split(para) if s.strip()]
+            if not sents:
+                return [para[i:i + chunk_size] for i in range(0, len(para), chunk_size)]
+
+            result: list[str] = []
+            buf: list[str] = []
+            buf_len = 0
+            for sent in sents:
+                if len(sent) >= chunk_size:
+                    # 单句超长，先落盘缓冲，再按字符切
+                    if buf:
+                        result.append(' '.join(buf))
+                        buf, buf_len = [], 0
+                    result.extend(sent[i:i + chunk_size] for i in range(0, len(sent), chunk_size))
+                elif buf_len + len(sent) > chunk_size:
+                    result.append(''.join(buf))
+                    buf, buf_len = [sent], len(sent)
+                else:
+                    buf.append(sent)
+                    buf_len += len(sent)
+            if buf:
+                result.append(''.join(buf))
+            return result
+
+        if admin_settings.SMART_PARAGRAPH_DETECTION:
+            paras = SysDocService._detect_paragraphs(text)
+        else:
+            paras = [p.strip() for p in text.split('\n\n') if p.strip()]
+        if not paras:
+            return [text] if text.strip() else []
+
+        chunks: list[str] = []
+        buf_parts: list[str] = []
+        buf_len = 0
+
+        for para in paras:
+            if len(para) > chunk_size:
+                # 超长段落：先落盘当前缓冲，再按句子拆分
+                if buf_parts:
+                    chunks.append('\n\n'.join(buf_parts))
+                    buf_parts, buf_len = [], 0
+                chunks.extend(_split_para_by_sentences(para))
+            elif buf_len and buf_len + len(buf_parts) * 2 + len(para) > chunk_size:
+                # 加入当前段落会溢出，先落盘
+                chunks.append('\n\n'.join(buf_parts))
+                buf_parts, buf_len = [para], len(para)
+            else:
+                buf_parts.append(para)
+                buf_len += len(para)
+
+        if buf_parts:
+            chunks.append('\n\n'.join(buf_parts))
+
+        if not chunks:
+            return []
+
+        # 尾部重叠：将上一块末尾 overlap 个字符拼接到下一块开头
+        if overlap and len(chunks) > 1:
+            overlapped = [chunks[0]]
+            for i in range(1, len(chunks)):
+                tail = overlapped[-1][-overlap:]
+                overlapped.append(tail + '\n\n' + chunks[i])
+            return overlapped
+
+        return chunks
 
     @staticmethod
     async def create_doc_tokens(*, id: int) -> SysDoc:
@@ -811,46 +1158,36 @@ class SysDocService:
         async with async_db_session.begin() as db:
             await sys_doc_chunk_dao.delete_by_doc_id(db, [id])
 
-        # 分块处理
+        chunk_texts = SysDocService._split_into_chunks(
+            content,
+            chunk_size=SysDocService.CHUNK_SIZE,
+            overlap=SysDocService.CHUNK_OVERLAP,
+        )
+
+        loop = asyncio.get_running_loop()
         chunks = []
-        content_length = len(content)
-        chunk_index = 0
-
-        for i in range(0, content_length, SysDocService.CHUNK_SIZE):
-            chunk_text = content[i:i + SysDocService.CHUNK_SIZE]
-
-            # 为第一个分块添加标题和文档类型权重
+        for chunk_index, chunk_text in enumerate(chunk_texts):
             if chunk_index == 0:
-                # 使用 run_in_executor 在线程池中执行分词
-                loop = asyncio.get_running_loop()
                 chunk_vector_str = await loop.run_in_executor(
                     None, text_to_weighted_tsvector, title, chunk_text, doc_type
                 )
             else:
-                # 其他分块只索引内容
-                loop = asyncio.get_running_loop()
                 chunk_vector_str = await loop.run_in_executor(
                     None, text_to_tsvector, chunk_text, 'search'
                 )
-
-            # 创建分块对象
             chunk_param = CreateSysDocChunkParam(
                 doc_id=id,
                 chunk_index=chunk_index,
-                chunk_text=chunk_text
+                chunk_text=chunk_text,
             )
             chunks.append((chunk_param, chunk_vector_str))
-            chunk_index += 1
 
         # 批量创建分块并更新向量
         async with async_db_session.begin() as db:
-            # 先创建分块记录
             chunk_objects = await sys_doc_chunk_dao.create_bulk(
                 db,
                 [chunk_param for chunk_param, _ in chunks]
             )
-
-            # 更新每个分块的向量
             for chunk_obj, (_, vector_str) in zip(chunk_objects, chunks):
                 await sys_doc_chunk_dao.update_chunk_vector(
                     db,
@@ -931,6 +1268,65 @@ class SysDocService:
             return results
 
     @staticmethod
+    async def translate_pages(*, pk: int, target_language: str) -> list[dict]:
+        """
+        逐个翻译文档的 OCR 分页
+
+        :param pk: 文档ID
+        :param target_language: 目标语言
+        :return: 翻译后的分页列表
+        """
+        async with async_db_session.begin() as db:
+            doc = await db.get(SysDoc, pk)
+            if not doc:
+                raise errors.NotFoundError(msg='文件不存在')
+
+            pages = doc.ocr_pages
+            if not pages:
+                doc.ocr_pages_translation = []
+                doc.translation = "[无OCR分页，跳过翻译]"
+                await db.flush()
+                return []
+
+            system_context = f"你是一个专业的翻译助手。请将以下内容翻译成{target_language}。只返回翻译结果，不要添加任何解释。"
+            results = []
+            for page in pages:
+                page_text = (page.get('text') or '').strip()
+                page_num = page.get('page', 0)
+                if not page_text:
+                    results.append({
+                        'page': page_num,
+                        'text': '',
+                        'translation': '',
+                    })
+                    continue
+                question = (
+                    f"请将以下内容翻译成{target_language}：\n"
+                    "---\n"
+                    f"{page_text}\n"
+                    "---\n"
+                )
+                response = await llm_service.get_llm_response(system_context, question)
+                results.append({
+                    'page': page_num,
+                    'text': page_text,
+                    'translation': response,
+                })
+
+            # 按页码排序
+            sorted_results = sorted(results, key=lambda x: x['page'])
+            full_translation = ''.join([
+                r['translation'] or '' for r in sorted_results
+            ])
+
+            # 更新文档的 ocr_pages_translation 和 translation 字段
+            doc.ocr_pages_translation = sorted_results
+            doc.translation = full_translation
+            await db.flush()
+
+            return sorted_results
+
+    @staticmethod
     async def update_chunk(*, chunk_id: int, chunk_text: str | None = None, chunk_translation: str | None = None, user_id: int | None = None, username: str | None = None) -> dict:
         """
         更新分块的文本或翻译内容
@@ -990,16 +1386,233 @@ class SysDocService:
             }
 
     @staticmethod
+    async def update_ocr_page(*, pk: int, page: int, text: str, user_id: int | None = None, username: str | None = None) -> dict:
+        """
+        更新 OCR 分页的原文内容
+
+        :param pk: 文档ID
+        :param page: 页码（从1开始）
+        :param text: 更新后的文本
+        :param user_id: 当前用户ID
+        :param username: 当前用户名
+        :return: 更新后的分页信息
+        """
+        async with async_db_session.begin() as db:
+            doc = await db.get(SysDoc, pk)
+            if not doc:
+                raise errors.NotFoundError(msg='文件不存在')
+
+            pages = doc.ocr_pages
+            if not pages:
+                raise errors.NotFoundError(msg='文件没有OCR分页')
+
+            target = None
+            for p in pages:
+                if p.get('page') == page:
+                    target = p
+                    break
+
+            if not target:
+                raise errors.NotFoundError(msg=f'页码 {page} 不存在')
+
+            target['text'] = text
+
+            # 更新文档的修改人信息
+            doc.updated_by = user_id
+            doc.updated_user = username
+
+            # 重新拼接 content
+            full_content = ''.join([p.get('text') or '' for p in pages])
+            doc.content = full_content
+
+            # 清除旧翻译（原文已变更，翻译失效）
+            # doc.ocr_pages_translation = None
+            # doc.translation = None
+
+            await db.flush()
+            return {
+                'page': target['page'],
+                'text': target['text'],
+            }
+
+    @staticmethod
+    async def update_ocr_page_translation(*, pk: int, page: int, translation: str, user_id: int | None = None, username: str | None = None) -> dict:
+        """
+        更新 OCR 分页的翻译内容
+
+        :param pk: 文档ID
+        :param page: 页码（从1开始）
+        :param translation: 更新后的翻译文本
+        :param user_id: 当前用户ID
+        :param username: 当前用户名
+        :return: 更新后的分页信息
+        """
+        async with async_db_session.begin() as db:
+            doc = await db.get(SysDoc, pk)
+            if not doc:
+                raise errors.NotFoundError(msg='文件不存在')
+
+            pages = doc.ocr_pages_translation
+            if not pages:
+                raise errors.NotFoundError(msg='文件没有OCR翻译分页')
+
+            target = None
+            for p in pages:
+                if p.get('page') == page:
+                    target = p
+                    break
+
+            if not target:
+                raise errors.NotFoundError(msg=f'页码 {page} 不存在')
+
+            target['translation'] = translation
+
+            # 更新文档的修改人信息
+            doc.updated_by = user_id
+            doc.updated_user = username
+
+            # 重新拼接 translation
+            full_translation = ''.join([p.get('translation') or '' for p in pages])
+            doc.translation = full_translation
+
+            await db.flush()
+            return {
+                'page': target['page'],
+                'translation': target['translation'],
+            }
+
+    @staticmethod
+    async def compose_refined_markdown(*, pk: int) -> str:
+        """
+        基于 OCR 分页翻译结果，调用 AI 生成结构化的精炼 Markdown 内容。
+
+        生成的 Markdown 包含按章节组织的结构，每章节包含：标题、关键词、简要概括、原文与翻译对照文本。
+        原文使用普通正文，翻译使用 > 引用块，便于前端区分样式。
+
+        :param pk: 文档ID
+        :return: 生成的 Markdown 字符串
+        """
+        async with async_db_session.begin() as db:
+            doc = await db.get(SysDoc, pk)
+            if not doc:
+                raise errors.NotFoundError(msg='文件不存在')
+
+            pages = doc.ocr_pages_translation
+            if not pages:
+                return ''
+
+            # 构建供 AI 处理的对照文本
+            pairs = []
+            for p in pages:
+                page_num = p.get('page', 0)
+                orig_text = p.get('text', '')
+                trans_text = p.get('translation', '')
+                if orig_text.strip() or trans_text.strip():
+                    pairs.append(f"--- 第 {page_num} 页 ---\n原文：\n{orig_text}\n\n翻译：\n{trans_text}")
+
+            input_text = '\n\n'.join(pairs)
+
+            system_context = (
+                "你是一个文档处理助手。请基于以下原文和翻译对照内容，生成结构清晰的 Markdown 文档。\n\n"
+                "要求：\n"
+                "1. 将内容按语义划分章节，每章节包含：\n"
+                "   - ## 章节标题\n"
+                "   - **关键词**：关键词列表\n"
+                "   - **摘要**：该章节的简要概括\n"
+                "   - 正文（原文在前，翻译用 > 引用块跟在原文下方）\n"
+                "2. 原文段落使用普通 Markdown 正文，对应的翻译内容用 `> ` 引用块包裹\n"
+                "3. 删除 OCR 产生的明显错误字符和无关页眉页脚\n"
+                "4. 只输出 Markdown，不要额外解释\n"
+                "5. 如果内容不足以划分章节，至少给出标题、关键词、摘要和正文"
+            )
+            user_prompt = f"请处理以下内容：\n\n{input_text}"
+
+            result = await llm_service.get_llm_response(system_context, user_prompt)
+
+            doc.refined_markdown = result
+            await db.flush()
+
+            return result
+
+    @staticmethod
     async def base_update(pk: int, obj: dict) -> int:
         async with async_db_session.begin() as db:
             count = await sys_doc_dao.base_update(db, pk, obj)
             return count
 
     @staticmethod
+    def _extract_from_workbook(workbook_json: str) -> tuple[list[dict], str]:
+        """
+        从 Univer IWorkbookData JSON 提取结构化行数据和纯文本内容。
+
+        - 每个 Sheet 取第一非空行作为表头，后续行按 {列名: 值} 格式提取。
+        - 多个 Sheet 的行顺序合并。
+        - content 格式与 tabular_processor 保持一致：每行 "列名 值 列名 值\n"。
+        """
+        try:
+            wb = json.loads(workbook_json)
+        except Exception:
+            return [], ''
+
+        all_rows: list[dict] = []
+        content_lines: list[str] = []
+
+        sheets: dict = wb.get('sheets', {})
+        sheet_order: list[str] = wb.get('sheetOrder', list(sheets.keys()))
+
+        for sheet_id in sheet_order:
+            sheet = sheets.get(sheet_id)
+            if not sheet:
+                continue
+            cell_data: dict = sheet.get('cellData', {})
+            if not cell_data:
+                continue
+
+            row_indices = sorted(int(r) for r in cell_data.keys())
+            if not row_indices:
+                continue
+
+            # 第一行作为表头
+            header_idx = row_indices[0]
+            header_cells: dict = cell_data.get(str(header_idx), {})
+            col_indices = sorted(int(c) for c in header_cells.keys())
+            headers: dict[int, str] = {}
+            for col_idx in col_indices:
+                cell = header_cells.get(str(col_idx), {})
+                val = cell.get('v', '')
+                headers[col_idx] = str(val) if val is not None and val != '' else f'列{col_idx + 1}'
+
+            # 数据行
+            for row_idx in row_indices[1:]:
+                row_cells: dict = cell_data.get(str(row_idx), {})
+                row_dict: dict = {}
+                for col_idx in col_indices:
+                    cell = row_cells.get(str(col_idx), {})
+                    val = cell.get('v', None)
+                    row_dict[headers[col_idx]] = val
+                # 跳过全空行
+                if any(v is not None and v != '' for v in row_dict.values()):
+                    all_rows.append(row_dict)
+                    line = ' '.join(
+                        f"{k} {v}" for k, v in row_dict.items() if v is not None and v != ''
+                    )
+                    content_lines.append(line)
+
+        content = '\n'.join(content_lines)
+        return all_rows, content
+
+    @staticmethod
     async def update(*, pk: int, obj: UpdateSysDocParam) -> int:
         from backend.common.context import get_current_user
         from backend.database.db_pg import user_scoped_db_session
         current_user = get_current_user()
+
+        # 如果携带 workbook，提前提取 content 和行数据（CPU 操作，不占 DB 连接）
+        workbook_rows: list[dict] = []
+        if obj.workbook:
+            workbook_rows, extracted_content = SysDocService._extract_from_workbook(obj.workbook)
+            obj = obj.model_copy(update={'content': extracted_content})
+
         async with user_scoped_db_session(
             user_id=current_user.id if current_user else None,
             is_superuser=current_user.is_superuser if current_user else True,
@@ -1017,6 +1630,16 @@ class SysDocService:
                     tag = await tag_dao.get_or_create_by_name(db, tag_name)
                     tag_list.append(tag)
             doc.tags.extend(tag_list)
+
+            # 原子替换 sys_doc_data（workbook 保存时同步更新行数据）
+            if obj.workbook:
+                await sys_doc_data_dao.delete(db, [pk])
+                if workbook_rows:
+                    param_list = [
+                        CreateSysDocDataParam(doc_id=pk, row=r) for r in workbook_rows
+                    ]
+                    await sys_doc_data_dao.create_bulk(db, param_list)
+
             return count
 
 
@@ -1317,21 +1940,15 @@ class SysDocService:
         if is_html_content(content):
             content = extract_text_from_html(content)
 
-        # 如果提取后内容为空，返回错误
         if not content or not content.strip():
             raise errors.ForbiddenError(msg='文档内容为空')
-
-        # 限制内容长度（避免 token 超限）
-        max_content_length = 8000
-        if len(content) > max_content_length:
-            content = content[:max_content_length] + "..."
 
         from backend.common.context import get_current_user
         _extract_user = get_current_user()
         _extract_user_id = _extract_user.id if _extract_user else None
 
-        async with async_db_session.begin() as db:
-            system_prompt = f"""你是一个专业的实体提取助手。请从给定的文本中提取实体信息。
+        # system_prompt 只需构建一次，与内容切块无关
+        system_prompt = f"""你是一个专业的实体提取助手。请从给定的文本中提取实体信息。
 
 实体类型定义：
 {json.dumps(type_definitions, ensure_ascii=False, indent=2)}
@@ -1373,14 +1990,45 @@ class SysDocService:
 6. 宁可少提取，也不要提取泛称或抽象概念
 """
 
-            user_prompt = f"请从以下文本中提取实体：\n\n{content}"
+        # 按段落切块：累加到接近 60000 tokens（≈120000 字符）时切断
+        # 保留约 10000 tokens 给 system_prompt 和模型输出
+        MAX_CHUNK_CHARS = 120_000
+        paragraphs = re.split(r'\n{2,}', content)
+        if len(paragraphs) <= 1:
+            paragraphs = content.split('\n')
 
-            # 调用 AI
+        content_chunks: list[str] = []
+        current_parts: list[str] = []
+        current_len = 0
+        for para in paragraphs:
+            para = para.strip()
+            if not para:
+                continue
+            if current_len + len(para) > MAX_CHUNK_CHARS and current_parts:
+                content_chunks.append('\n\n'.join(current_parts))
+                current_parts = [para]
+                current_len = len(para)
+            else:
+                current_parts.append(para)
+                current_len += len(para)
+        if current_parts:
+            content_chunks.append('\n\n'.join(current_parts))
+
+        if not content_chunks:
+            return 0
+
+        log.debug(f"[extract_entities] 文档 {pk} 共 {len(content_chunks)} 块，内容长度 {len(content)}")
+
+        # 逐块调用 AI（在 DB session 外，避免长事务占用连接）
+        # 按 (name, type) 去重，同名实体只保留首次出现
+        all_entities_data: list[dict] = []
+        seen_keys: set[tuple] = set()
+
+        for idx, chunk in enumerate(content_chunks):
+            log.debug(f"[extract_entities] 文档 {pk} 处理第 {idx + 1}/{len(content_chunks)} 块，块长 {len(chunk)}")
+            user_prompt = f"请从以下文本中提取实体：\n\n{chunk}"
             try:
                 response = await llm_service.get_llm_response(system_prompt, user_prompt)
-
-                # 解析 AI 返回的结果
-                # 尝试提取 JSON（可能被包裹在 markdown 代码块中）
                 response_text = response.strip()
                 if "```json" in response_text:
                     json_start = response_text.find("```json") + 7
@@ -1392,14 +2040,31 @@ class SysDocService:
                     response_text = response_text[json_start:json_end].strip()
 
                 result = json.loads(response_text)
-                entities_data = result.get("entities", [])
+                for entity_data in result.get("entities", []):
+                    name = entity_data.get("name")
+                    etype = entity_data.get("type")
+                    if not name or not etype:
+                        continue
+                    key = (name, etype)
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        all_entities_data.append(entity_data)
 
-                if not entities_data:
-                    return 0
+            except json.JSONDecodeError as e:
+                log.warning(f"[extract_entities] 文档 {pk} 块 {idx + 1} JSON 解析失败: {repr(e)}")
+            except Exception as e:
+                log.warning(f"[extract_entities] 文档 {pk} 块 {idx + 1} AI 调用失败: {repr(e)}")
 
-                # 保存实体到数据库
+        if not all_entities_data:
+            return 0
+
+        log.debug(f"[extract_entities] 文档 {pk} 去重后共 {len(all_entities_data)} 个实体，开始入库")
+
+        # 所有块处理完后统一入库（单事务）
+        try:
+            async with async_db_session.begin() as db:
                 entity_count = 0
-                for entity_data in entities_data:
+                for entity_data in all_entities_data:
                     entity_type_name = entity_data.get("type")
                     entity_name = entity_data.get("name")
                     entity_description = entity_data.get("description")
@@ -1408,7 +2073,6 @@ class SysDocService:
                     if not entity_name or not entity_type_name:
                         continue
 
-                    # 检查是否已存在同名实体
                     existing_entities = await db.execute(
                         select(Entity).where(
                             Entity.name == entity_name,
@@ -1418,18 +2082,14 @@ class SysDocService:
                     existing_entity = existing_entities.scalars().first()
 
                     if existing_entity:
-                        # 更新已存在的实体（合并属性）
                         if existing_entity.properties:
                             existing_entity.properties.update(entity_properties)
                         else:
                             existing_entity.properties = entity_properties
-
                         if entity_description and not existing_entity.description:
                             existing_entity.description = entity_description
-
                         entity_id = existing_entity.id
                     else:
-                        # 创建新实体
                         new_entity = Entity(
                             name=entity_name,
                             description=entity_description,
@@ -1445,7 +2105,6 @@ class SysDocService:
                         entity_id = new_entity.id
                         entity_count += 1
 
-                    # 关联实体和文档
                     existing_relation = await db.execute(
                         select(sys_entity_doc).where(
                             sys_entity_doc.c.entity_id == entity_id,
@@ -1460,15 +2119,11 @@ class SysDocService:
                             )
                         )
 
-                # 标记文档已提取实体
                 await db.execute(update(SysDoc).where(SysDoc.id == pk).values(entity_extracted=1))
-                await db.commit()
                 return entity_count
 
-            except json.JSONDecodeError as e:
-                raise errors.ServerError(msg=f"AI 返回的结果格式错误: {str(e)}")
-            except Exception as e:
-                raise errors.ServerError(msg=f"提取实体失败: {str(e)}")
+        except Exception as e:
+            raise errors.ServerError(msg=f"实体入库失败: {repr(e)}")
 
     @staticmethod
     async def generate_summary(id: int):

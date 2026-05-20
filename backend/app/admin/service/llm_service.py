@@ -7,7 +7,7 @@ from openai import OpenAI
 import time
 from backend.common.log import log
 from backend.core.conf import settings
-from backend.app.admin.service.knowledge_graph.llm import call_llm
+from backend.app.admin.service.ai_service import call_llm
 
 class LLMService:
 

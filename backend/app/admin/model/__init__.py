@@ -33,3 +33,7 @@ from backend.app.admin.model.sys_briefing import Briefing
 from backend.app.admin.model.sys_scheduler_log import SysSchedulerLog
 from backend.app.admin.model.sys_ioc import IocRecord
 from backend.app.admin.model.sys_geo_point import GeoPoint
+from backend.app.admin.model.sys_text2sql_table import Text2SQLTable
+from backend.app.admin.model.sys_text2sql_example import Text2SQLExample
+from backend.app.admin.model.sys_text2sql_query_log import Text2SQLQueryLog
+from backend.app.admin.model.sys_text2sql_column import Text2SQLColumn

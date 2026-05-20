@@ -18,7 +18,8 @@ class CRUDSysDocEmbedding(CRUDPlus[SysDocEmbedding]):
         query_vector: list[float] = None,
         limit: int = 0,
         distance_threshold: float = None,
-        doc_id: int = None
+        doc_id: int = None,
+        doc_ids: list[int] | None = None,
     ) -> list:
         """
         向量相似度搜索
@@ -29,10 +30,13 @@ class CRUDSysDocEmbedding(CRUDPlus[SysDocEmbedding]):
         :param distance_threshold: 距离阈值，只返回距离小于此值的结果（距离越小越相似）
                                    建议值：0.8-1.5，默认为 1.2
         :param doc_id: 文档ID，如果指定则只搜索该文档的分块
+        :param doc_ids: 文档 ID 列表（目录过滤），None 则不限，空列表直接返回空
         :return: 相似文档列表
         """
         # 构建向量搜索SQL语句
         if not query_vector or limit <= 0:
+            return []
+        if doc_ids is not None and not doc_ids:
             return []
 
         # 设置默认阈值
@@ -67,10 +71,13 @@ class CRUDSysDocEmbedding(CRUDPlus[SysDocEmbedding]):
             "distance_threshold": distance_threshold
         }
 
-        # 如果指定了doc_id，添加过滤条件
         if doc_id is not None:
             where_conditions.append("doc_id = :doc_id")
             params["doc_id"] = doc_id
+
+        if doc_ids is not None:
+            id_list = ','.join(str(int(d)) for d in doc_ids)
+            where_conditions.append(f"doc_id = ANY(ARRAY[{id_list}]::bigint[])")
 
         where_clause = " AND ".join(where_conditions)
 

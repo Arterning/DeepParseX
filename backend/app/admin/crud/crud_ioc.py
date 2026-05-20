@@ -48,9 +48,11 @@ class CRUDIoc(CRUDPlus[IocRecord]):
     async def bulk_create(self, db: AsyncSession, objs: list[CreateIocParam]) -> int:
         """批量创建，跳过已存在的（依赖唯一约束 + on_conflict_do_nothing）"""
         from sqlalchemy.dialects.postgresql import insert
+        from backend.utils.timezone import timezone
         if not objs:
             return 0
-        rows = [obj.model_dump() for obj in objs]
+        now = timezone.now()
+        rows = [{**obj.model_dump(), 'created_time': now} for obj in objs]
         stmt = insert(self.model).values(rows).on_conflict_do_nothing(
             constraint='uq_ioc_doc_type_value'
         )

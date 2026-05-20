@@ -29,6 +29,8 @@ from backend.app.admin.api.v1.sys.chat_session import router as chat_session_rou
 from backend.app.admin.api.v1.sys.briefing import router as briefing_router
 from backend.app.admin.api.v1.sys.mail_send import router as mail_send_router
 from backend.app.admin.api.v1.sys.collab import router as collab_router
+from backend.app.admin.api.v1.sys.text2sql import router as text2sql_router
+from backend.app.admin.api.v1.sys.unified_search import router as unified_search_router
 
 
 router = APIRouter(prefix='/sys')
@@ -60,3 +62,5 @@ router.include_router(chat_session_router,prefix='/chat_session',tags=['对话�
 router.include_router(briefing_router, prefix='/briefings', tags=['每日简报'])
 router.include_router(mail_send_router, prefix='/mail', tags=['邮件发送'])
 router.include_router(collab_router, prefix='/collab', tags=['协同编辑'])
+router.include_router(text2sql_router, prefix='/text2sql', tags=['Text-to-SQL'])
+router.include_router(unified_search_router, prefix='/unified-search', tags=['统一问答'])

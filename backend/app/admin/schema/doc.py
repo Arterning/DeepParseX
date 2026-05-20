@@ -12,6 +12,7 @@ class SysDocSchemaBase(SchemaBase):
     type: str | None = None
     file_suffix: str | None = None
     content: str | None = None
+    workbook: str | None = None
     desc: str | None = None
     translation: str | None = None
     file: str | None = None
@@ -60,6 +61,7 @@ class UpdateSysDocParam(SchemaBase):
     name: str | None = None
     type: str | None = None
     content: str | None = None
+    workbook: str | None = None
     desc: str | None = None
     error_msg: str | None = None
     status: int | None = None
@@ -142,6 +144,9 @@ class GetDocDetail(SysDocSchemaBase):
     error_msg: str | None = None
     children: list[ChildDocInfo] = []
     starred_ids: list[int] = []
+    ocr_pages: list[dict] | None = None
+    ocr_pages_translation: list[dict] | None = None
+    refined_markdown: str | None = None
 
 
 class CollectDocParam(SchemaBase):
@@ -161,7 +166,65 @@ class TranslateChunksParams(SchemaBase):
     target_language: str = 'zh_CN'
 
 
+class UpdateOcrPageParam(SchemaBase):
+    """更新OCR分页内容参数"""
+    page: int
+    text: str
+
+
+class UpdateOcrPageTranslationParam(SchemaBase):
+    """更新OCR分页翻译内容参数"""
+    page: int
+    translation: str
+
+
 class ExtractEntitiesParams(SchemaBase):
     """提取实体参数"""
     model_config = ConfigDict(from_attributes=True)
     entity_type_ids: list[int]
+
+
+class AiSearchParam(SchemaBase):
+    question: str
+
+
+class AiSearchDocItem(SchemaBase):
+    id: int
+    title: str | None = None
+    name: str | None = None
+    type: str | None = None
+    size: int | None = None
+    status: int | None = None
+    desc: str | None = None
+    created_time: datetime | None = None
+    created_user: str | None = None
+    rrf_score: float
+    content_preview: str | None = None
+
+
+class AiSearchResult(SchemaBase):
+    items: list[AiSearchDocItem]
+    rewritten_query: str
+    total: int
+
+
+class BatchMoveDocParam(SchemaBase):
+    doc_ids: list[int]
+    doc_dir_id: int | None = None
+
+
+class AiOverviewDocRef(SchemaBase):
+    doc_id: int
+    doc_name: str | None = None
+    content_preview: str | None = None
+
+
+class AiOverviewParam(SchemaBase):
+    question: str
+    search_results: list[AiSearchDocItem]
+
+
+class AiOverviewResult(SchemaBase):
+    is_question: bool
+    answer: str | None = None
+    references: list[AiOverviewDocRef] = []

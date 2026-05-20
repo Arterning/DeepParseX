@@ -16,7 +16,7 @@ class ChatMessage(Base, UserMixin):
     id: Mapped[id_key] = mapped_column(init=False)
     sender: Mapped[str | None] = mapped_column(String(50), default=None, comment='发送者')
     content: Mapped[str | None] = mapped_column(TEXT, default=None, comment='内容')
-    chunks: Mapped[list | None] = mapped_column(JSONB, default=None, comment='RAG上下文片段')
+    chunks: Mapped[list | None] = mapped_column(JSONB, default=None, comment='引用文件列表')
 
     session_id: Mapped[int | None] = mapped_column(
         ForeignKey('sys_chat_session.id', ondelete='SET NULL'), default=None, comment='会话关联ID'

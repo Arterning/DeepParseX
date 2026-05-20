@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import io
 import json
+import os
+
 import jieba
+import pandas as pd
 from typing import Sequence, Dict, List, Any
 
 from backend.app.admin.crud.crud_entity import entity_dao
@@ -9,7 +13,11 @@ from backend.app.admin.crud.crud_entity_relationship import entity_relation_dao
 from backend.app.admin.crud.crud_star_collect import star_collect_dao
 from backend.app.admin.model.sys_entity import Entity
 from backend.app.admin.model.sys_entity_relationship import EntityRelation
-from backend.app.admin.schema.entity import CreateEntityParam, UpdateEntityParam
+from backend.app.admin.schema.entity import (
+    BatchImportParam,
+    CreateEntityParam,
+    UpdateEntityParam,
+)
 from backend.app.admin.service.llm_service import llm_service
 from backend.common.exception import errors
 from backend.common.log import log
@@ -80,16 +88,148 @@ class EntityService:
             return formatted_relationships
     
     @staticmethod
+    async def extract_relationships(*, pk: int) -> list[dict]:
+        """
+        为指定实体 AI 提取关系并持久化（即使已有关系也重新提取）
+
+        :param pk: 实体 ID
+        :return: 新提取的关系列表
+        """
+        async with async_db_session.begin() as db:
+            entity = await entity_dao.get(db, pk)
+            if not entity:
+                raise errors.NotFoundError(msg='实体不存在')
+
+            search_results = await EntityService._search_docs_by_name(db, entity.name)
+            if not search_results:
+                return []
+
+            extracted = await EntityService._ai_extract_relationships(
+                entity.name, entity.entity_type, search_results
+            )
+
+            from backend.common.context import get_current_user
+            current_user = get_current_user()
+            creator_id = current_user.id if current_user else None
+
+            seen_rels: set[tuple] = set()
+            new_rels = []
+            for rel_data in extracted:
+                target_name = (rel_data.get('target_name') or '').strip()
+                relation_type = (rel_data.get('relation_type') or '').strip()
+                if not target_name or target_name == entity.name:
+                    continue
+                key = (target_name, relation_type)
+                if key in seen_rels:
+                    continue
+                seen_rels.add(key)
+
+                result = await db.execute(
+                    Select(Entity).where(Entity.name == target_name).limit(1)
+                )
+                target_entity = result.scalars().first()
+                if not target_entity:
+                    target_entity = Entity(
+                        name=target_name,
+                        entity_type=(rel_data.get('target_type') or None),
+                        create_user=creator_id,
+                    )
+                    db.add(target_entity)
+                    await db.flush()
+
+                db.add(EntityRelation(
+                    source_id=pk,
+                    target_id=target_entity.id,
+                    relation_type=relation_type or None,
+                    description=(rel_data.get('description') or None),
+                    weight=int(rel_data.get('weight') or 0),
+                ))
+                new_rels.append({
+                    'target_name': target_name,
+                    'relation_type': relation_type,
+                })
+
+            await db.flush()
+            return new_rels
+
+    @staticmethod
     async def analyze_entities(*, entity_ids: List[int]) -> Dict[str, Any]:
         """
-        分析多个实体之间的关系，返回图谱数据
+        分析多个实体之间的关系，返回图谱数据。
+        若某实体尚无任何关系，则自动通过文档检索 + AI 提取关系并持久化。
 
         :param entity_ids: 要分析的实体ID列表
         :return: { nodes: [...], edges: [...] }
         """
-        async with async_db_session() as db:
-            # 获取所有相关关系
+        async with async_db_session.begin() as db:
+            # 获取已有关系
             relationships = await entity_relation_dao.get_by_entity_ids(db, entity_ids)
+
+            # 判断哪些实体目前没有任何关系
+            has_relation_ids: set[int] = set()
+            for rel in relationships:
+                if rel.source_id:
+                    has_relation_ids.add(rel.source_id)
+                if rel.target_id:
+                    has_relation_ids.add(rel.target_id)
+            no_relation_ids = [eid for eid in entity_ids if eid not in has_relation_ids]
+
+            # 对无关系实体：搜索文档 → AI 提取 → 持久化
+            if no_relation_ids:
+                from backend.common.context import get_current_user
+                current_user = get_current_user()
+                creator_id = current_user.id if current_user else None
+
+                for entity_id in no_relation_ids:
+                    entity = await entity_dao.get(db, entity_id)
+                    if not entity:
+                        continue
+
+                    search_results = await EntityService._search_docs_by_name(db, entity.name)
+                    if not search_results:
+                        continue
+
+                    extracted = await EntityService._ai_extract_relationships(
+                        entity.name, entity.entity_type, search_results
+                    )
+
+                    seen_rels: set[tuple] = set()
+                    for rel_data in extracted:
+                        target_name = (rel_data.get('target_name') or '').strip()
+                        relation_type = (rel_data.get('relation_type') or '').strip()
+                        if not target_name or target_name == entity.name:
+                            continue
+                        key = (target_name, relation_type)
+                        if key in seen_rels:
+                            continue
+                        seen_rels.add(key)
+
+                        # 查找或创建 target 实体
+                        target_result = await db.execute(
+                            Select(Entity).where(Entity.name == target_name).limit(1)
+                        )
+                        target_entity = target_result.scalars().first()
+                        if not target_entity:
+                            target_entity = Entity(
+                                name=target_name,
+                                entity_type=(rel_data.get('target_type') or None),
+                                create_user=creator_id,
+                            )
+                            db.add(target_entity)
+                            await db.flush()
+
+                        db.add(EntityRelation(
+                            source_id=entity_id,
+                            target_id=target_entity.id,
+                            relation_type=relation_type or None,
+                            description=(rel_data.get('description') or None),
+                            weight=int(rel_data.get('weight') or 0),
+                        ))
+
+                    await db.flush()
+
+                # 提取完成后重新查询关系（含新建的）
+                relationships = await entity_relation_dao.get_by_entity_ids(db, entity_ids)
 
             # 收集所有涉及的实体 ID（选中的 + 关系中发现的）
             all_entity_ids = set(entity_ids)
@@ -145,11 +285,11 @@ class EntityService:
             return await entity_dao.get_type_stats(db)
 
     @staticmethod
-    async def get_select(name: str | None = None, entity_type: str | list[str] | None = None, eml: bool | None = None) -> Select:
+    async def get_select(name: str | None = None, entity_type: str | list[str] | None = None, file_types: list[str] | None = None, sort_field: str = 'created_time', sort_order: str = 'desc') -> Select:
         from backend.common.context import get_current_user
         current_user = get_current_user()
         create_user = None if (current_user is None or current_user.is_superuser) else current_user.id
-        return await entity_dao.get_list(name=name, entity_type=entity_type, eml=eml, create_user=create_user)
+        return await entity_dao.get_list(name=name, entity_type=entity_type, file_types=file_types, create_user=create_user, sort_field=sort_field, sort_order=sort_order)
 
     @staticmethod
     async def get_all() -> Sequence[Entity]:
@@ -270,6 +410,18 @@ class EntityService:
         return all_types
 
     @staticmethod
+    async def _search_docs_by_name(db, entity_name: str) -> list[dict]:
+        """
+        通过实体名称全文检索相关文档分块
+
+        :return: [{'doc_id': int, 'doc_title': str, 'chunks': list[str]}]
+        """
+        from backend.app.admin.crud.crud_doc_chunk import sys_doc_chunk_dao
+        cut = jieba.cut_for_search(entity_name)
+        keyword = ' '.join(list(cut))
+        return await sys_doc_chunk_dao.search_doc_ids_by_keyword(db, keyword, limit=20)
+
+    @staticmethod
     async def _get_related_doc_contents(db, entity) -> tuple[list[dict], list[int]]:
         """
         获取实体相关文档内容（全文检索命中的 chunk_text）
@@ -279,18 +431,11 @@ class EntityService:
         :return: (search_results 原始列表, 尚未建立关联的doc_id列表)
                  search_results 每项格式: {'doc_id': int, 'doc_title': str, 'chunks': list[str]}
         """
-        from backend.app.admin.crud.crud_doc_chunk import sys_doc_chunk_dao
-
         # 已关联的 doc_id 集合（仅用于判断是否需要新建关联）
         existing_doc_ids = {doc.id for doc in entity.docs} if entity.docs else set()
 
-        cut = jieba.cut_for_search(entity.name)
-        keyword = ' '.join(list(cut))
-
         # 全文检索包含实体名称的文档，返回原始结构供上层做 token 预算选择
-        search_results = await sys_doc_chunk_dao.search_doc_ids_by_keyword(
-            db, keyword, limit=20
-        )
+        search_results = await EntityService._search_docs_by_name(db, entity.name)
 
         # 保存检索结果到实体的 matched_chunks 字段
         entity.matched_chunks = search_results
@@ -303,6 +448,88 @@ class EntityService:
         ]
 
         return search_results, new_doc_ids
+
+    @staticmethod
+    async def _ai_extract_relationships(entity_name: str, entity_type: str | None, search_results: list[dict]) -> list[dict]:
+        """
+        调用 AI 从文档内容中提取该实体与其他实体的关系
+
+        :return: [{'target_name': str, 'target_type': str, 'relation_type': str, 'description': str, 'weight': int}]
+        """
+        system_prompt = f'''你是一个信息提取专家。根据提供的实体信息和相关文档内容，提取该实体与其他实体的关系。
+
+请严格按照以下JSON数组格式输出，只输出JSON，不要有其他内容：
+[
+  {{
+    "target_name": "相关实体名称",
+    "target_type": "相关实体类型（人物/组织/事件/地点等）",
+    "relation_type": "关系类型（简洁词语，如：上级、合作、参与、管理等）",
+    "description": "关系的详细说明",
+    "weight": 5
+  }}
+]
+
+注意：
+1. 只输出JSON数组，不要有任何其他文字说明
+2. weight为1-10的整数，表示关系强度
+3. 只提取有明确文档依据的关系，不要推测
+4. target_name必须是具体实体名称，不能是泛指名词（如"企业""组织"等）
+5. 如果没有找到任何关系，返回空数组 []'''
+
+        context_parts = [
+            f'实体名称: {entity_name}',
+            f'实体类型: {entity_type or "未知"}',
+        ]
+
+        CHARS_PER_TOKEN = 2
+        MAX_INPUT_TOKENS = 24000
+        base_tokens = (len(system_prompt) + len('\n'.join(context_parts))) // CHARS_PER_TOKEN
+        budget = MAX_INPUT_TOKENS - base_tokens
+
+        selected_lines: list[str] = []
+        used = 0
+        for doc_info in search_results:
+            doc_header = f'[{doc_info["doc_title"]}]:'
+            for i, chunk in enumerate(doc_info['chunks']):
+                line = f'{doc_header} {chunk}' if i == 0 else chunk
+                line_tokens = len(line) // CHARS_PER_TOKEN
+                if used + line_tokens > budget:
+                    continue
+                selected_lines.append(line)
+                used += line_tokens
+
+        if not selected_lines:
+            return []
+
+        context_parts.append('关联文档内容:\n' + '\n'.join(selected_lines))
+        user_input = '\n'.join(context_parts)
+
+        try:
+            import time
+            _t0 = time.time()
+            log.debug(f'_ai_extract_relationships [{entity_name}] 调用 AI，输入上下文长度: {len(user_input)} chars, 约 {len(user_input) // CHARS_PER_TOKEN} tokens')
+            ai_response = await llm_service.get_llm_response(system_prompt, user_input)
+            _elapsed = time.time() - _t0
+            log.debug(f'_ai_extract_relationships [{entity_name}] AI 响应耗时: {_elapsed:.3f}s, 原始输出: {ai_response}')
+            response_text = ai_response.strip()
+            if response_text.startswith('```'):
+                lines = response_text.split('\n')
+                inner: list[str] = []
+                in_block = False
+                for line in lines:
+                    if line.startswith('```') and not in_block:
+                        in_block = True
+                        continue
+                    elif line.startswith('```') and in_block:
+                        break
+                    elif in_block:
+                        inner.append(line)
+                response_text = '\n'.join(inner)
+            result = json.loads(response_text)
+            return result if isinstance(result, list) else []
+        except Exception as e:
+            log.error(f'_ai_extract_relationships [{entity_name}] 失败: {repr(e)}')
+            return []
 
     @staticmethod
     async def generate_properties_by_ai(*, pk: int) -> Dict[str, Any]:
@@ -350,7 +577,7 @@ class EntityService:
             # 构建字段的 JSON 模板（字段名为中文）
             json_template_fields = [f'    "{field}": "字段值"' for field in all_fields]
             json_template_fields.append('    "描述": "实体简要描述（一两句话概括关键信息）"')
-            json_template_fields.append('    "画像": "实体详细画像（多段落Markdown格式，涵盖背景、经历、特征等关键信息）"')
+            json_template_fields.append('    "画像": "实体详细画像（Markdown格式输出，涵盖背景、经历、特征等关键信息）"')
             json_template = '{\n' + ',\n'.join(json_template_fields) + '\n}'
 
             # 构建 system prompt（需提前构建，以便计算 token 预算）
@@ -475,6 +702,125 @@ class EntityService:
 
 
     @staticmethod
+    async def extract_timeline_by_ai(*, pk: int) -> list[dict]:
+        """
+        调用 AI 从文档内容中提取该实体的时间轴脉络
+
+        :param pk: 实体ID
+        :return: [{'time': '2010年9月', 'event': '进入北京大学就读'}]
+        """
+        from sqlalchemy import select
+
+        async with async_db_session.begin() as db:
+            entity = await entity_dao.get(db, pk)
+            if not entity:
+                raise errors.NotFoundError(msg='实体不存在')
+
+            system_prompt = f'''你是一个信息提取专家。根据提供的实体信息和相关文档内容，提取"{entity.name}"的时间轴脉络。
+
+请提取该实体人生/发展历程中的重要时间节点和对应事件，如入学、毕业、参加工作、晋升、获奖、结婚、出版著作等。
+
+请严格按照以下JSON数组格式输出，只输出JSON，不要有其他内容：
+[
+  {{
+    "time": "时间（如：2010年9月）",
+    "event": "事件描述（简洁清晰的一句话）"
+  }}
+]
+
+注意：
+1. 只输出JSON数组，不要有任何其他文字说明
+2. 每个事件包含 time 和 event 两个字段
+3. 按照时间先后顺序排列（从早到晚）
+4. time 只写时间本身，不要加"时间："前缀
+5. event 是事件本身的描述，不要加"事件："或"发生："前缀
+6. 只提取有明确文档依据的事件，不要推测编造
+7. 如果没有找到任何时间轴事件，返回空数组 []'''
+
+            context_parts = []
+            context_parts.append(f'实体名称: {entity.name}')
+            context_parts.append(f'实体类型: {entity.entity_type or "未知"}')
+            if entity.description:
+                context_parts.append(f'现有描述: {entity.description}')
+
+            # 获取关联文档内容
+            search_results, new_doc_ids = await EntityService._get_related_doc_contents(db, entity)
+
+            if search_results:
+                CHARS_PER_TOKEN = 2
+                MAX_INPUT_TOKENS = 24000
+
+                base_tokens = (len(system_prompt) + len('\n'.join(context_parts))) // CHARS_PER_TOKEN
+                budget = MAX_INPUT_TOKENS - base_tokens
+
+                selected_lines: list[str] = []
+                used = 0
+
+                for doc_info in search_results:
+                    doc_header = f'[{doc_info["doc_title"]}]:'
+                    for i, chunk in enumerate(doc_info['chunks']):
+                        line = f'{doc_header} {chunk}' if i == 0 else chunk
+                        line_tokens = len(line) // CHARS_PER_TOKEN
+                        if used + line_tokens > budget:
+                            continue
+                        selected_lines.append(line)
+                        used += line_tokens
+
+                if selected_lines:
+                    context_parts.append('关联文档内容:\n' + '\n'.join(selected_lines))
+
+            user_input = '\n'.join(context_parts)
+
+            try:
+                ai_response = await llm_service.get_llm_response(system_prompt, user_input)
+                log.info(f'extract_timeline_by_ai AI 响应: {ai_response}')
+
+                response_text = ai_response.strip()
+                if response_text.startswith('```'):
+                    lines = response_text.split('\n')
+                    json_lines = []
+                    in_json = False
+                    for line in lines:
+                        if line.startswith('```') and not in_json:
+                            in_json = True
+                            continue
+                        elif line.startswith('```') and in_json:
+                            break
+                        elif in_json:
+                            json_lines.append(line)
+                    response_text = '\n'.join(json_lines)
+
+                result = json.loads(response_text)
+                timeline = result if isinstance(result, list) else []
+
+                # 保存到实体
+                await entity_dao.update_timeline(db, pk, timeline)
+
+                # 为新发现的文档创建关联
+                if new_doc_ids:
+                    from backend.app.admin.model.sys_entity_doc import sys_entity_doc
+                    for doc_id in new_doc_ids:
+                        existing = await db.execute(
+                            select(sys_entity_doc).where(
+                                sys_entity_doc.c.entity_id == pk,
+                                sys_entity_doc.c.doc_id == doc_id
+                            )
+                        )
+                        if not existing.first():
+                            await db.execute(
+                                sys_entity_doc.insert().values(entity_id=pk, doc_id=doc_id)
+                            )
+
+                return timeline
+
+            except json.JSONDecodeError as e:
+                log.error(f'extract_timeline_by_ai JSON 解析失败: {ai_response}, 错误: {e}')
+                raise errors.RequestError(msg='AI 响应格式错误，无法解析为JSON')
+            except Exception as e:
+                log.error(f'extract_timeline_by_ai 失败: {repr(e)}')
+                raise errors.RequestError(msg=f'提取时间轴失败: {str(e)}')
+
+    @staticmethod
     async def find_abstract_entities(
         *,
         entity_type: str | list[str] | None = None,
@@ -551,6 +897,153 @@ class EntityService:
                 log.error(f'find_abstract_entities 批次 {i // batch_size + 1} 处理失败: {repr(e)}')
 
         return [e for e in all_entities if e['id'] in abstract_ids]
+
+    @staticmethod
+    async def parse_file(*, content: bytes, filename: str) -> dict:
+        """
+        解析 CSV/Excel 文件内容，返回表头和数据预览
+
+        :param content: 文件二进制内容
+        :param filename: 文件名（用于推断后缀）
+        :return: { headers, preview_rows, total_rows }
+        """
+        suffix = os.path.splitext(filename)[1].lower()
+
+        try:
+            if suffix in ('.csv',):
+                import chardet
+                encoding = chardet.detect(content)['encoding'] or 'utf-8'
+                df = pd.read_csv(io.BytesIO(content), encoding=encoding)
+            elif suffix in ('.xlsx',):
+                df = pd.read_excel(io.BytesIO(content), engine='openpyxl')
+            elif suffix in ('.xls',):
+                df = pd.read_excel(io.BytesIO(content), engine='xlrd')
+            else:
+                raise ValueError(f'不支持的文件格式: {suffix}')
+        except Exception as e:
+            log.error(f'解析文件失败: {repr(e)}')
+            raise errors.RequestError(msg=f'文件解析失败: {str(e)}')
+
+        if df.empty:
+            raise errors.RequestError(msg='文件为空')
+
+        # 列名去空、去重
+        df.columns = [str(c).strip() if pd.notna(c) else f'column_{i}' for i, c in enumerate(df.columns)]
+        headers = list(df.columns)
+
+        # 替换 NaN 为 None
+        df = df.where(pd.notna(df), None)
+
+        preview_rows = df.head(10).to_dict(orient='records')
+        total_rows = len(df)
+
+        # 全量数据转为二维数组（用于 batch-import）
+        all_rows = df.values.tolist()
+
+        return {
+            'headers': headers,
+            'preview_rows': preview_rows,
+            'total_rows': total_rows,
+            'rows': all_rows,
+        }
+
+    @staticmethod
+    async def batch_import(*, obj: BatchImportParam) -> dict:
+        """
+        批量导入实体
+
+        :param obj: 批量导入参数
+        :return: { total, created, errors }
+        """
+        from backend.common.context import get_current_user
+        from backend.app.admin.crud.crud_entity_type import entity_type_dao
+        from backend.app.admin.model.sys_entity_type import EntityType
+
+        current_user = get_current_user()
+        user_id = current_user.id if current_user else None
+
+        async with async_db_session.begin() as db:
+            created_count = 0
+            errors: list[dict] = []
+
+            # 1. 可选：创建实体类型
+            entity_type_id = None
+            if obj.create_entity_type and obj.entity_type_name:
+                existing = await entity_type_dao.get_by_name(db, obj.entity_type_name)
+                if existing:
+                    entity_type_id = existing.id
+                else:
+                    # 收集映射到 properties 的字段名
+                    field_def = [
+                        mapping.field_name
+                        for mapping in obj.field_mapping.values()
+                        if mapping.target == 'properties' and mapping.field_name
+                    ]
+                    et = EntityType(
+                        name=obj.entity_type_name,
+                        description=obj.entity_type_description,
+                        field_definition=field_def if field_def else None,
+                    )
+                    db.add(et)
+                    await db.flush()
+                    entity_type_id = et.id
+
+            # 2. 批量创建实体
+            for row_idx, row in enumerate(obj.rows):
+                try:
+                    entity_data: dict = {}
+                    properties: dict = {}
+                    type_from_row: str | None = None
+
+                    for col_idx, header in enumerate(obj.file_headers):
+                        if col_idx >= len(row):
+                            continue
+                        value = row[col_idx]
+                        if value is None or value == '':
+                            continue
+
+                        mapping = obj.field_mapping.get(header)
+                        if not mapping:
+                            continue
+
+                        if mapping.target == 'name':
+                            entity_data['name'] = str(value)
+                        elif mapping.target == 'description':
+                            entity_data['description'] = str(value)
+                        elif mapping.target == 'entity_type':
+                            type_from_row = str(value)
+                        elif mapping.target == 'properties' and mapping.field_name:
+                            properties[mapping.field_name] = value
+
+                    if not entity_data.get('name'):
+                        errors.append({'row': row_idx + 1, 'error': '缺少名称字段'})
+                        continue
+
+                    # 实体类型优先级: 行级 entity_type > 全局 entity_type_name
+                    final_type = type_from_row or obj.entity_type_name
+
+                    entity = Entity(
+                        name=entity_data['name'],
+                        description=entity_data.get('description'),
+                        entity_type=final_type,
+                        properties=properties if properties else None,
+                        entity_type_id=entity_type_id,
+                        create_user=user_id,
+                    )
+                    db.add(entity)
+                    created_count += 1
+
+                except Exception as e:
+                    log.error(f'批量导入第 {row_idx + 1} 行失败: {repr(e)}')
+                    errors.append({'row': row_idx + 1, 'error': str(e)})
+
+            await db.flush()
+
+        return {
+            'total': len(obj.rows),
+            'created': created_count,
+            'errors': errors,
+        }
 
 
 entity_service = EntityService()

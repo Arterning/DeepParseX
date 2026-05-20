@@ -32,9 +32,11 @@ from backend.app.admin.schema.mail_box import CreateMailBoxParam
 from backend.app.admin.service.doc_service import sys_doc_service
 from backend.app.admin.service.mail_msg_service import mail_msg_service
 from backend.app.admin.service.mail_box_service import mail_box_service
-from backend.app.admin.utils.text_processor import process_file, classify_text_tags
+from backend.app.admin.service.ocr_service import process_file, ocr_service
+from backend.app.admin.service.ai_service import classify_text_tags
 from backend.app.admin.utils.spam_detector import spam_detector
 from backend.app.admin.service.tag_service import tag_service
+from backend.app.admin.service.upload_task_service import upload_task_service
 from backend.app.admin.service.ioc_service import ioc_service
 from backend.app.admin.service.geo_service import geo_service
 from backend.app.admin.utils.tabular_processor import tabular_processor
@@ -55,7 +57,9 @@ from backend.utils.upload_utils import (
     is_rar_file,
     is_parquet_file,
     is_mbox_file,
-    is_csv_file
+    is_csv_file,
+    validate_file_extension,
+    safe_content_type,
     )
 
 bucket_name = settings.BUCKET_NAME
@@ -205,10 +209,42 @@ class UploadService:
         await asyncio.to_thread(UploadService.ensure_bucket_exists, bucket_name)
         # 异步获取文件内容
         file_bytes = await UploadService._minio_get_object(bucket_name, obj_name)
-        content = await upload_service.request_content(title=doc.title, file_bytes=file_bytes)
-        await sys_doc_service.base_update(pk=doc.id, obj={
-            "content": content
-        })
+
+        # 从关联的 UploadTask 读取 ocr_task 选项
+        ocr_task = None
+        if doc.upload_task_id:
+            try:
+                task = await upload_task_service.get(pk=doc.upload_task_id)
+                ocr_task = task.option.get('ocr_task') if task.option else None
+            except Exception:
+                pass
+
+        ocr_pages = None
+        if doc.file_suffix == '.docx':
+            content, pages = await asyncio.to_thread(upload_service.extract_docx_text, file_bytes)
+            ocr_pages = pages
+        elif doc.file_suffix == '.pptx':
+            content, pages = await asyncio.to_thread(upload_service.extract_pptx_text, file_bytes)
+            ocr_pages = pages
+        elif is_pdf_file(doc.file_suffix):
+            content, pages = await upload_service.read_pdf_content(title=doc.title, file_bytes=file_bytes, ocr_task=ocr_task)
+            ocr_pages = pages
+        else:
+            content, pages = await ocr_service.extract_content(title=doc.title, file_bytes=file_bytes, ocr_task=ocr_task or '默认算法')
+            ocr_pages = pages
+        update_obj = {
+            "content": content,
+            "status": 1,
+            "error_msg": None,
+        }
+        if ocr_pages is not None:
+            update_obj["ocr_pages"] = ocr_pages
+        await sys_doc_service.base_update(pk=doc.id, obj=update_obj)
+        # 建立分块和全文检索向量
+        from backend.app.admin.service.doc_service import SysDocService
+        await SysDocService.create_doc_tokens(id=doc.id)
+        # 后台重新计算嵌入向量
+        asyncio.create_task(sys_doc_service.compute_embedding(id=doc.id))
         return content
 
 
@@ -262,16 +298,19 @@ class UploadService:
 
     @staticmethod
     async def save_file(file: UploadFile = File(...), meta: dict = {}, user = None):
+        # 校验文件扩展名白名单
+        file_suffix = validate_file_extension(file.filename)
+
         unique_id = str(uuid.uuid4())
-        # 文件后缀
-        file_suffix = get_file_suffix(file.filename)
         new_filename = f"{unique_id}{file_suffix}"
 
         file_content = await file.read()
         # 确保bucket存在（放到线程池执行）
         await asyncio.to_thread(UploadService.ensure_bucket_exists, bucket_name)
+        # 服务端推断 content_type，不信任客户端传入值
+        content_type = safe_content_type(file.filename)
         # 异步上传到 MinIO
-        await UploadService._minio_put_object(bucket_name, new_filename, file_content, file.content_type)
+        await UploadService._minio_put_object(bucket_name, new_filename, file_content, content_type)
 
 
         file_type = get_file_type(file_suffix)
@@ -363,17 +402,7 @@ class UploadService:
                 return "其他"
 
     @staticmethod
-    async def request_content(title, file_bytes: bytes):
-        # 直接await调用异步版本的process_file
-        response = await process_file(title, file_bytes)
-        if not response or 'content' not in response:
-            return ""
-        raw_content = response.get('content', '')
-        clean_content = upload_service.sanitize_text(raw_content)
-        return clean_content
-
-    @staticmethod
-    async def read_file_content(doc: SysDoc):
+    async def read_file_content(doc: SysDoc, ocr_task: str | None = None):
         if doc.content:
             return
 
@@ -515,56 +544,53 @@ class UploadService:
                 content = f"处理 MBOX 文件时发生错误：{str(e)}"
                 obj_dict = {
                     'content': content,
-                    'status': 1,
+                    'status': 2,
                 }
                 await sys_doc_service.base_update(pk=doc.id, obj=obj_dict)
                 return
 
-        if is_text_file(doc.file_suffix):
+        ocr_pages = None
+        if doc.file_suffix == '.docx':
+            content, pages = await asyncio.to_thread(upload_service.extract_docx_text, file_bytes)
+            ocr_pages = pages
+
+        elif doc.file_suffix == '.pptx':
+            content, pages = await asyncio.to_thread(upload_service.extract_pptx_text, file_bytes)
+            ocr_pages = pages
+
+        elif is_text_file(doc.file_suffix):
             # 在线程池中执行编码检测（chardet 是 CPU 密集型操作）
             content = await asyncio.to_thread(upload_service.decode_content_with_chardet, file_bytes)
 
-        if is_excel_file(doc.file_suffix):
+        elif is_excel_file(doc.file_suffix):
             content = await upload_service.read_excel_data(doc=doc, file_bytes=file_bytes)
 
-        if is_csv_file(doc.file_suffix):
+        elif is_csv_file(doc.file_suffix):
             content = await upload_service.read_csv_data(doc=doc, file_bytes=file_bytes)
 
-        if is_parquet_file(doc.file_suffix):
+        elif is_parquet_file(doc.file_suffix):
             content = await upload_service.read_parquet_data(doc=doc, file_bytes=file_bytes)
 
-        if is_email_file(doc.file_suffix):
+        elif is_email_file(doc.file_suffix):
             content = await upload_service.read_email_data(doc=doc, file_bytes=file_bytes)
 
-        if is_picture_file(doc.file_suffix):
-            content = "图片文件无法直接读取内容，请查看附件。"
-            content = await upload_service.request_content(title=doc.title, file_bytes=file_bytes)
+        elif is_picture_file(doc.file_suffix):
+            content, pages = await ocr_service.extract_content(title=doc.title, file_bytes=file_bytes, ocr_task=ocr_task or '默认算法')
+            ocr_pages = pages
             # 异步提取 EXIF GPS 坐标
             asyncio.create_task(
                 geo_service.extract_from_image(doc.id, file_bytes, doc.file_suffix)
             )
 
-        if is_pdf_file(doc.file_suffix):
-            try:
-                content = await upload_service.request_content(title=doc.title, file_bytes=file_bytes)
-                if content and len(content.strip()) > 0:
-                    log.info(f"PDF文件 {doc.title} OCR 处理成功，内容长度: {len(content)}")
-                else:
-                    log.warning(f"PDF文件 {doc.title} OCR 返回内容为空，尝试使用 pdfplumber/PyPDF2 fallback")
-                    raise ValueError("OCR 返回内容为空")
-            except Exception as e:
-                # OCR 调用失败，使用 pdfplumber/PyPDF2 作为 fallback
-                log.warning(f"PDF文件 {doc.title} OCR 服务调用失败: {str(e)}，使用 pdfplumber/PyPDF2 fallback")
-                pdf_text = await asyncio.to_thread(upload_service.extract_pdf_text, file_bytes)
-                if pdf_text and len(pdf_text.strip()) > 0:
-                    content = pdf_text
-                    log.info(f"PDF文件 {doc.title} 使用 pdfplumber/PyPDF2 提取文字成功，长度: {len(content)}")
-                else:
-                    content = ''
-                    log.error(f"PDF文件 {doc.title} OCR 和 pdfplumber/PyPDF2 均无法提取有效内容")
+        elif is_pdf_file(doc.file_suffix):
+            content, pages = await upload_service.read_pdf_content(
+                title=doc.title, file_bytes=file_bytes, ocr_task=ocr_task
+            )
+            ocr_pages = pages
 
-        if is_docx_file(doc.file_suffix) or is_media_file(doc.file_suffix) or is_pptx_file(doc.file_suffix):
-            content = await upload_service.request_content(title=doc.title, file_bytes=file_bytes)
+        elif doc.file_suffix in ('.doc', '.ppt') or is_media_file(doc.file_suffix):
+            content, pages = await ocr_service.extract_content(title=doc.title, file_bytes=file_bytes, ocr_task=ocr_task or '默认算法')
+            ocr_pages = pages
 
         # 其他文件方式的兜底方案
         if content == '':
@@ -573,20 +599,22 @@ class UploadService:
 
         # 清理内容中的空字节和非法字符，避免 PostgreSQL 编码错误
         if content:
-            content = upload_service.sanitize_text(content)
+            content = await asyncio.to_thread(upload_service.sanitize_text, content)
         if desc:
-            desc = upload_service.sanitize_text(desc)
+            desc = await asyncio.to_thread(upload_service.sanitize_text, desc)
 
         # 检测文件语言
         language = None
         if content:
-            language = upload_service.detect_language(content)
+            language = await asyncio.to_thread(upload_service.detect_language, content)
 
         obj_dict = {
             'content': content,
             'desc': desc,
             'language': language,
         }
+        if ocr_pages is not None:
+            obj_dict['ocr_pages'] = ocr_pages
         await sys_doc_service.base_update(pk=doc.id, obj=obj_dict)
 
         # 异步调用 compute_embedding，不等待返回
@@ -607,13 +635,80 @@ class UploadService:
         """
         try:
             # 调用标签分类函数获取匹配的标签
-            tag_names = await classify_text_tags(content, threshold=0.5)
+            tag_names = await classify_text_tags(content)
             if tag_names:
                 # 为文档添加标签
                 await tag_service.add_tags_to_doc(doc_id=doc_id, tag_names=tag_names)
                 log.info(f"文档 {doc_id} 自动打标签完成: {tag_names}")
         except Exception as e:
             log.error(f"文档 {doc_id} 自动打标签失败: {str(e)}")
+
+    @staticmethod
+    async def read_pdf_content(title: str, file_bytes: bytes, ocr_task: str | None = None) -> tuple[str, list]:
+        """读取 PDF 文件内容，返回 (文本内容, OCR分页原始结果)。
+
+        - ocr_task == 'spread'：逐页渲染为图片后分别调用 OCR，适用于图片合并型 PDF。
+        - 其他情况：直接将整个 PDF 送 OCR，失败时 fallback 至 pdfplumber/PyPDF2。
+        """
+        if ocr_task == 'spread':
+            try:
+                pages_bytes = await asyncio.to_thread(
+                    UploadService._extract_pdf_pages_as_images_sync, file_bytes
+                )
+                page_contents = []
+                all_pages = []
+                for i, page_img_bytes in enumerate(pages_bytes):
+                    page_content, _ocr_pages = await ocr_service.extract_content(
+                        title=f"{title}_page_{i + 1}.png",
+                        file_bytes=page_img_bytes,
+                        ocr_task='spread',
+                    )
+                    all_pages.append({
+                        'page': i + 1,
+                        'text': page_content,
+                    })
+                    log.debug(f"page {i+1} raw content repr: {repr(page_content[:200] if page_content else '')}")
+                    if page_content and page_content.strip():
+                        page_contents.append(page_content)
+                content = ''.join(c.rstrip(" \t\r") for c in page_contents)
+                if content.strip():
+                    log.info(f"PDF文件 {title} 逐页 OCR 处理成功，共 {len(pages_bytes)} 页，内容长度: {len(content)}")
+                    return content, all_pages
+                log.warning(f"PDF文件 {title} 逐页 OCR 返回内容为空，尝试使用 pdfplumber/PyPDF2 fallback")
+            except Exception as e:
+                log.warning(f"PDF文件 {title} 逐页 OCR 失败: {str(e)}，使用 pdfplumber/PyPDF2 fallback")
+        else:
+            try:
+                content, ocr_pages = await ocr_service.extract_content(
+                    title=title, file_bytes=file_bytes, ocr_task=ocr_task or '默认算法'
+                )
+                if content and content.strip():
+                    log.info(f"PDF文件 {title} OCR 处理成功，内容长度: {len(content)}")
+                    return content, ocr_pages or []
+                log.warning(f"PDF文件 {title} OCR 返回内容为空，尝试使用 pdfplumber/PyPDF2 fallback")
+            except Exception as e:
+                log.warning(f"PDF文件 {title} OCR 服务调用失败: {str(e)}，使用 pdfplumber/PyPDF2 fallback")
+
+        pdf_text = await asyncio.to_thread(upload_service.extract_pdf_text, file_bytes)
+        if pdf_text and pdf_text.strip():
+            log.info(f"PDF文件 {title} 使用 pdfplumber/PyPDF2 提取文字成功，长度: {len(pdf_text)}")
+            return pdf_text, []
+        log.error(f"PDF文件 {title} OCR 和 pdfplumber/PyPDF2 均无法提取有效内容")
+        return '', []
+
+    @staticmethod
+    def _extract_pdf_pages_as_images_sync(file_bytes: bytes, scale: float = 2.0) -> list[bytes]:
+        """使用 pypdfium2 将 PDF 每页渲染为 PNG 图片字节列表"""
+        import pypdfium2 as pdfium
+        pdf = pdfium.PdfDocument(file_bytes)
+        pages_bytes = []
+        for page in pdf:
+            bitmap = page.render(scale=scale)
+            pil_image = bitmap.to_pil()
+            buf = io.BytesIO()
+            pil_image.save(buf, format='PNG')
+            pages_bytes.append(buf.getvalue())
+        return pages_bytes
 
     @staticmethod
     def extract_pdf_text(file_bytes: bytes) -> str:
@@ -656,6 +751,110 @@ class UploadService:
             log.warning(f"PyPDF2 提取失败: {str(e)}")
 
         return text_content.strip()
+
+    @staticmethod
+    def extract_docx_text(file_bytes: bytes) -> tuple[str, list[dict]]:
+        """
+        使用 python-docx 从 .docx 文件中提取文字内容
+
+        :param file_bytes: docx 文件的字节内容
+        :return: (content, pages) 提取的文字内容和分页原始结果
+        """
+        try:
+            from docx import Document
+            from docx.oxml.ns import qn
+            doc = Document(io.BytesIO(file_bytes))
+
+            # 按分页符分组段落
+            pages = []
+            current_page_paras: list[str] = []
+
+            def flush_page():
+                if current_page_paras:
+                    pages.append({
+                        'page': len(pages) + 1,
+                        'text': '\n'.join(current_page_paras),
+                    })
+                    current_page_paras.clear()
+
+            for para in doc.paragraphs:
+                text = para.text.strip()
+                # 检测段落中是否有分页符
+                has_page_break = False
+                for run in para.runs:
+                    for br in run._element.findall(qn('w:br')):
+                        if br.get(qn('w:type')) == 'page':
+                            has_page_break = True
+                            break
+                    if has_page_break:
+                        break
+
+                if has_page_break and current_page_paras:
+                    flush_page()
+
+                if text:
+                    current_page_paras.append(text)
+
+            flush_page()
+
+            # 提取表格中的文本
+            all_paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+            table_texts = []
+            for table in doc.tables:
+                for row in table.rows:
+                    row_text = '\t'.join(cell.text.strip() for cell in row.cells if cell.text.strip())
+                    if row_text:
+                        table_texts.append(row_text)
+
+            content = '\n'.join(all_paragraphs + table_texts)
+
+            # 如果没有检测到分页符，将表格文本追加到最后一页
+            if not pages:
+                pages = [{'page': 1, 'text': content}]
+            elif table_texts:
+                pages[-1]['text'] += '\n' + '\n'.join(table_texts)
+
+            return content, pages
+        except Exception as e:
+            log.error(f"python-docx 提取 docx 内容失败: {repr(e)}\n{traceback.format_exc()}")
+            return '', []
+
+    @staticmethod
+    def extract_pptx_text(file_bytes: bytes) -> tuple[str, list[dict]]:
+        """
+        使用 python-pptx 从 .pptx 文件中提取文字内容，按幻灯片分页
+
+        :param file_bytes: pptx 文件的字节内容
+        :return: (content, pages) 提取的文字内容和分页原始结果
+        """
+        try:
+            from pptx import Presentation
+            prs = Presentation(io.BytesIO(file_bytes))
+            all_texts = []
+            pages = []
+            for slide in prs.slides:
+                slide_texts = []
+                for shape in slide.shapes:
+                    if shape.has_text_frame:
+                        for paragraph in shape.text_frame.paragraphs:
+                            text = paragraph.text.strip()
+                            if text:
+                                slide_texts.append(text)
+                    if shape.has_table:
+                        for row in shape.table.rows:
+                            row_text = '\t'.join(cell.text.strip() for cell in row.cells if cell.text.strip())
+                            if row_text:
+                                slide_texts.append(row_text)
+                page_text = '\n'.join(slide_texts)
+                pages.append({
+                    'page': len(pages) + 1,
+                    'text': page_text,
+                })
+                all_texts.extend(slide_texts)
+            return '\n'.join(all_texts), pages
+        except Exception as e:
+            log.error(f"python-pptx 提取 pptx 内容失败: {repr(e)}\n{traceback.format_exc()}")
+            return '', []
 
     @staticmethod
     async def read_email_data(doc: SysDoc, file_bytes: bytes):
@@ -894,21 +1093,34 @@ class UploadService:
     @staticmethod
     async def read_excel_data(doc: SysDoc, file_bytes: bytes):
         """读取 Excel 文件并保存数据"""
-        # 使用 tabular_processor 读取 Excel
+        from backend.app.admin.utils.tabular_processor import TabularProcessor
+
         data_json, content = await tabular_processor.read_excel(file_bytes)
 
         doc_id = doc.id
+
+        # 保存结构化行数据到 sys_doc_data
         obj_list = []
         for row_data in data_json:
             param = CreateSysDocDataParam(doc_id=doc_id, row=row_data)
             obj_list.append(param)
         await sys_doc_service.create_doc_data(obj_list=obj_list)
+
+        # 构造 Univer workbook JSON 并写入 sys_doc.workbook
+        try:
+            sheet_name = doc.title or doc.name or 'Sheet1'
+            workbook_json = await asyncio.to_thread(TabularProcessor.data_to_workbook, data_json, sheet_name)
+            await sys_doc_service.base_update(pk=doc_id, obj={'workbook': workbook_json})
+        except Exception as e:
+            log.error(f"构造 workbook JSON 失败 doc_id={doc_id}: {repr(e)}")
+
         return content
 
     @staticmethod
     async def read_csv_data(doc: SysDoc, file_bytes: bytes):
         """读取 CSV 文件并保存数据"""
-        # 使用 tabular_processor 读取 CSV
+        from backend.app.admin.utils.tabular_processor import TabularProcessor
+
         data_json, content = await tabular_processor.read_csv(file_bytes)
 
         doc_id = doc.id
@@ -917,6 +1129,14 @@ class UploadService:
             param = CreateSysDocDataParam(doc_id=doc_id, row=row_data)
             obj_list.append(param)
         await sys_doc_service.create_doc_data(obj_list=obj_list)
+
+        # 构造 Univer workbook JSON 并写入 sys_doc.workbook
+        try:
+            sheet_name = doc.title or doc.name or 'Sheet1'
+            workbook_json = await asyncio.to_thread(TabularProcessor.data_to_workbook, data_json, sheet_name)
+        except Exception as e:
+            log.error(f"构造 workbook JSON 失败 doc_id={doc_id}: {repr(e)}")
+
         return content
 
     @staticmethod

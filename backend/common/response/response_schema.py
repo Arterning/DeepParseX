@@ -87,6 +87,14 @@ class ResponseBase:
     ) -> ResponseModel:
         return self.__response(res=res, data=data)
 
+    def fail(
+        self,
+        *,
+        res: CustomResponseCode | CustomResponse = CustomResponseCode.HTTP_400,
+        message: Any = None,
+    ) -> ResponseModel:
+        return self.__response(res=res, data=data)
+
     @staticmethod
     def fast_success(
         *,

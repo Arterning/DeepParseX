@@ -1,7 +1,7 @@
 """Entity standardization and relationship inference for knowledge graphs."""
 import re
 from collections import defaultdict
-from backend.app.admin.service.knowledge_graph.llm import call_llm
+from backend.app.admin.service.ai_service import call_llm
 from backend.app.admin.service.knowledge_graph.prompts import (
     ENTITY_RESOLUTION_SYSTEM_PROMPT, 
     get_entity_resolution_user_prompt,
@@ -428,7 +428,7 @@ def _resolve_entities_with_llm(triples, config):
         
         # Extract JSON mapping
         import json
-        from backend.app.admin.service.knowledge_graph.llm import extract_json_from_text
+        from backend.app.admin.service.ai_service import extract_json_from_text
         
         entity_mapping = extract_json_from_text(response)
         
@@ -524,7 +524,7 @@ def _infer_relationships_with_llm(triples, communities, config):
                 response = call_llm(user_prompt, system_prompt, config)
                 
                 # Extract JSON results
-                from backend.app.admin.service.knowledge_graph.llm import extract_json_from_text
+                from backend.app.admin.service.ai_service import extract_json_from_text
                 inferred_triples = extract_json_from_text(response)
                 
                 if inferred_triples and isinstance(inferred_triples, list):
@@ -638,7 +638,7 @@ def _infer_within_community_relationships(triples, communities, config):
             response = call_llm(user_prompt, system_prompt, config)
             
             # Extract JSON results
-            from backend.app.admin.service.knowledge_graph.llm import extract_json_from_text
+            from backend.app.admin.service.ai_service import extract_json_from_text
             inferred_triples = extract_json_from_text(response)
             
             if inferred_triples and isinstance(inferred_triples, list):

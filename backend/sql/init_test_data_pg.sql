@@ -78,3 +78,12 @@ SELECT setval('sys_user_id_seq', (SELECT MAX(id) FROM sys_user));
 SELECT setval('sys_user_role_id_seq', (SELECT MAX(id) FROM sys_user_role));
 SELECT setval('sys_role_menu_id_seq', (SELECT MAX(id) FROM sys_role_menu));
 SELECT setval('sys_role_id_seq', (SELECT MAX(id) FROM sys_role));
+
+
+
+CREATE INDEX sys_doc_chunk_bm25_idx ON sys_doc_chunk
+    USING bm25 (id, chunk_text)
+    WITH (
+      key_field   = 'id',
+      text_fields = '{"chunk_text": {"tokenizer": {"type": "icu"}}}'
+    );

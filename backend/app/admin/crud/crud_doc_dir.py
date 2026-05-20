@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from typing import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy_crud_plus import CRUDPlus
@@ -49,7 +49,7 @@ class CRUDDocDir(CRUDPlus[SysDocDir]):
             filters.update(name__like=f'%{name}%')
         return await self.select_models_order(db, sort_columns='sort', **filters)
 
-    async def create(self, db: AsyncSession, obj_in: CreateDocDirParam) -> None:
+    async def create(self, db: AsyncSession, obj_in: CreateDocDirParam) -> SysDocDir:
         """
         创建目录
 
@@ -57,7 +57,7 @@ class CRUDDocDir(CRUDPlus[SysDocDir]):
         :param obj_in:
         :return:
         """
-        await self.create_model(db, obj_in)
+        return await self.create_model(db, obj_in)
 
     async def update(self, db: AsyncSession, dir_id: int, obj_in: UpdateDocDirParam) -> int:
         """
@@ -105,6 +105,31 @@ class CRUDDocDir(CRUDPlus[SysDocDir]):
         result = await db.execute(stmt)
         doc_dir = result.scalars().first()
         return doc_dir.children
+
+    async def get_all_doc_ids_in_dirs(self, db: AsyncSession, dir_ids: list[int]) -> list[int]:
+        """递归获取指定目录（含所有子目录）下的所有文档 ID
+
+        :param db: 数据库会话
+        :param dir_ids: 根目录 ID 列表
+        :return: 文档 ID 列表
+        """
+        if not dir_ids:
+            return []
+        id_list = ','.join(str(int(d)) for d in dir_ids)
+        sql = f"""
+        WITH RECURSIVE dir_tree AS (
+            SELECT id FROM sys_doc_dir
+            WHERE id = ANY(ARRAY[{id_list}]::bigint[]) AND del_flag = false
+            UNION ALL
+            SELECT d.id FROM sys_doc_dir d
+            JOIN dir_tree dt ON d.parent_id = dt.id
+            WHERE d.del_flag = false
+        )
+        SELECT DISTINCT doc.id FROM sys_doc doc
+        WHERE doc.doc_dir_id IN (SELECT id FROM dir_tree)
+        """
+        result = await db.execute(text(sql))
+        return [row[0] for row in result.fetchall()]
 
     async def get_with_children(self, db: AsyncSession, dir_id: int) -> SysDocDir | None:
         """

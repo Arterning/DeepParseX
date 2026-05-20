@@ -27,7 +27,8 @@ class SysDoc(Base):
     name: Mapped[str] = mapped_column(TEXT, default='', comment='文件主题')
     type: Mapped[str] = mapped_column(String(500), default=None, comment='类型')
     file_suffix: Mapped[str | None] = mapped_column(String(500), default=None, comment='文件后缀')
-    content: Mapped[str | None] = mapped_column(TEXT, default=None, comment='文件内容')
+    content: Mapped[str | None] = mapped_column(TEXT, default=None, comment='文件内容（文本，用于分词索引）')
+    workbook: Mapped[str | None] = mapped_column(TEXT, default=None, comment='Workbook JSON（表格编辑器专用）')
     desc: Mapped[str | None] = mapped_column(TEXT, default=None, comment='摘要')
     translation: Mapped[str | None] = mapped_column(TEXT, default=None, comment='翻译内容')
     file: Mapped[str | None] = mapped_column(TEXT, default=None, comment='文件原件')
@@ -45,6 +46,9 @@ class SysDoc(Base):
     entity_extracted: Mapped[int | None] = mapped_column(default=0, comment='是否已提取实体(0未提取 1已提取)')
     graph_extracted: Mapped[int | None] = mapped_column(default=0, comment='是否已构建知识图谱(0未构建 1已构建)')
     language: Mapped[str | None] = mapped_column(String(50), default=None, comment='文件语言')
+    ocr_pages: Mapped[list[dict] | None] = mapped_column(JSONB, default=None, comment='OCR分页原始结果')
+    ocr_pages_translation: Mapped[list[dict] | None] = mapped_column(JSONB, default=None, comment='OCR分页翻译结果')
+    refined_markdown: Mapped[str | None] = mapped_column(TEXT, default=None, comment='AI精炼的结构化Markdown内容（含章节、标题、关键词、摘要，原文与翻译分样式展示）')
 
     dept_id: Mapped[int | None] = mapped_column(
         ForeignKey('sys_dept.id', ondelete='SET NULL'), default=None, comment='部门关联ID'

@@ -3,7 +3,7 @@
 
 from datetime import datetime
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
 
 from backend.common.schema import SchemaBase
 
@@ -49,6 +49,9 @@ class UpdateMailMsgParam(MailMsgSchemaBase):
 class GetMailMsgListDetails(MailMsgSchemaBase):
     model_config = ConfigDict(from_attributes=True)
 
+    original: str | None = Field(default=None, exclude=True)
+    zh_content: str | None = Field(default=None, exclude=True)
+    zh_subject: str | None = Field(default=None, exclude=True)
     id: int
     
     created_time: datetime

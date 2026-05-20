@@ -3,7 +3,8 @@
 import asyncio
 import json
 from backend.app.admin.service.knowledge_graph.text_utils import chunk_text
-from backend.app.admin.service.knowledge_graph.llm import call_llm, extract_json_from_text
+from backend.app.admin.service.ai_service import call_llm
+from backend.app.admin.service.ai_service import extract_json_from_text
 from backend.app.admin.service.knowledge_graph.prompts import MAIN_SYSTEM_PROMPT, MAIN_USER_PROMPT
 from backend.app.admin.service.knowledge_graph.entity_standardization import standardize_entities, infer_relationships, limit_predicate_length
 

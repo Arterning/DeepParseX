@@ -213,6 +213,54 @@ class CRUDSysDocChunk(CRUDPlus[SysDocChunk]):
 
         return list(docs.values())
 
+    async def search_chunks_for_rag(
+        self,
+        db: AsyncSession,
+        query_text: str,
+        limit: int = 10,
+        doc_id: int = None,
+        doc_ids: list[int] | None = None,
+    ) -> list:
+        """
+        全文检索分块（面向 RAG 召回），使用 ParadeDB BM25 排序。
+
+        :param db: 数据库会话
+        :param query_text: 原始查询文本（ParadeDB 自动分词，无需 jieba 预处理）
+        :param limit: 最大返回分块数量
+        :param doc_id: 限定单个文档 ID，None 则不限
+        :param doc_ids: 限定文档 ID 列表（目录过滤），None 则不限，空列表直接返回空
+        :return: list of Row(doc_id, doc_name, chunk_text, rank)
+        """
+        if not query_text:
+            return []
+        if doc_ids is not None and not doc_ids:
+            return []
+
+        where_parts = ["c.chunk_text @@@ :query_text"]
+        params: dict = {"query_text": query_text, "limit": limit}
+
+        if doc_id is not None:
+            where_parts.append("c.doc_id = :doc_id")
+            params["doc_id"] = doc_id
+
+        if doc_ids is not None:
+            id_list = ','.join(str(int(d)) for d in doc_ids)
+            where_parts.append(f"c.doc_id = ANY(ARRAY[{id_list}]::bigint[])")
+
+        where_clause = " AND ".join(where_parts)
+
+        sql = f"""
+        SELECT c.doc_id, d.title AS doc_name, c.chunk_text,
+               paradedb.score(c.id) AS rank
+        FROM sys_doc_chunk c
+        JOIN sys_doc d ON c.doc_id = d.id
+        WHERE {where_clause}
+        ORDER BY paradedb.score(c.id) DESC
+        LIMIT :limit
+        """
+        result = await db.execute(text(sql), params)
+        return result.fetchall()
+
     async def update_chunk_translation(
         self,
         db: AsyncSession,

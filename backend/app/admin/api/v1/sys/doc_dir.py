@@ -44,8 +44,8 @@ async def get_all_doc_dirs_tree(
     ],
 )
 async def create_doc_dir(obj: CreateDocDirParam) -> ResponseModel:
-    await doc_dir_service.create(obj=obj)
-    return response_base.success()
+    dir_id = await doc_dir_service.create(obj=obj)
+    return response_base.success(data={'id': dir_id})
 
 
 @router.put(

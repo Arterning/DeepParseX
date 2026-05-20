@@ -6,6 +6,8 @@
 支持 Excel (.xls, .xlsx) 和 CSV (.csv) 文件的读取和处理
 """
 
+import json
+import uuid
 from io import BytesIO
 import pandas as pd
 import numpy as np
@@ -60,6 +62,11 @@ class TabularProcessor:
 
         # 将 DataFrame 转换为 JSON 格式
         data_json = df.to_dict(orient="records")
+
+        # 将 pandas/numpy 类型转换为 JSON 可序列化的 Python 原生类型
+        for row_data in data_json:
+            for key, val in row_data.items():
+                row_data[key] = TabularProcessor._to_cell_value(val)
 
         content = ''
         for row_data in data_json:
@@ -123,6 +130,11 @@ class TabularProcessor:
         # 将 DataFrame 转换为 JSON 格式
         data_json = df.to_dict(orient="records")
 
+        # 将 pandas/numpy 类型转换为 JSON 可序列化的 Python 原生类型
+        for row_data in data_json:
+            for key, val in row_data.items():
+                row_data[key] = TabularProcessor._to_cell_value(val)
+
         content = ''
         for row_data in data_json:
             strings = TabularProcessor.dict_to_string(row_data)
@@ -131,6 +143,92 @@ class TabularProcessor:
         content = content.replace("Unnamed", "").replace("None", "")
 
         return data_json, content
+
+    @staticmethod
+    def _to_cell_value(val):
+        """
+        将 pandas/numpy 值转换为 JSON 可序列化的 Python 原始类型。
+
+        注意：numpy >= 2.0 的整数/浮点类型不再是 Python int/float 的子类，
+        必须先调用 .item() 转换为 Python 原生类型，再做 isinstance 判断。
+        """
+        if val is None:
+            return None
+        # 先把 numpy scalar 转成 Python 原生类型（兼容 numpy 1.x / 2.x）
+        if hasattr(val, 'item'):
+            try:
+                val = val.item()
+            except (ValueError, TypeError):
+                return str(val)
+        # 经过 .item() 后 val 已经是 Python 原生类型
+        if isinstance(val, bool):
+            return val
+        if isinstance(val, float):
+            if val != val or val == float('inf') or val == float('-inf'):  # NaN / Inf
+                return None
+            return val
+        if isinstance(val, int):
+            return val
+        if isinstance(val, str):
+            return val if val.strip() not in ('', 'nan', 'None', 'NaT', 'NA', '<NA>') else None
+        # pandas Timestamp / datetime → ISO 字符串
+        if hasattr(val, 'isoformat'):
+            try:
+                return val.isoformat()
+            except Exception:
+                return str(val)
+        return str(val)
+
+    @staticmethod
+    def data_to_workbook(data_json: list[dict], sheet_name: str = 'Sheet1') -> str:
+        """
+        将行数据列表（每行为 {列名: 值} 的 dict）转换为 Univer IWorkbookData JSON 字符串。
+
+        - 第 0 行写列名（表头）
+        - 第 1 行起写数据
+        - 空值（None）跳过，不创建单元格
+        """
+        cell_data: dict[str, dict] = {}
+
+        if not data_json:
+            headers: list = []
+        else:
+            headers = list(data_json[0].keys())
+
+        # 表头行：列名同样经过 _to_cell_value，避免 numpy / 非字符串列名导致序列化失败
+        if headers:
+            cell_data['0'] = {}
+            for col_idx, header in enumerate(headers):
+                hv = TabularProcessor._to_cell_value(header)
+                cell_data['0'][str(col_idx)] = {'v': hv if hv is not None else str(header)}
+
+        # 数据行
+        for row_idx, row in enumerate(data_json, start=1):
+            row_cells: dict[str, dict] = {}
+            for col_idx, header in enumerate(headers):
+                v = TabularProcessor._to_cell_value(row.get(header))
+                if v is not None:
+                    row_cells[str(col_idx)] = {'v': v}
+            if row_cells:
+                cell_data[str(row_idx)] = row_cells
+
+        workbook = {
+            'id': f'wb-{uuid.uuid4().hex[:8]}',
+            'name': 'Workbook',
+            'sheetOrder': ['sheet1'],
+            'sheets': {
+                'sheet1': {
+                    'id': 'sheet1',
+                    'name': sheet_name,
+                    'cellData': cell_data,
+                    'rowCount': max(100, len(data_json) + 10),
+                    'columnCount': max(26, len(headers) + 2),
+                }
+            },
+            'styles': {},
+        }
+        # default=str 作为最后兜底，防止残余的非序列化类型导致崩溃
+        return json.dumps(workbook, ensure_ascii=False, default=str)
 
     @staticmethod
     async def read_excel(file_bytes: bytes):

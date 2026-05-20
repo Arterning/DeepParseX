@@ -39,7 +39,7 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
                         content: str = None, ids: list[int] = None,
                         start_time: str = None, end_time :str = None,
                         current_user_id: int = None, tag_ids: list[int] = None,
-                        doc_dir_id: int = None
+                        doc_dir_id: int = None, status: int = None
                         ) -> Select:
         """
         获取 SysDoc 列表
@@ -66,18 +66,10 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
             where_list.append(self.model.name.like(f'%{name}%'))
         if doc_type is not None and len(doc_type) > 0:
             where_list.append(self.model.type.in_(doc_type))
-        # if tokens is not None and tokens != '':
-        #     where_list.append(self.model.tokens.match(tokens))
         if content is not None and content != '':
             where_list.append(self.model.content.like(f'%{content}%'))
         if source is not None and source != '':
             where_list.append(self.model.source.like(f'%{source}%'))
-        # if email_to is not None and email_to != '':
-        #     where_list.append(self.model.email_to.like(f'%{email_to}%'))
-        # if email_subject is not None and email_subject != '':
-        #     where_list.append(self.model.email_subject.like(f'%{email_subject}%'))
-        # if email_time is not None and email_time != '':
-        #     where_list.append(self.model.email_time.like(f'%{email_time}%'))
         if start_time:
             start_dt = datetime.strptime(start_time, '%Y-%m-%d')
             where_list.append(self.model.doc_time >= start_dt)
@@ -99,6 +91,8 @@ class CRUDSysDoc(CRUDPlus[SysDoc]):
             where_list.append(self.model.id.in_(subquery))
         if doc_dir_id is not None:
             where_list.append(self.model.doc_dir_id == doc_dir_id)
+        if status is not None:
+            where_list.append(self.model.status == status)
         if where_list:
             stmt = stmt.where(and_(*where_list))
         return stmt

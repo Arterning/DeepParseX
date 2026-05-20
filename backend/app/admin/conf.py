@@ -33,6 +33,9 @@ class AdminSettings(BaseSettings):
     # Config
     CONFIG_REDIS_KEY: str = 'fba:config'
 
+    # 分块：是否启用启发式智能分段（兼容 OCR 单换行输出），默认 False（按 \n\n 切分）
+    SMART_PARAGRAPH_DETECTION: bool = False
+
 
 @lru_cache
 def get_admin_settings() -> AdminSettings:

@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from typing import Annotated
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 
 from backend.app.admin.schema.entity_type import (
+    AnalyzeEntityNLParam,
     CreateEntityTypeParam,
+    ExtractRelationsParam,
     GetEntityTypeDetails,
     GetEntityTypeListDetails,
     UpdateEntityTypeParam,
@@ -26,6 +30,38 @@ async def get_entity_type(pk: int) -> ResponseModel:
     entity_type = await entity_type_service.get(pk=pk)
     data = GetEntityTypeDetails.model_validate(entity_type)
     return response_base.success(data=data)
+
+
+@router.get('/{pk}/export', summary='导出实体类型下的所有实体', dependencies=[DependsJwtAuth])
+async def export_entity_type_entities(
+    pk: int,
+    format: Annotated[str, Query(pattern='^(csv|parquet)$')] = 'csv',
+):
+    data, filename, media_type = await entity_type_service.export_entities(pk=pk, format=format)
+    encoded_filename = quote(filename)
+    return StreamingResponse(
+        iter([data]),
+        media_type=media_type,
+        headers={'Content-Disposition': f"attachment; filename*=UTF-8''{encoded_filename}"},
+    )
+
+
+@router.post('/{pk}/lake', summary='将实体类型下的所有实体入湖（导出 Parquet 到 MinIO）', dependencies=[DependsJwtAuth])
+async def lake_entity_type_entities(pk: int) -> ResponseModel:
+    object_name = await entity_type_service.lake_entities(pk=pk)
+    return response_base.success(data={'object_name': object_name})
+
+
+@router.post('/{pk}/extract-relations', summary='根据用户需求通过 AI 分析 Parquet 数据提取实体关系', dependencies=[DependsJwtAuth])
+async def extract_relations(pk: int, obj: ExtractRelationsParam) -> ResponseModel:
+    result = await entity_type_service.extract_relations(pk=pk, requirement=obj.requirement)
+    return response_base.success(data=result)
+
+
+@router.post('/analyze-nl', summary='通过自然语言分析实体数据（AI自动选择实体类型并生成SQL）', dependencies=[DependsJwtAuth])
+async def analyze_entity_nl(obj: AnalyzeEntityNLParam) -> ResponseModel:
+    result = await entity_type_service.analyze_entity_nl(question=obj.question)
+    return response_base.success(data=result)
 
 
 @router.get('', summary='分页获取实体类型列表', dependencies=[DependsJwtAuth, DependsPagination])

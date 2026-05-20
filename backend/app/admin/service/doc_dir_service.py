@@ -35,7 +35,7 @@ class DocDirService:
             return tree_data
 
     @staticmethod
-    async def create(*, obj: CreateDocDirParam) -> None:
+    async def create(*, obj: CreateDocDirParam) -> int:
         async with async_db_session.begin() as db:
             # 检查是否存在相同名称和父级目录的记录
             doc_dir = await doc_dir_dao.get_by_name(db, obj.name, obj.parent_id)
@@ -46,7 +46,9 @@ class DocDirService:
                 parent_dir = await doc_dir_dao.get(db, obj.parent_id)
                 if not parent_dir:
                     raise errors.NotFoundError(msg='父级目录不存在')
-            await doc_dir_dao.create(db, obj)
+            created = await doc_dir_dao.create(db, obj)
+            await db.flush()
+            return created.id
 
     @staticmethod
     async def update(*, pk: int, obj: UpdateDocDirParam) -> int:

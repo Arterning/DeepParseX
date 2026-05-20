@@ -38,3 +38,13 @@ class GetEntityTypeListDetails(EntityTypeSchemaBase):
 class GetEntityTypeDetails(GetEntityTypeListDetails):
     """获取实体类型详情"""
     pass
+
+
+class ExtractRelationsParam(SchemaBase):
+    """提取关系参数"""
+    requirement: str = Field(description='用户需求描述，如：提取同事和校友关系')
+
+
+class AnalyzeEntityNLParam(SchemaBase):
+    """自然语言分析实体参数"""
+    question: str = Field(description='自然语言问题，如：毕业于耶鲁大学的人物有哪些？')

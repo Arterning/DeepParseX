@@ -81,6 +81,12 @@ def include_object(object, name, type_, reflected, compare_to):
         if name in excluded_tables:
             return False
 
+    # 忽略 ParadeDB 自定义索引类型（如 bm25），SQLAlchemy 元数据无法表达这些索引
+    if type_ == "index" and name in {
+        "sys_doc_chunk_bm25_idx",
+    }:
+        return False
+
     return True
 
 

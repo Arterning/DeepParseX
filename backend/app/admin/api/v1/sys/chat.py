@@ -19,15 +19,14 @@ async def chat(obj: ChatParam, request: Request) -> ResponseModel:
 
     返回数据格式:
     {
-        "answer": "回答内容（包含超链接的HTML字符串）",
-        "chunks": [
+        "answer": "回答内容，使用 [1]、[2] 标注引用来源",
+        "references": [
             {
-                "chunk_id": "文本片段UUID",
-                "chunk_text": "文本片段内容",
-                "doc_id": "文档ID",
-                "doc_name": "文档名称"
-            },
-            ...
+                "ref_index": 1,
+                "doc_id": 123,
+                "doc_name": "文档名称",
+                "content_preview": "引用内容摘要"
+            }
         ]
     }
     """
