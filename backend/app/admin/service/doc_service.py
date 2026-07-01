@@ -3,6 +3,7 @@
 import re
 from typing import Sequence
 from sqlalchemy import Select, select, func, delete, update
+from sqlalchemy.orm import selectinload
 from typing import List
 from backend.app.admin.service.knowledge_graph.kg_service import kg_service
 from backend.app.admin.crud.crud_doc import sys_doc_dao
@@ -33,6 +34,7 @@ from backend.app.admin.conf import admin_settings
 import asyncio
 import jieba
 import json
+import traceback
 import duckdb
 from collections import defaultdict
 import pandas as pd
@@ -689,13 +691,14 @@ class SysDocService:
 
     
     @staticmethod
-    async def search(*, keyword: str = None, page: int = None, size: int = None):
+    async def search(*, keyword: str = None, page: int = None, size: int = None, doc_type: list[str] | None = None):
         """
         在文档分块中搜索关键词
 
         :param keyword: 搜索关键词
         :param page: 页码
         :param size: 每页大小
+        :param doc_type: 文档类型过滤列表
         :return: 搜索结果
         """
         if not keyword:
@@ -717,7 +720,8 @@ class SysDocService:
                 tokens,
                 page or 1,
                 size or 10,
-                search_translation=False
+                search_translation=False,
+                doc_type=doc_type
             )
 
             # 高亮处理
@@ -1210,6 +1214,55 @@ class SysDocService:
             return await sys_doc_embedding_dao.create_bulk(db, emb_list)
 
     @staticmethod
+    async def translate_title(*, pk: int, target_language: str) -> dict:
+        """
+        翻译文件标题。
+        - 普通文件：读取 title → 翻译 → 保存到 name
+        - 邮件关联文件：读取 name → 翻译 → 保存到 name 和 email_msg.translate_subject
+
+        :param pk: 文档ID
+        :param target_language: 目标语言
+        :return: dict with translated_title and has_email
+        """
+        async with async_db_session.begin() as db:
+            stmt = select(SysDoc).options(selectinload(SysDoc.email_msg)).where(SysDoc.id == pk)
+            result = await db.execute(stmt)
+            doc = result.scalars().first()
+            if not doc:
+                raise errors.NotFoundError(msg='文件不存在')
+
+            has_email = doc.email_msg is not None
+
+            # 确定翻译源文本
+            if has_email:
+                source_text = doc.email_msg.subject  # 邮件文件：取 mail_msg.subject 作为翻译源
+            else:
+                source_text = doc.title  # 普通文件：title 是文件原名
+
+            if not source_text or not source_text.strip():
+                return {'translated_title': '', 'has_email': has_email}
+
+            system_prompt = f"你是一个专业的翻译助手。请将以下标题翻译成{target_language}。只返回翻译结果，不要添加任何解释。禁止在译文中夹带任何原文内容，译文必须是纯翻译文本。"
+
+            try:
+                question = f"请将以下标题翻译成{target_language}：\n---\n{source_text}\n---"
+                translated = await llm_service.get_llm_response(system_prompt, question)
+            except Exception as e:
+                log.error(f"翻译标题失败: {repr(e)}\n{traceback.format_exc()}")
+                translated = source_text  # 翻译失败时保留原文
+
+            # 保存到 name 字段
+            doc.name = translated
+
+            # 如果是邮件关联文件，同时保存到 email_msg.translate_subject
+            if has_email:
+                doc.email_msg.translate_subject = translated
+
+            await db.flush()
+
+            return {'translated_title': translated, 'has_email': has_email}
+
+    @staticmethod
     async def translate_chunks(*, pk: int, target_language: str) -> list[dict]:
         """
         逐个翻译文档的所有分块
@@ -1227,7 +1280,7 @@ class SysDocService:
                     await db.flush()
                 return []
 
-            system_context = f"你是一个专业的翻译助手。请将以下内容翻译成{target_language}。只返回翻译结果，不要添加任何解释。"
+            system_context = f"你是一个专业的翻译助手。请将以下内容翻译成{target_language}。只返回翻译结果，不要添加任何解释。禁止在译文中夹带任何原文内容，译文必须是纯翻译文本。"
             results = []
             for chunk in chunks:
                 if not chunk.chunk_text:
@@ -1288,7 +1341,7 @@ class SysDocService:
                 await db.flush()
                 return []
 
-            system_context = f"你是一个专业的翻译助手。请将以下内容翻译成{target_language}。只返回翻译结果，不要添加任何解释。"
+            system_context = f"你是一个专业的翻译助手。请将以下内容翻译成{target_language}。只返回翻译结果，不要添加任何解释。禁止在译文中夹带任何原文内容，译文必须是纯翻译文本。"
             results = []
             for page in pages:
                 page_text = (page.get('text') or '').strip()
@@ -1525,9 +1578,9 @@ class SysDocService:
                 "4. 只输出 Markdown，不要额外解释\n"
                 "5. 如果内容不足以划分章节，至少给出标题、关键词、摘要和正文"
             )
-            user_prompt = f"请处理以下内容：\n\n{input_text}"
+            user_prompt = f"请处理以下文档内容：\n\n{input_text}"
 
-            result = await llm_service.get_llm_response(system_context, user_prompt)
+            result = await llm_service.get_llm_response(system_context, user_prompt, temperature=0.2)
 
             doc.refined_markdown = result
             await db.flush()

@@ -13,12 +13,21 @@ class MailBoxSchemaBase(SchemaBase):
     name: str
     user_name: str | None = None
     country: str | None = None
+    occupation: str | None = None
+    organization: str | None = None
+    job_title: str | None = None
     email_num: int | None = None
     labels: str | None = None
     other_info: str | None = None
     profile: str | None = None
 
     
+
+class GetTagSimple(SchemaBase):
+    """简化的标签信息，用于列表展示"""
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
 
 
 class CreateMailBoxParam(MailBoxSchemaBase):
@@ -36,6 +45,8 @@ class GetMailBoxListDetails(MailBoxSchemaBase):
     
     created_time: datetime
     updated_time: datetime | None = None
+
+    tags: list[GetTagSimple] = []
     
 class GetMailBoxDetails(MailBoxSchemaBase):
     model_config = ConfigDict(from_attributes=True)
@@ -44,6 +55,8 @@ class GetMailBoxDetails(MailBoxSchemaBase):
 
     created_time: datetime
     updated_time: datetime | None = None
+
+    tags: list[GetTagSimple] = []
 
 
 class MailMsgBrief(SchemaBase):
@@ -54,7 +67,7 @@ class MailMsgBrief(SchemaBase):
     doc_id: int | None = None
     name: str | None = None
     subject: str | None = None
-    zh_subject: str | None = None
+    translate_subject: str | None = None
     time: datetime | None = None
     sender: str | None = None
     receiver: str | None = None

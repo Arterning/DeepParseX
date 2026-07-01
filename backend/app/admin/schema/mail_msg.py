@@ -12,8 +12,8 @@ class MailMsgSchemaBase(SchemaBase):
   name: str 
   subject: str | None = None
   original: str | None = None
-  zh_content: str | None = None
-  zh_subject: str | None = None
+  translate_content: str | None = None
+  translate_subject: str | None = None
   time: datetime | None = None
   category: str | None = None
   sender: str | None = None
@@ -46,16 +46,30 @@ class UpdateMailMsgParam(MailMsgSchemaBase):
     pass
 
 
+class TranslateMailMsgParam(SchemaBase):
+    """翻译邮件参数"""
+    target_language: str = '中文'
+
+
+class GetTagSimple(SchemaBase):
+    """简化的标签信息，用于列表展示"""
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+
+
 class GetMailMsgListDetails(MailMsgSchemaBase):
     model_config = ConfigDict(from_attributes=True)
 
     original: str | None = Field(default=None, exclude=True)
-    zh_content: str | None = Field(default=None, exclude=True)
-    zh_subject: str | None = Field(default=None, exclude=True)
+    translate_content: str | None = Field(default=None, exclude=True)
     id: int
     
     created_time: datetime
     updated_time: datetime | None = None
+    
+    tags: list[GetTagSimple] = []
+    desc: str | None = None
     
 class GetMailMsgDetails(MailMsgSchemaBase):
     model_config = ConfigDict(from_attributes=True)
