@@ -63,6 +63,44 @@ def get_file_suffix(filename: str):
     return Path(filename).suffix.lower()
 
 
+# 允许上传的文件扩展名白名单
+ALLOWED_EXTENSIONS = {
+    # 文本
+    '.txt', '.md', '.config', '.host',
+    # 代码
+    '.c', '.cpp', '.java', '.py', '.js', '.ts', '.rb', '.go',
+    # 办公文档
+    '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.pdf',
+    # 数据
+    '.csv', '.json', '.parquet',
+    # 图片
+    '.jpg', '.jpeg', '.png',
+    # 音视频
+    '.mp3', '.mp4', '.wav', '.flv',
+    # 邮件
+    '.eml', '.mbox',
+    # 网页
+    '.html', '.htm',
+    # 压缩包
+    '.zip', '.rar', '.7z',
+}
+
+
+def validate_file_extension(filename: str) -> str:
+    """校验文件扩展名是否在白名单内，返回后缀。不在白名单内则抛出 ValueError。"""
+    suffix = get_file_suffix(filename)
+    if suffix not in ALLOWED_EXTENSIONS:
+        raise ValueError(f"不允许的文件类型: {suffix}")
+    return suffix
+
+
+def safe_content_type(filename: str) -> str:
+    """根据文件名推断 content_type，不信任客户端传入值。"""
+    import mimetypes
+    content_type, _ = mimetypes.guess_type(filename)
+    return content_type or 'application/octet-stream'
+
+
 file_type_handlers = {
     'spreadsheet': lambda suffix: is_excel_file(suffix) or is_parquet_file(suffix) or is_csv_file(suffix),
     'image': is_picture_file,

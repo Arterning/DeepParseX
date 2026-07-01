@@ -10,7 +10,6 @@ from backend.common.pagination import DependsPagination, paging_data
 from backend.common.response.response_schema import ResponseModel, response_base
 from backend.common.security.jwt import DependsJwtAuth
 from backend.common.security.permission import RequestPermission
-from backend.common.security.rbac import DependsRBAC
 from backend.database.db_pg import CurrentSession
 from backend.utils.serializers import select_as_dict
 
@@ -50,8 +49,7 @@ async def get_pagination_upload_task(
     '',
     summary='创建',
     dependencies=[
-        Depends(RequestPermission(':add')),
-        DependsRBAC,
+        DependsJwtAuth,
     ],
 )
 async def create_upload_task(obj: CreateUploadTaskParam) -> ResponseModel:
@@ -63,8 +61,7 @@ async def create_upload_task(obj: CreateUploadTaskParam) -> ResponseModel:
     '/{pk}',
     summary='更新',
     dependencies=[
-        Depends(RequestPermission(':edit')),
-        DependsRBAC,
+        DependsJwtAuth,
     ],
 )
 async def update_upload_task(pk: Annotated[int, Path(...)], obj: UpdateUploadTaskParam) -> ResponseModel:
@@ -78,8 +75,7 @@ async def update_upload_task(pk: Annotated[int, Path(...)], obj: UpdateUploadTas
     '',
     summary='（批量）删除',
     dependencies=[
-        Depends(RequestPermission(':del')),
-        DependsRBAC,
+        DependsJwtAuth,
     ],
 )
 async def delete_upload_task(pk: Annotated[list[int], Query(...)]) -> ResponseModel:

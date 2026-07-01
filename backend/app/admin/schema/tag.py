@@ -11,6 +11,7 @@ from backend.common.schema import SchemaBase
 class TagSchemaBase(SchemaBase):
     name: str
     create_user: int | None = None
+    tag_type: str | None = None
 
     
 

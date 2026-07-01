@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "url": "http://fba_playwright:3000/mcp"
+    }
+  }
+}

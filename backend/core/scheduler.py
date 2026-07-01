@@ -53,7 +53,10 @@ async def _summary_loop():
 
 async def start_scheduler():
     """启动调度器"""
-    if settings.RSS_BRIEF_ENABLED:
+    from backend.app.admin.service.config_service import config_service
+    cfg = await config_service.get_merged_settings()
+
+    if cfg.RSS_BRIEF_ENABLED:
         from backend.app.admin.service.news_briefing_service import news_briefing_service
         scheduler.add_job(
             news_briefing_service.run_daily_briefing,
@@ -66,12 +69,18 @@ async def start_scheduler():
         scheduler.start()
         log.info("已注册定时任务: 每日新闻简报 (每天 07:00)")
 
-    # _loop_tasks.append(asyncio.create_task(_pipeline_loop()))
-    # _loop_tasks.append(asyncio.create_task(_summary_loop()))
+    if cfg.PIPELINE_LOOP_ENABLED:
+        _loop_tasks.append(asyncio.create_task(_pipeline_loop()))
+
+    if cfg.SUMMARY_LOOP_ENABLED:
+        _loop_tasks.append(asyncio.create_task(_summary_loop()))
+
     log.info(
         f"已启动 {len(_loop_tasks)} 个并发处理循环 "
-        f"(batch_size={settings.SCHEDULER_BATCH_SIZE}, "
-        f"idle_sleep={settings.SCHEDULER_IDLE_SLEEP}s)"
+        f"(pipeline={cfg.PIPELINE_LOOP_ENABLED}, "
+        f"summary={cfg.SUMMARY_LOOP_ENABLED}, "
+        f"batch_size={cfg.SCHEDULER_BATCH_SIZE}, "
+        f"idle_sleep={cfg.SCHEDULER_IDLE_SLEEP}s)"
     )
 
 

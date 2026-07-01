@@ -26,9 +26,9 @@ class MailMsg(Base, UserMixin):
     
     original: Mapped[str] = mapped_column(TEXT, default='', comment='原文')
 
-    zh_subject: Mapped[str | None] = mapped_column(TEXT, default='', comment='翻译主题')
+    translate_subject: Mapped[str | None] = mapped_column(TEXT, default='', comment='翻译主题')
     
-    zh_content: Mapped[str | None] = mapped_column(TEXT, default='', comment='翻译')
+    translate_content: Mapped[str | None] = mapped_column(TEXT, default='', comment='翻译内容')
     
     time: Mapped[datetime | None] = mapped_column(default=None, comment='时间')
 
@@ -77,6 +77,16 @@ class MailMsg(Base, UserMixin):
     )
 
     doc: Mapped[Union['SysDoc', None]] = relationship(init=False, back_populates='email_msg')
+
+    @property
+    def tags(self) -> list:
+        """代理到关联文档的标签"""
+        return self.doc.tags if self.doc else []
+
+    @property
+    def desc(self) -> str | None:
+        """代理到关联文档的摘要"""
+        return self.doc.desc if self.doc else None
 
     doc_name: Mapped[str | None] = mapped_column(TEXT, default='', comment='文件名称')
 

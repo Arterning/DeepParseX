@@ -12,13 +12,13 @@ from backend.app.admin.service.ai_service import call_llm
 class LLMService:
 
     @staticmethod
-    async def get_llm_response(system_context: str, user_input: str):
+    async def get_llm_response(system_context: str, user_input: str, temperature: float = 0.7):
         
         # 创建配置对象
         config = {
             "provider": settings.LLM_PROVIDER,
             "llm": {
-                "temperature": 0.7
+                "temperature": temperature
             }
         }
         
@@ -34,7 +34,6 @@ class LLMService:
                     raise
                 else:
                     await asyncio.sleep(0.5)  # 等待一段时间后重试
-                    
-                
+                       
 
 llm_service = LLMService()

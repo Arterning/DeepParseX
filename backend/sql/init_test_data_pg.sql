@@ -87,3 +87,5 @@ CREATE INDEX sys_doc_chunk_bm25_idx ON sys_doc_chunk
       key_field   = 'id',
       text_fields = '{"chunk_text": {"tokenizer": {"type": "icu"}}}'
     );
+
+

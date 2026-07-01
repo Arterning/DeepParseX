@@ -9,7 +9,6 @@ from backend.app.admin.service.doc_dir_service import doc_dir_service
 from backend.common.response.response_schema import ResponseModel, response_base
 from backend.common.security.jwt import DependsJwtAuth
 from backend.common.security.permission import RequestPermission
-from backend.common.security.rbac import DependsRBAC
 from backend.utils.serializers import select_as_dict, select_columns_serialize
 
 router = APIRouter()
@@ -39,8 +38,7 @@ async def get_all_doc_dirs_tree(
     '',
     summary='创建目录',
     dependencies=[
-        Depends(RequestPermission('sys:doc_dir:add')),
-        DependsRBAC,
+        DependsJwtAuth,
     ],
 )
 async def create_doc_dir(obj: CreateDocDirParam) -> ResponseModel:
@@ -52,8 +50,7 @@ async def create_doc_dir(obj: CreateDocDirParam) -> ResponseModel:
     '/{pk}',
     summary='更新目录',
     dependencies=[
-        Depends(RequestPermission('sys:doc_dir:edit')),
-        DependsRBAC,
+        DependsJwtAuth,
     ],
 )
 async def update_doc_dir(pk: Annotated[int, Path(...)], obj: UpdateDocDirParam) -> ResponseModel:
@@ -67,8 +64,7 @@ async def update_doc_dir(pk: Annotated[int, Path(...)], obj: UpdateDocDirParam) 
     '/{pk}',
     summary='删除目录',
     dependencies=[
-        Depends(RequestPermission('sys:doc_dir:del')),
-        DependsRBAC,
+        DependsJwtAuth,
     ],
 )
 async def delete_doc_dir(pk: Annotated[int, Path(...)]) -> ResponseModel:

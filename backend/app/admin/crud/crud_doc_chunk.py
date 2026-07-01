@@ -55,7 +55,8 @@ class CRUDSysDocChunk(CRUDPlus[SysDocChunk]):
         tokens: str = None,
         page: int = 1,
         size: int = 10,
-        search_translation: bool = False
+        search_translation: bool = False,
+        doc_type: list[str] | None = None
     ):
         """
         在分块中搜索
@@ -65,6 +66,7 @@ class CRUDSysDocChunk(CRUDPlus[SysDocChunk]):
         :param page: 页码
         :param size: 每页大小
         :param search_translation: 是否同时搜索翻译内容
+        :param doc_type: 文档类型过滤列表
         :return: 搜索结果
         """
         offset = (page - 1) * size
@@ -87,6 +89,10 @@ class CRUDSysDocChunk(CRUDPlus[SysDocChunk]):
                 where_clause = "chunk_vector @@ plainto_tsquery('simple', :tokens)"
                 rank_expr = "ts_rank(chunk_vector, plainto_tsquery('simple', :tokens))"
 
+            type_filter = ""
+            if doc_type:
+                type_filter = " AND d.type = ANY(:doc_types)"
+
             # 先按文档分组分页，再取对应文档下的所有匹配 chunks
             query = f"""
             WITH ranked_docs AS (
@@ -94,7 +100,8 @@ class CRUDSysDocChunk(CRUDPlus[SysDocChunk]):
                     c.doc_id,
                     MAX({rank_expr}) as max_rank
                 FROM sys_doc_chunk c
-                WHERE {where_clause}
+                JOIN sys_doc d ON c.doc_id = d.id
+                WHERE {where_clause}{type_filter}
                 GROUP BY c.doc_id
                 ORDER BY max_rank DESC
                 LIMIT :limit OFFSET :offset
@@ -116,13 +123,16 @@ class CRUDSysDocChunk(CRUDPlus[SysDocChunk]):
             FROM sys_doc_chunk c
             JOIN sys_doc d ON c.doc_id = d.id
             JOIN ranked_docs rd ON c.doc_id = rd.doc_id
-            WHERE {where_clause}
+            WHERE {where_clause}{type_filter}
             ORDER BY rd.max_rank DESC, c.doc_id, c.chunk_index;
             """
 
+            params = {"tokens": tokens, "limit": size, "offset": offset}
+            if doc_type:
+                params["doc_types"] = doc_type
             result = await db.execute(
                 text(query),
-                {"tokens": tokens, "limit": size, "offset": offset}
+                params
             )
             chunks = result.fetchall()
 
@@ -156,9 +166,13 @@ class CRUDSysDocChunk(CRUDPlus[SysDocChunk]):
             count_query = f"""
             SELECT COUNT(DISTINCT c.doc_id)
             FROM sys_doc_chunk c
-            WHERE {where_clause};
+            JOIN sys_doc d ON c.doc_id = d.id
+            WHERE {where_clause}{type_filter};
             """
-            count_result = await db.execute(text(count_query), {"tokens": tokens})
+            count_params = {"tokens": tokens}
+            if doc_type:
+                count_params["doc_types"] = doc_type
+            count_result = await db.execute(text(count_query), count_params)
             total = count_result.scalar() or 0
 
             return {

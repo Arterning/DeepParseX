@@ -20,6 +20,7 @@ class Tag(Base, UserMixin):
     
     name: Mapped[str] = mapped_column(sa.String(), default='', comment='标签名称')
 
+    tag_type: Mapped[str | None] = mapped_column(sa.String(50), default=None, comment='标签类型：null=普通标签，mail_box=邮箱标签')
 
     docs: Mapped[list['SysDoc']] = relationship(
         init=False, secondary=sys_tag_doc

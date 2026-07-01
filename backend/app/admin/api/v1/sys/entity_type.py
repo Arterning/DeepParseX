@@ -19,7 +19,6 @@ from backend.common.pagination import DependsPagination, paging_data
 from backend.common.response.response_schema import response_base, ResponseModel
 from backend.common.security.jwt import DependsJwtAuth
 from backend.common.security.permission import RequestPermission
-from backend.common.security.rbac import DependsRBAC
 from backend.database.db_pg import CurrentSession
 
 router = APIRouter()
@@ -74,13 +73,13 @@ async def get_pagination_entity_types(
     return response_base.success(data=page_data)
 
 
-@router.post('', summary='创建实体类型', dependencies=[Depends(RequestPermission('sys:entity_type:add')), DependsRBAC])
+@router.post('', summary='创建实体类型', dependencies=[DependsJwtAuth])
 async def create_entity_type(obj: CreateEntityTypeParam) -> ResponseModel:
     await entity_type_service.create(obj=obj)
     return response_base.success()
 
 
-@router.put('/{pk}', summary='更新实体类型', dependencies=[Depends(RequestPermission('sys:entity_type:edit')), DependsRBAC])
+@router.put('/{pk}', summary='更新实体类型', dependencies=[DependsJwtAuth])
 async def update_entity_type(pk: int, obj: UpdateEntityTypeParam) -> ResponseModel:
     count = await entity_type_service.update(pk=pk, obj=obj)
     if count > 0:
@@ -89,7 +88,7 @@ async def update_entity_type(pk: int, obj: UpdateEntityTypeParam) -> ResponseMod
 
 
 @router.delete(
-    '', summary='批量删除实体类型', dependencies=[Depends(RequestPermission('sys:entity_type:del')), DependsRBAC]
+    '', summary='批量删除实体类型', dependencies=[DependsJwtAuth]
 )
 async def delete_entity_type(pk: Annotated[list[int], Query(...)]) -> ResponseModel:
     count = await entity_type_service.delete(pk=pk)

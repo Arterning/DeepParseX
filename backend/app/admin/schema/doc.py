@@ -24,9 +24,10 @@ class SysDocSchemaBase(SchemaBase):
     dept_id: int | None = None
     doc_dir_id: int | None = None
     language: str | None = None
+    translate_image: str | None = None
     created_by: int | None = None
     created_user: str | None = None
-    
+
 
 class GetTagSimple(SchemaBase):
     """简化的标签信息，用于列表展示"""
@@ -66,6 +67,7 @@ class UpdateSysDocParam(SchemaBase):
     error_msg: str | None = None
     status: int | None = None
     doc_dir_id: int | None = None
+    translate_image: str | None = None
     tags: list[str] | None = []
 
 
@@ -163,7 +165,7 @@ class ParseEntityParams(SchemaBase):
 
 class TranslateChunksParams(SchemaBase):
     """翻译分块参数"""
-    target_language: str = 'zh_CN'
+    target_language: str = '中文'
 
 
 class UpdateOcrPageParam(SchemaBase):

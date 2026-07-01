@@ -10,7 +10,6 @@ from backend.common.pagination import DependsPagination, paging_data
 from backend.common.response.response_schema import ResponseModel, response_base
 from backend.common.security.jwt import DependsJwtAuth
 from backend.common.security.permission import RequestPermission
-from backend.common.security.rbac import DependsRBAC
 from backend.database.db_pg import CurrentSession
 from backend.utils.serializers import select_as_dict
 
@@ -18,10 +17,13 @@ router = APIRouter()
 
 
 @router.get('/all', summary='获取用户所有标签', dependencies=[DependsJwtAuth])
-async def get_all_user_tags(request: Request) -> ResponseModel:
-    """获取当前用户的所有标签（包括用户创建的标签和系统标签）"""
+async def get_all_user_tags(
+    request: Request,
+    tag_type: Annotated[str | None, Query(description='标签类型过滤，如 mail_box')] = None,
+) -> ResponseModel:
+    """获取当前用户的所有标签（包括用户创建的标签和系统标签），可按类型过滤"""
     user_id = request.user.id
-    tags = await tag_service.get_all_by_user(user_id=user_id)
+    tags = await tag_service.get_all_by_user(user_id=user_id, tag_type=tag_type)
     data = [GetTagListDetails(**select_as_dict(tag)) for tag in tags]
     return response_base.success(data=data)
 
@@ -56,8 +58,9 @@ async def get_pagination_tag(db: CurrentSession) -> ResponseModel:
 )
 async def create_tag(request: Request, obj: CreateTagParam) -> ResponseModel:
     obj.create_user = request.user.id
-    await tag_service.create(obj=obj)
-    return response_base.success()
+    tag = await tag_service.create(obj=obj)
+    data = GetTagListDetails(**select_as_dict(tag))
+    return response_base.success(data=data)
 
 
 @router.put(

@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "--init",
+        "--pull=always",
+        "mcr.microsoft.com/playwright/mcp"
+      ]
+    }
+  },
+
+  "_comments": {
+    "http_alternative": "如需使用 HTTP 模式（独立 playwright service），将上方 playwright 配置替换为:",
+    "playwright_http": {
+      "url": "http://fba_playwright:3000/mcp"
+    }
+  }
+}

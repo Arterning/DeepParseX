@@ -37,3 +37,5 @@ from backend.app.admin.model.sys_text2sql_table import Text2SQLTable
 from backend.app.admin.model.sys_text2sql_example import Text2SQLExample
 from backend.app.admin.model.sys_text2sql_query_log import Text2SQLQueryLog
 from backend.app.admin.model.sys_text2sql_column import Text2SQLColumn
+from backend.app.admin.model.mail_batch_summary import MailBatchSummary
+from backend.app.admin.model.mail_event_timeline import MailEventTimeline

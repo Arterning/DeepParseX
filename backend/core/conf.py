@@ -178,6 +178,8 @@ class Settings(BaseSettings):
     # Scheduler
     SCHEDULER_BATCH_SIZE: int = 10    # 每批处理文件/实体数量，根据硬件性能调整
     SCHEDULER_IDLE_SLEEP: int = 60    # 无待处理任务时的休眠秒数
+    PIPELINE_LOOP_ENABLED: bool = False   # 实体处理流水线（提取 → 图谱 → 关联）
+    SUMMARY_LOOP_ENABLED: bool = False    # 摘要与翻译持续循环
 
     # Minio 
     MINIO_URL: str = 'http://localhost:9000'
@@ -197,7 +199,7 @@ class Settings(BaseSettings):
     # EMBEDDING
     EMBEDDING_MODEL: str = 'BAAI/bge-large-zh-v1.5'
     EMBEDDING_MODEL_PATH: str = ''  # 本地模型路径，优先使用；为空时从网络下载
-    EMBEDDING_URL: str = 'http://localhost:8104/text_to_vector'
+    EMBEDDING_URL: str = 'http://localhost:8003'
     EMBEDDING_API_KEY: str = ''
     
     # OA Platform

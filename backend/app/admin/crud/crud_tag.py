@@ -49,28 +49,32 @@ class CRUDTag(CRUDPlus[Tag]):
         """
         return await self.select_models(db)
 
-    async def get_all_by_user(self, db: AsyncSession, user_id: int) -> Sequence[Tag]:
+    async def get_all_by_user(self, db: AsyncSession, user_id: int, tag_type: str | None = None) -> Sequence[Tag]:
         """
         获取用户的所有标签（包括用户创建的标签和系统标签）
 
         :param db:
         :param user_id: 用户ID
+        :param tag_type: 可选过滤标签类型
         :return:
         """
         from sqlalchemy import or_
+        conditions = [
+            or_(
+                self.model.create_user == user_id,
+                self.model.create_user.is_(None)
+            )
+        ]
+        if tag_type is not None:
+            conditions.append(self.model.tag_type == tag_type)
         query = await db.execute(
             select(self.model)
-            .where(
-                or_(
-                    self.model.create_user == user_id,
-                    self.model.create_user.is_(None)
-                )
-            )
+            .where(*conditions)
             .order_by(desc(self.model.created_time))
         )
         return query.scalars().all()
 
-    async def create(self, db: AsyncSession, obj_in: CreateTagParam) -> None:
+    async def create(self, db: AsyncSession, obj_in: CreateTagParam) -> Tag:
         """
         创建 Tag
 
@@ -78,7 +82,11 @@ class CRUDTag(CRUDPlus[Tag]):
         :param obj_in:
         :return:
         """
-        await self.create_model(db, obj_in)
+        tag = self.model(**obj_in.model_dump())
+        db.add(tag)
+        await db.flush()
+        await db.refresh(tag)
+        return tag
 
     async def update(self, db: AsyncSession, pk: int, obj_in: UpdateTagParam) -> int:
         """

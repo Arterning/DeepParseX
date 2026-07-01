@@ -19,7 +19,6 @@ from backend.common.pagination import DependsPagination, paging_data
 from backend.common.response.response_schema import ResponseModel, response_base
 from backend.common.security.jwt import DependsJwtAuth
 from backend.common.security.permission import RequestPermission
-from backend.common.security.rbac import DependsRBAC
 from backend.database.db_pg import CurrentSession
 from backend.utils.serializers import select_as_dict
 
@@ -129,8 +128,7 @@ async def update_entity(pk: Annotated[int, Path(...)], obj: UpdateEntityParam) -
     '',
     summary='（批量）删除',
     dependencies=[
-        Depends(RequestPermission(':del')),
-        DependsRBAC,
+        DependsJwtAuth,
     ],
 )
 async def delete_entity(pk: Annotated[list[int], Query(...)]) -> ResponseModel:

@@ -4,24 +4,24 @@ from typing import Union
 from datetime import datetime
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
-from sqlalchemy import String, ForeignKey, Integer
+from sqlalchemy import String, ForeignKey, Integer, Index
 from sqlalchemy.dialects.postgresql import TEXT
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.common.model import Base, id_key, UserMixin
+from backend.app.admin.model.sys_mail_box_tag import sys_mail_box_tag
 
-# 姓名：邮箱账号的实名。
-# 账号：邮箱号。
-# 国籍/地区：邮箱号的国籍或地区。
-# 标签：邮箱用户的标签。（邮件用户的标签为什么和邮箱的标签一样）
-# 邮件箱数量：邮箱用户邮件数量。
-# 其它信息：其它信息，可按照用户需求选择展示。
 
 class MailBox(Base, UserMixin):
     """邮箱"""
 
     __tablename__ = 'mail_box'
+
+    __table_args__ = (
+        Index('ix_mail_box_name_trgm', 'name', postgresql_using='gin',
+              postgresql_ops={'name': 'gin_trgm_ops'}),
+    )
 
     id: Mapped[id_key] = mapped_column(init=False)
     
@@ -29,19 +29,22 @@ class MailBox(Base, UserMixin):
 
     user_name: Mapped[str | None] = mapped_column(String(500), default='', comment='姓名')
 
-    country: Mapped[str] = mapped_column(String(500), default='', comment='国家/地区')
+    country: Mapped[str | None] = mapped_column(String(500), default='', comment='国家/地区')
 
-    labels: Mapped[str] = mapped_column(String(500), default='', comment='标签')
+    occupation: Mapped[str | None] = mapped_column(String(500), default='', comment='职业')
+
+    organization: Mapped[str | None] = mapped_column(String(500), default='', comment='组织/公司')
+
+    job_title: Mapped[str | None] = mapped_column(String(500), default='', comment='职位')
+
+    labels: Mapped[str | None] = mapped_column(String(500), default='', comment='标签')
 
     email_num: Mapped[int] = mapped_column(Integer(), default=0, comment='邮件数量')
 
-    other_info: Mapped[str] = mapped_column(TEXT, default='', comment='其它信息')
+    other_info: Mapped[str | None] = mapped_column(TEXT, default='', comment='其它信息')
 
     profile: Mapped[str | None] = mapped_column(TEXT, default=None, comment='AI生成的邮箱画像')
 
-    # person_id: Mapped[int | None] = mapped_column(
-    #     ForeignKey('sys_person.id', ondelete='SET NULL'), default=None, comment='所属人物ID'
-    # )
-    # person: Mapped[Union['Person', None]] = relationship(init=False, back_populates='mail_boxes')
-
-    
+    tags: Mapped[list['Tag']] = relationship(
+        init=False, secondary=sys_mail_box_tag
+    )

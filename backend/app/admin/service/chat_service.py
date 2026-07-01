@@ -147,6 +147,20 @@ class ChatService:
         messages.append({"role": "user", "content": obj.question})
         log.debug(f"[rag_chat] question={obj.question!r}, doc_id={obj.doc_id}, session_id={obj.session_id}, history_len={len(messages)-1}")
 
+        agent_mode = obj.agent_mode is True
+
+        # ── Agent 模式：跳过预检索，让 Agent 自行按需搜索 ──
+        if agent_mode:
+            from backend.app.admin.service.agent.prompts import build_agent_system_prompt
+            system_prompt = build_agent_system_prompt()
+
+            response = await ai_service.chat_with_tools(
+                messages=messages,
+                system_prompt=system_prompt,
+            )
+            return {"answer": response, "references": []}
+
+        # ── 传统 RAG 模式：预检索 + 上下文注入 ──
         # 2. 问题改写：提取检索关键词，提升召回率
         rewritten = await rewrite_query(obj.question)
         log.debug(f"[rag_chat] rewritten={rewritten!r}")
@@ -178,25 +192,19 @@ class ChatService:
             vector_task, fulltext_task
         )
         log.debug(f"[rag_chat] vector_results={len(vector_results)} 条, fulltext_results={len(fulltext_results)} 条")
-        for i, r in enumerate(vector_results):
-            log.debug(f"[rag_chat]   vector[{i}] doc_id={r.doc_id} doc_name={r.doc_name!r} chunk={r.chunk_text[:80]!r}...")
-        for i, r in enumerate(fulltext_results):
-            log.debug(f"[rag_chat]   fulltext[{i}] doc_id={r.doc_id} doc_name={r.doc_name!r} chunk={r.chunk_text[:80]!r}...")
 
-        # 3. RRF 融合排序
+        # 5. RRF 融合排序
         merged = _rrf_fusion(vector_results, fulltext_results)
         log.debug(f"[rag_chat] RRF 融合后 {len(merged)} 条")
-        for i, m in enumerate(merged):
-            log.debug(f"[rag_chat]   merged[{i}] doc_id={m['doc_id']} doc_name={m['doc_name']!r} rrf={m['rrf_score']:.6f}")
 
-        # 4. 可选 LLM Rerank
+        # 6. 可选 LLM Rerank
         if rerank and len(merged) > rerank_top_n:
             ranked = await _llm_rerank(obj.question, merged, top_n=rerank_top_n)
         else:
             ranked = merged[:rerank_top_n]
         log.debug(f"[rag_chat] rerank 后 {len(ranked)} 条: {[r['doc_name'] for r in ranked]}")
 
-        # 5. 按文件分组 chunks，合并同一文件的内容
+        # 7. 按文件分组 chunks，合并同一文件的内容
         doc_groups: OrderedDict[int, dict] = OrderedDict()
         for item in ranked:
             if not item["chunk_text"]:
@@ -213,7 +221,7 @@ class ChatService:
         # 构建带编号的引用列表和上下文
         references = []
         context_parts = []
-        ref_map = {}  # {编号 -> 文件标题}，用于后处理替换
+        ref_map = {}
         for ref_idx, (did, group) in enumerate(doc_groups.items(), start=1):
             merged_text = "\n".join(group["chunks"])
             content_preview = merged_text[:300] + ("..." if len(merged_text) > 300 else "")
@@ -225,43 +233,36 @@ class ChatService:
                 "content_preview": content_preview,
             })
             ref_map[ref_idx] = doc_name
-            # 清洗 chunk 中原有的 [数字] 标记，避免 LLM 混淆引用编号
             clean_text = re.sub(r'\[(\d+)\]', r'(\1)', merged_text)
             context_parts.append(f"[{ref_idx}] 来源：{doc_name}\n内容: {clean_text}")
 
         context = "\n\n".join(context_parts)
-        log.debug(f"[rag_chat] context={context}")
-        log.debug(f"[rag_chat] ref_map={ref_map}")
-        log.debug(f"[rag_chat] references={references}")
 
-        # 6. 构建 system prompt（RAG 上下文 + 能力说明）
+        # 8. 构建 system prompt（传统 RAG 模式）
         if context:
             system_prompt = (
-                "你是一个知识库助手。。\n\n"
-                "## 知识库上下文（已由系统检索完成，无需再次搜索）\n"
+                "你是一个知识库助手。\n\n"
+                "## 知识库上下文\n"
                 "---\n"
                 f"{context}\n"
                 "---\n\n"
                 "## 回答规则\n"
-                "1. 知识性问题（查询、了解、分析、总结等）：直接根据上方上下文回答，"
-                "使用 [1]、[2] 等编号标注来源。禁止调用 search_docs 等搜索工具重复检索。\n"
-                "2. 文件操作指令：仅当用户**明确要求对文件执行写操作**时才调用工具，"
-                "例如「创建文件」「整理文件」「移动文档」「创建目录」「打标签」「生成PPT」等。\n"
-                "3. 判断标准：如果用户意图是**获取信息**，就直接回答；如果用户意图是**改变文件系统状态**，才调用工具。\n"
+                "1. 请根据上方检索到的上下文回答用户问题，使用 [1]、[2] 等编号标注来源。\n"
+                "2. 如果上下文中没有相关信息，可以结合自身知识回答，但请说明哪些内容来自知识库、哪些来自自身知识。\n"
+                "3. 回答要准确、简洁、有条理。\n"
             )
         else:
             system_prompt = (
-                "你是一个知识库助手。。\n\n"
-                "知识库中未检索到相关内容。\n\n"
+                "你是一个知识库助手。\n\n"
+                "知识库中未检索到与用户问题相关的内容。\n\n"
                 "## 回答规则\n"
-                "1. 知识性问题：基于自身知识回答。\n"
-                "2. 文件操作指令：仅当用户**明确要求对文件执行写操作**时才调用工具，"
-                "例如「创建文件」「整理文件」「移动文档」「创建目录」「打标签」「生成PPT」等。\n"
+                "1. 请结合自身知识回答用户问题，并说明知识库中未找到直接相关内容。\n"
+                "2. 回答要准确、简洁、有条理。\n"
             )
 
-        # 7. 统一调用（RAG 直接回答 / Agent 工具调用，由 LLM 自行判断）
-        response = await ai_service.chat_with_tools(
-            messages=messages,
+        # 9. 传统 RAG 模式：基于检索上下文直接回答
+        response = await ai_service.call_llm(
+            user_prompt=obj.question,
             system_prompt=system_prompt,
         )
 
@@ -286,6 +287,25 @@ class ChatService:
 
         log.debug(f"[rag_chat] 替换后回答: {response!r}")
         return {"answer": response, "references": references}
+    
+    @staticmethod
+    async def chat_doc(question: str, context: str, doc_id: int = None):
+        """
+        文档片段对话：基于用户选择的文本片段回答问题
+        不需要检索，不需要持久化，直接基于提供的上下文回答
+        """
+        system_prompt = (
+            "你是一个知识百科助手。请基于你所拥有的内部知识储备回答用户的疑问。\n\n"
+            "回答信息尽可能简洁易懂，面向小白。\n\n"
+            "除非用户指定仅限基于文档内容回答，否则不要限制你的信息来源范围。\n\n"
+        )
+        user_prompt = f"<question>{question}</question>\n\n<document>{context}</document>"
 
+        response = await ai_service.call_llm(
+            user_prompt=user_prompt,
+            system_prompt=system_prompt,
+        )
+
+        return {"answer": response}
 
 chat_service = ChatService()

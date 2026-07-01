@@ -66,7 +66,8 @@ async def create_table():
     import backend.app.admin.model
     
     async with async_engine.begin() as coon:
-        # await coon.execute(text("CREATE EXTENSION vector"))
+        # 先执行扩展初始化（部分表索引依赖 pg_trgm 等扩展，必须在建表前安装）
+        await execute_sql_file(coon, 'sql/init_extensions.sql')
         await coon.run_sync(MappedBase.metadata.create_all)
         result = await coon.execute(text("SELECT COUNT(*) FROM sys_user"))
         count = result.scalar()

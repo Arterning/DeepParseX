@@ -35,19 +35,15 @@ services:
       - fba_pg
       - fba_redis
       - fba-minio
-      # - fba_celery
     volumes:
       - fba_static:/fba/backend/app/static
+      # MCP Playwright: 允许容器内创建 Docker 兄弟容器
+      # 安全提示：生产环境建议改为独立 playwright service + HTTP 模式
+      # - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - fba_network
     environment:
-      - LLM_MODEL=Qwen2.5-7B-Instruct
-      - LLM_API_URL=http://172.17.0.1:8103/v1/chat/completions
-      - LLM_API_KEY=
-      - EMBEDDING_MODEL=text-embedding-3-small
-      - EMBEDDING_URL=http://172.17.0.1:8104/text_to_vector
-      - EMBEDDING_API_KEY=
-      - OCR_URL=http://172.17.0.1:8120/predict
+      - OA_API_URL=http://OA_IP:PORT
     command:
       - bash
       - -c
@@ -111,9 +107,38 @@ services:
       - fba_network
 
 
+  fba-embed:
+    image: fba-embed:latest
+    container_name: fba_embed
+    restart: always
+    ports:
+      - "8003:8003"
+    networks:
+      - fba_network
+
+
+  # ── MCP Playwright (备选方案：HTTP 模式，默认不启动) ──
+  # 启动: docker compose --profile playwright up -d playwright
+  # 使用 HTTP 模式时，将 .mcp.json 中 playwright 改为 url 配置
+  playwright:
+    image: mcr.microsoft.com/playwright/mcp
+    container_name: fba_playwright
+    restart: unless-stopped
+    profiles:
+      - playwright
+    networks:
+      - fba_network
+    command:
+      - "--port"
+      - "3000"
+      - "--host"
+      - "0.0.0.0"
+      - "--allowed-hosts"
+      - "*"
+
   # quay.io/minio/minio:RELEASE.2023-11-01T01-57-10Z-cpuv1
   fba-minio:
-    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
     ports:
       - "9000:9000"
       - "9001:9001"

@@ -571,10 +571,11 @@ async def search(
     tokens: Annotated[str | None, Query()] = None,
     keyword: Annotated[str | None, Query()] = None,
     page: Annotated[int | None, Query()] = None,
-    size: Annotated[int | None, Query()] = None
+    size: Annotated[int | None, Query()] = None,
+    doc_type: Annotated[list[str] | None, Query()] = None
 ) -> ResponseModel:
     keyword = keyword or tokens
-    docs = await sys_doc_service.search(keyword=keyword, page=page, size=size)
+    docs = await sys_doc_service.search(keyword=keyword, page=page, size=size, doc_type=doc_type)
     return response_base.success(data=docs)
 
 
@@ -607,7 +608,7 @@ async def extract_summary(
 
 
 
-@router.post('/translate_chunks/{pk}', summary='翻译文件所有分块',
+@router.post('/translate_chunks/{pk}', summary='翻译文件所有分块（含标题翻译）',
     dependencies=[DependsJwtAuth]
 )
 async def translate_chunks(
@@ -618,6 +619,7 @@ async def translate_chunks(
     if not doc:
         return response_base.fail(message='文件不存在')
     results = await sys_doc_service.translate_chunks(pk=pk, target_language=obj.target_language)
+    title_result = await sys_doc_service.translate_title(pk=pk, target_language=obj.target_language)
     return response_base.success(data=results)
 
 
@@ -632,6 +634,7 @@ async def translate_pages(
     if not doc:
         return response_base.fail(message='文件不存在')
     results = await sys_doc_service.translate_pages(pk=pk, target_language=obj.target_language)
+    title_result = await sys_doc_service.translate_title(pk=pk, target_language=obj.target_language)
     return response_base.success(data=results)
 
 
@@ -671,6 +674,27 @@ async def compose_refined_markdown(
     result = await sys_doc_service.compose_refined_markdown(pk=pk)
     return response_base.success(data=result)
 
+
+
+@router.post('/{pk}/translate_image', summary='翻译图片中的文字（OCR+翻译+擦除+渲染）',
+    dependencies=[DependsJwtAuth]
+)
+async def translate_doc_image(
+    pk: Annotated[int, Path(...)],
+    target_lang: Annotated[str, Body(embed=True)] = 'CHS',
+) -> ResponseModel:
+    """Translate text in an image file.
+
+    Runs the full image-translator pipeline: OCR detection, LLM translation,
+    inpainting (text removal), and text rendering. The result is saved to MinIO
+    and the file path stored in sys_doc.translate_image.
+
+    Args:
+        pk: Document ID (must be an image type)
+        target_lang: Target language code, e.g. CHS, ENG, JPN. Default CHS.
+    """
+    result = await sys_doc_service.translate_doc_image(pk=pk, target_lang=target_lang)
+    return response_base.success(data=result)
 
 @router.put('/page/{pk}', summary='更新OCR分页内容',
     dependencies=[DependsJwtAuth]
