@@ -1,3 +1,5 @@
+
+
 # **DeepParseX** - 多模态文档解析与知识图谱构建平台  
 
 **🚀 项目简介**  
@@ -32,7 +34,7 @@
 
 ## **🛠 技术栈**
 - **文件解析**：PyPDF2, pdfplumber, Apache Tika, PIL, OpenCV, 外部 OCR 接口
-- **NLP/ML**：LangChain, LlamaIndex, 大模型提示词工程
+- **NLP/ML**：OpenAI, sentence-transformers, jieba, 大模型提示词工程
 - **向量存储**：ParadeDB
 - **知识图谱**：NetworkX
 - **后端**：FastAPI, Docker, MinIO
