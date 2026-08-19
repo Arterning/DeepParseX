@@ -1,0 +1,27 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir uv
+
+# Install dependencies (cached layer)
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --no-cache
+
+# Copy application source
+COPY main.py chunker.py ./
+
+# Copy model files (expected at models/BAAI/bge-reranker-v2-m3/)
+COPY models/ ./models/
+
+# Point to the local model path; override at runtime if needed
+ENV RERANK_MODEL=models/BAAI/bge-reranker-v2-m3
+ENV EMBEDDING_MODEL=
+
+# Prevent HuggingFace from attempting network downloads at runtime
+ENV TRANSFORMERS_OFFLINE=1
+ENV HF_DATASETS_OFFLINE=1
+
+EXPOSE 8004
+
+CMD [".venv/bin/uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8004"]

@@ -1,0 +1,27 @@
+[project]
+name = "embedding-api"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "torch>=2.0.0",
+    "sentence-transformers>=2.2.0",
+    "python-dotenv>=1.0.0",
+    "fastapi>=0.135.1",
+    "uvicorn>=0.30.0",
+    "modelscope>=1.37.1",
+]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu" }
+]
+torchvision = [
+    { index = "pytorch-cpu" }
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
